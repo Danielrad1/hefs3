@@ -6,12 +6,14 @@ import { useTheme } from '../../design';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { Difficulty } from '../../domain/srsTypes';
+import { CardType } from '../../services/anki/schema';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type RightRailProps = {
   onAnswer: (difficulty: Difficulty) => void;
   visible: boolean;
+  cardType: CardType | null;
 };
 
 type DifficultyButton = {
@@ -27,12 +29,22 @@ const difficultyButtons: DifficultyButton[] = [
   { difficulty: 'easy', label: 'Easy', color: '#3B82F6' },
 ];
 
-export default function RightRail({ onAnswer, visible }: RightRailProps) {
+export default function RightRail({ onAnswer, visible, cardType }: RightRailProps) {
   const theme = useTheme();
+
+  // For learning cards (new, learning, relearning), hide "Hard" button
+  // Anki only shows 3 buttons: Again, Good, Easy
+  const isLearning = cardType === CardType.New || 
+                     cardType === CardType.Learning || 
+                     cardType === CardType.Relearning;
+  
+  const buttons = isLearning
+    ? difficultyButtons.filter(b => b.difficulty !== 'hard')
+    : difficultyButtons;
 
   return (
     <View style={styles.container}>
-      {difficultyButtons.map((button, index) => (
+      {buttons.map((button, index) => (
         <DifficultyButton
           key={button.difficulty}
           button={button}
