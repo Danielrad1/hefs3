@@ -39,10 +39,15 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
   const translateY = useSharedValue(0);
   const isRevealed = useSharedValue(false);
   const revealProgress = useSharedValue(0);
-  const shadowProgress = useSharedValue(isCurrent ? 1 : 0);
+  const shadowProgress = useSharedValue(0);
 
   React.useEffect(() => {
-    shadowProgress.value = withTiming(isCurrent ? 1 : 0, { duration: 1100 });
+    // Animate shadow in when card becomes current
+    if (isCurrent) {
+      shadowProgress.value = withTiming(1, { duration: 1000 });
+    } else {
+      shadowProgress.value = withTiming(0, { duration:1000 });
+    }
   }, [isCurrent, shadowProgress]);
 
   const handleReveal = () => {

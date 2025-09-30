@@ -10,6 +10,7 @@ import { db } from '../services/anki/InMemoryDb';
 import { SchedulerV2 } from '../services/anki/SchedulerV2';
 import { bootstrapFromSeed, toViewCard } from '../services/anki/Adapter';
 import { RevlogEase, CardType } from '../services/anki/schema';
+import { isDue } from '../services/anki/time';
 
 interface SchedulerContextValue {
   current: Card | null;
@@ -25,7 +26,7 @@ interface SchedulerContextValue {
     reviewCount: number;
     totalCards: number;
   };
-  decks: Array<{ id: string; name: string; cardCount: number }>;
+  decks: Array<{ id: string; name: string; cardCount: number; dueCount: number }>;
 }
 
 const SchedulerContext = createContext<SchedulerContextValue | null>(null);
@@ -42,7 +43,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     reviewCount: 0,
     totalCards: 0,
   });
-  const [decks, setDecks] = useState<Array<{ id: string; name: string; cardCount: number }>>([]);
+  const [decks, setDecks] = useState<Array<{ id: string; name: string; cardCount: number; dueCount: number }>>([]);
 
   // Load current and next cards
   const loadCards = useCallback(() => {
@@ -70,13 +71,21 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     // Update stats
     setStats(db.getStats(currentDeckId || undefined));
     
-    // Update decks list
+    // Update decks list with due counts
     const allDecks = db.getAllDecks();
-    setDecks(allDecks.map(d => ({
-      id: d.id,
-      name: d.name,
-      cardCount: db.getCardsByDeck(d.id).length,
-    })));
+    setDecks(allDecks.map(d => {
+      const deckCards = db.getCardsByDeck(d.id);
+      const dueCards = deckCards.filter(c => {
+        const col = db.getCol();
+        return isDue(c.due, c.type, col);
+      });
+      return {
+        id: d.id,
+        name: d.name,
+        cardCount: deckCards.length,
+        dueCount: dueCards.length,
+      };
+    }));
   }, [scheduler, currentDeckId]);
 
   // Bootstrap with seed data

@@ -45,7 +45,7 @@ export default function DecksScreen() {
             All Decks
           </Text>
           <Text style={[styles.cardCount, { color: theme.colors.textSecondary }]}>
-            {decks.reduce((sum, d) => sum + d.cardCount, 0)} cards
+            {decks.reduce((sum, d) => sum + d.dueCount, 0)} due · {decks.reduce((sum, d) => sum + d.cardCount, 0)} total
           </Text>
         </Pressable>
 
@@ -67,7 +67,7 @@ export default function DecksScreen() {
               {deck.name}
             </Text>
             <Text style={[styles.cardCount, { color: theme.colors.textSecondary }]}>
-              {deck.cardCount} cards
+              {deck.dueCount} due · {deck.cardCount} total
             </Text>
           </Pressable>
         ))}
