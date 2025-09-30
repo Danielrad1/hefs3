@@ -4,13 +4,10 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-na
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useTheme } from '../../design';
 import { useHaptics } from '../../hooks/useHaptics';
-import { Card } from '../../domain/models';
 import { Difficulty } from '../../domain/srsTypes';
 import { sampleCards } from '../../mocks/sampleCards';
 import { useScheduler } from '../../context/SchedulerProvider';
-import { CardType } from '../../services/anki/schema';
 import CardPage from './CardPage';
-import RightRail from './RightRail';
 
 export default function StudyScreen() {
   const theme = useTheme();
@@ -152,13 +149,6 @@ export default function StudyScreen() {
       
       {/* Screen overlay for swipe feedback */}
       <Animated.View style={[styles.screenOverlay, overlayStyle]} pointerEvents="none" />
-
-      {/* Right rail for button answers */}
-      <RightRail
-        onAnswer={handleAnswer}
-        visible={isCurrentRevealed}
-        cardType={cardType}
-      />
       
       <ConfettiCannon
         ref={confettiRef}
