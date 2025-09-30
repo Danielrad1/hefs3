@@ -243,6 +243,22 @@ export class InMemoryDb {
     return Array.from(this.decks.values());
   }
 
+  addDeck(deck: Deck): void {
+    this.decks.set(deck.id, deck);
+    // Sync to col.decks JSON
+    this.syncDecksToCol();
+  }
+
+  private syncDecksToCol(): void {
+    if (!this.col) return;
+    const decksObj: Record<string, Deck> = {};
+    this.decks.forEach((deck, id) => {
+      decksObj[id] = deck;
+    });
+    this.col.decks = JSON.stringify(decksObj);
+    this.col.mod = nowMillis();
+  }
+
   getDeckConfig(id: string): DeckConfig | undefined {
     return this.deckConfigs.get(id);
   }

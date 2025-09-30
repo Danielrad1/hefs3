@@ -15,14 +15,17 @@ interface SchedulerContextValue {
   current: Card | null;
   next: Card | null;
   cardType: CardType | null;
+  currentDeckId: string | null;
   answer: (difficulty: Difficulty, responseTimeMs: number) => void;
   bootstrap: (cards: Card[]) => void;
+  setDeck: (deckId: string | null) => void;
   stats: {
     newCount: number;
     learningCount: number;
     reviewCount: number;
     totalCards: number;
   };
+  decks: Array<{ id: string; name: string; cardCount: number }>;
 }
 
 const SchedulerContext = createContext<SchedulerContextValue | null>(null);
@@ -32,17 +35,23 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
   const [current, setCurrent] = useState<Card | null>(null);
   const [next, setNext] = useState<Card | null>(null);
   const [cardType, setCardType] = useState<CardType | null>(null);
+  const [currentDeckId, setCurrentDeckId] = useState<string | null>(null);
   const [stats, setStats] = useState({
     newCount: 0,
     learningCount: 0,
     reviewCount: 0,
     totalCards: 0,
   });
+  const [decks, setDecks] = useState<Array<{ id: string; name: string; cardCount: number }>>([]);
 
   // Load current and next cards
   const loadCards = useCallback(() => {
-    const currentAnkiCard = scheduler.getNext();
-    const nextAnkiCard = currentAnkiCard ? scheduler.peekNext() : null;
+    console.log('[SchedulerProvider] Loading cards for deck:', currentDeckId || 'all');
+    const currentAnkiCard = scheduler.getNext(currentDeckId || undefined);
+    console.log('[SchedulerProvider] Current card:', currentAnkiCard?.id);
+    
+    const nextAnkiCard = currentAnkiCard ? scheduler.peekNext(currentDeckId || undefined) : null;
+    console.log('[SchedulerProvider] Next card:', nextAnkiCard?.id);
 
     if (currentAnkiCard) {
       setCurrent(toViewCard(currentAnkiCard, db));
@@ -59,8 +68,16 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Update stats
-    setStats(db.getStats());
-  }, [scheduler]);
+    setStats(db.getStats(currentDeckId || undefined));
+    
+    // Update decks list
+    const allDecks = db.getAllDecks();
+    setDecks(allDecks.map(d => ({
+      id: d.id,
+      name: d.name,
+      cardCount: db.getCardsByDeck(d.id).length,
+    })));
+  }, [scheduler, currentDeckId]);
 
   // Bootstrap with seed data
   const bootstrap = useCallback((cards: Card[]) => {
@@ -68,6 +85,11 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     bootstrapFromSeed(db, cards);
     loadCards();
   }, [loadCards]);
+
+  // Set active deck
+  const setDeck = useCallback((deckId: string | null) => {
+    setCurrentDeckId(deckId);
+  }, []);
 
   // Answer current card
   const answer = useCallback((difficulty: Difficulty, responseTimeMs: number) => {
@@ -131,13 +153,23 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     loadCards();
   }, [current, cardType, scheduler, loadCards]);
 
+  // Reload cards when deck changes
+  useEffect(() => {
+    if (current || next) {
+      loadCards();
+    }
+  }, [currentDeckId]);
+
   const value: SchedulerContextValue = {
     current,
     next,
     cardType,
+    currentDeckId,
     answer,
     bootstrap,
+    setDeck,
     stats,
+    decks,
   };
 
   return (

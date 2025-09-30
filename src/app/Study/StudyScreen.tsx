@@ -56,11 +56,13 @@ export default function StudyScreen() {
     // Calculate response time
     const responseTimeMs = Date.now() - responseStartTime;
     
-    // Call scheduler to process answer
-    answer(difficulty, responseTimeMs);
-    
     // Fade out color overlay smoothly as card flies away
     overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 400 });
+    
+    // Delay state update to let card fly away animation complete
+    setTimeout(() => {
+      answer(difficulty, responseTimeMs);
+    }, 250);
   };
 
   const handleSwipeChange = (translateX: number, translateY: number, isRevealed: boolean) => {
@@ -123,20 +125,9 @@ export default function StudyScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      {/* Render current card */}
-      <View style={[styles.cardWrapper, styles.currentCardWrapper]}>
-        <CardPage
-          card={current}
-          onAnswer={handleAnswer}
-          onSwipeChange={handleSwipeChange}
-          isCurrent={true}
-          onReveal={() => setIsCurrentRevealed(true)}
-        />
-      </View>
-
-      {/* Render next card behind if revealed */}
-      {next && isCurrentRevealed && (
-        <View style={[styles.cardWrapper, styles.nextCardWrapper]}>
+      {/* Render next card behind (always visible for preview) */}
+      {next && (
+        <View key={`next-${next.id}`} style={[styles.cardWrapper, styles.nextCardWrapper]}>
           <CardPage
             card={next}
             onAnswer={() => {}}
@@ -146,6 +137,17 @@ export default function StudyScreen() {
           />
         </View>
       )}
+
+      {/* Render current card on top */}
+      <View key={`current-${current.id}`} style={[styles.cardWrapper, styles.currentCardWrapper]}>
+        <CardPage
+          card={current}
+          onAnswer={handleAnswer}
+          onSwipeChange={handleSwipeChange}
+          isCurrent={true}
+          onReveal={() => setIsCurrentRevealed(true)}
+        />
+      </View>
       
       {/* Screen overlay for swipe feedback */}
       <Animated.View style={[styles.screenOverlay, overlayStyle]} pointerEvents="none" />

@@ -18,10 +18,28 @@ import { nowSeconds, generateId } from './time';
 
 /**
  * Bootstrap the database with seed cards
+ * Creates decks dynamically for any unique deckIds
  */
 export function bootstrapFromSeed(db: InMemoryDb, cards: Card[]): void {
   const now = nowSeconds();
-  const col = db.getCol();
+  
+  // Collect unique deck IDs and create decks
+  const deckIds = new Set(cards.map(c => c.deckId).filter(Boolean));
+  deckIds.forEach(deckId => {
+    if (deckId && !db.getDeck(deckId)) {
+      // Create deck if it doesn't exist
+      db.addDeck({
+        id: deckId,
+        name: deckId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        desc: '',
+        conf: '1',  // Use default deck config
+        mod: now,
+        usn: -1,
+        collapsed: false,
+        browserCollapsed: false,
+      });
+    }
+  });
 
   cards.forEach((card, index) => {
     // Create note
@@ -40,12 +58,13 @@ export function bootstrapFromSeed(db: InMemoryDb, cards: Card[]): void {
       data: '',
     };
 
-    // Create card
+    // Create card with proper deck
     const cardId = generateId() + index + 1;
+    const deckId = card.deckId || DEFAULT_DECK_ID;
     const ankiCard: AnkiCard = {
       id: cardId,
       nid: noteId,
-      did: card.deckId || DEFAULT_DECK_ID,
+      did: deckId,
       ord: 0,  // first card template
       mod: now,
       usn: -1,
@@ -85,7 +104,7 @@ export function toViewCard(ankiCard: AnkiCard, db: InMemoryDb): Card {
     id: ankiCard.id,
     front,
     back,
-    deckId: ankiCard.did,
+    deckId: ankiCard.did || DEFAULT_DECK_ID,
   };
 }
 

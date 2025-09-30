@@ -88,9 +88,47 @@ export class SchedulerV2 {
 
   /**
    * Peek at the next card without removing from queue
+   * Returns the second card in queue (after current)
    */
   peekNext(deckId?: string): AnkiCard | null {
-    return this.getNext(deckId);
+    const col = this.db.getCol();
+    const now = nowSeconds();
+
+    const cards = deckId
+      ? this.db.getCardsByDeck(deckId)
+      : this.db.getAllCards();
+
+    // Filter out suspended and buried
+    const activeCards = cards.filter(
+      (c) => c.queue !== CardQueue.Suspended &&
+             c.queue !== CardQueue.UserBuried &&
+             c.queue !== CardQueue.SchedBuried
+    );
+
+    // Get all due cards (same priority as getNext)
+    const allDue = [
+      // Learning cards
+      ...activeCards
+        .filter((c) => 
+          (c.queue === CardQueue.Learning || c.queue === CardQueue.DayLearn) &&
+          isDue(c.due, c.type, col, now)
+        )
+        .sort((a, b) => a.due - b.due),
+      // Review cards
+      ...activeCards
+        .filter((c) => 
+          c.queue === CardQueue.Review &&
+          isDue(c.due, c.type, col, now)
+        )
+        .sort((a, b) => a.due - b.due),
+      // New cards
+      ...activeCards
+        .filter((c) => c.queue === CardQueue.New)
+        .sort((a, b) => a.due - b.due),
+    ];
+    
+    // Return second card (index 1)
+    return allDue.length > 1 ? allDue[1] : null;
   }
 
   // ==========================================================================
