@@ -1,16 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
+import { View, StyleSheet, Dimensions } from 'react-native';
+import Animated, { 
+  useAnimatedStyle, 
+  withTiming, 
+  interpolate, 
   useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
   runOnJS,
-  interpolate,
+  withSpring,
   Extrapolate,
-  useAnimatedReaction,
+  useAnimatedReaction
 } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../../design';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
@@ -18,6 +18,7 @@ import { sh } from '../../design/shadows';
 import { Card } from '../../domain/models';
 import { Difficulty } from '../../domain/srsTypes';
 import { useHaptics } from '../../hooks/useHaptics';
+import CardContentRenderer from '../../components/CardContentRenderer';
 
 const { height, width } = Dimensions.get('window');
 
@@ -40,6 +41,9 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
   const isRevealed = useSharedValue(false);
   const revealProgress = useSharedValue(0);
   const shadowProgress = useSharedValue(0);
+  
+  // React state for revealed status (for rendering)
+  const [revealed, setRevealed] = React.useState(false);
 
   React.useEffect(() => {
     // Animate shadow in when card becomes current
@@ -54,9 +58,11 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
     'worklet';
     if (!isRevealed.value) {
       isRevealed.value = true;
+      runOnJS(setRevealed)(true);
       if (onReveal) {
         runOnJS(onReveal)();
       }
+      revealProgress.value = withTiming(1, { duration: 300 });
     }
   };
 
@@ -268,15 +274,18 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
         {/* Single card with text that changes */}
         <View style={styles.cardContainer}>
           <Animated.View style={[styles.card, { backgroundColor: theme.colors.surface }, sh.card, cardShadowStyle]}>
-            <Animated.Text style={[styles.cardText, { color: theme.colors.textPrimary }, cardTextStyle]}>
-              {displayText}
-            </Animated.Text>
+            <CardContentRenderer 
+              html={displayText}
+              revealed={revealed}
+              clozeIndex={0}
+              cardId={card.id}
+            />
           </Animated.View>
         </View>
 
         {/* Swipe direction icon - on top */}
         <Animated.View style={[styles.iconContainer, iconAnimatedStyle]} pointerEvents="none">
-          <Text style={styles.icon}>{swipeIcon}</Text>
+          <Animated.Text style={styles.icon}>{swipeIcon}</Animated.Text>
         </Animated.View>
       </Animated.View>
     </GestureDetector>
@@ -303,9 +312,8 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '80%',
     borderRadius: r.lg,
-    padding: s.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: s.md,
+    overflow: 'hidden',
   },
   cardText: {
     fontSize: 28,

@@ -20,6 +20,7 @@ interface SchedulerContextValue {
   answer: (difficulty: Difficulty, responseTimeMs: number) => void;
   bootstrap: (cards: Card[]) => void;
   setDeck: (deckId: string | null) => void;
+  reload: () => void;
   stats: {
     newCount: number;
     learningCount: number;
@@ -169,6 +170,12 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentDeckId]);
 
+  // Reload function to refresh from database
+  const reload = useCallback(() => {
+    console.log('[SchedulerProvider] Reloading from database');
+    loadCards();
+  }, [loadCards]);
+
   const value: SchedulerContextValue = {
     current,
     next,
@@ -177,6 +184,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     answer,
     bootstrap,
     setDeck,
+    reload,
     stats,
     decks,
   };

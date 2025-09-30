@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.memorize-app"
+      "bundleIdentifier": "com.anonymous.memorize-app",
+      "infoPlist": {
+        "NSDocumentsFolderUsageDescription": "This app needs access to documents to import Anki decks"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,10 +26,15 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.memorizeapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-asset"
+    ]
   }
 }

@@ -309,6 +309,8 @@ export class InMemoryDb {
   clear(): void {
     this.cards.clear();
     this.notes.clear();
+    this.decks.clear();
+    this.deckConfigs.clear();
     this.revlog = [];
     this.graves = [];
     this.initializeCollection();

@@ -20,10 +20,11 @@ export default function StudyScreen() {
   
   const overlayColor = useSharedValue('rgba(0, 0, 0, 0)');
 
-  // Bootstrap with sample cards on mount
-  useEffect(() => {
-    bootstrap(sampleCards);
-  }, [bootstrap]);
+  // DO NOT bootstrap here - it overwrites imported decks!
+  // Bootstrap is only called from Settings after import or on first launch
+  // useEffect(() => {
+  //   bootstrap(sampleCards);
+  // }, [bootstrap]);
   
   // Reset overlay and revealed state when card changes
   useEffect(() => {
