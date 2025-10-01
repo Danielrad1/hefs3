@@ -107,8 +107,8 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     // Update stats
     setStats(db.getStats(currentDeckId || undefined));
     
-    // Update decks list with due counts
-    const allDecks = db.getAllDecks();
+    // Update decks list with due counts (exclude Default deck)
+    const allDecks = db.getAllDecks().filter(d => d.id !== '1');
     setDecks(allDecks.map(d => {
       const deckCards = db.getCardsByDeck(d.id);
       const dueCards = deckCards.filter(c => {

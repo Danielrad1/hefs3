@@ -4,6 +4,7 @@ import { View, Text, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import RootNav from './navigation';
 import { SchedulerProvider } from './context/SchedulerProvider';
+import { ThemeProvider } from './design/theme';
 import { PersistenceService } from './services/anki/PersistenceService';
 import { db } from './services/anki/InMemoryDb';
 
@@ -43,10 +44,12 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SchedulerProvider>
-        <RootNav />
-        <StatusBar style="auto" />
-      </SchedulerProvider>
+      <ThemeProvider>
+        <SchedulerProvider>
+          <RootNav />
+          <StatusBar style="auto" />
+        </SchedulerProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

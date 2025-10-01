@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -19,6 +19,12 @@ export default function SettingsScreen() {
   const { bootstrap, reload, setDeck } = useScheduler();
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<string>('');
+
+  const themeOptions = [
+    { value: 'system', label: 'System' },
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+  ] as const;
 
   const handleImportDeck = async () => {
     try {
@@ -192,68 +198,121 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
-      <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-        Settings
-      </Text>
-
-      {/* Import Section */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-          Import Deck
-        </Text>
-        <Text style={[styles.sectionDesc, { color: theme.colors.textSecondary }]}>
-          Import any Anki deck (.apkg file) from your device. Supports all card types, media, and scheduling data.
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          Settings
         </Text>
 
-        <Pressable
-          style={[
-            styles.importButton,
-            { backgroundColor: theme.colors.accent },
-            importing && styles.importButtonDisabled,
-          ]}
-          onPress={handleImportDeck}
-          disabled={importing}
-        >
-          {importing ? (
-            <View style={styles.importingContainer}>
-              <ActivityIndicator color="#FFFFFF" />
-              <Text style={styles.importButtonText}>{progress}</Text>
-            </View>
-          ) : (
-            <Text style={styles.importButtonText}>Import .apkg File</Text>
-          )}
-        </Pressable>
-      </View>
+        {/* Appearance Section */}
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+              Appearance
+            </Text>
+          </View>
+          <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>
+            Choose your preferred theme
+          </Text>
 
-      {/* Danger Zone */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.danger }]}>
-          Danger Zone
-        </Text>
-        <Text style={[styles.sectionDesc, { color: theme.colors.textSecondary }]}>
-          Clear all data and start fresh. Useful for fixing database issues.
-        </Text>
+          <View style={styles.themeOptions}>
+            {themeOptions.map((option) => (
+              <Pressable
+                key={option.value}
+                style={[
+                  styles.themeOption,
+                  {
+                    backgroundColor: theme.themePreference === option.value 
+                      ? theme.colors.accent 
+                      : theme.colors.bg,
+                    borderColor: theme.themePreference === option.value
+                      ? theme.colors.accent
+                      : theme.colors.border,
+                  }
+                ]}
+                onPress={() => theme.setThemePreference(option.value)}
+              >
+                <Text style={[
+                  styles.themeOptionText,
+                  { 
+                    color: theme.themePreference === option.value 
+                      ? '#FFFFFF' 
+                      : theme.colors.textPrimary 
+                  }
+                ]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
-        <Pressable
-          style={[styles.dangerButton, { backgroundColor: theme.colors.danger }]}
-          onPress={handleClearDatabase}
-        >
-          <Text style={styles.importButtonText}>Clear All Data</Text>
-        </Pressable>
-      </View>
+        {/* Import Section */}
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+              Import Deck
+            </Text>
+          </View>
+          <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>
+            Import any Anki deck (.apkg file) from your device.
+          </Text>
 
-      {/* Info Section */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-          About
-        </Text>
-        <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          Anki-compatible spaced repetition app
-        </Text>
-        <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          Version 1.0.0
-        </Text>
-      </View>
+          <Pressable
+            style={[
+              styles.button,
+              { backgroundColor: theme.colors.accent },
+              importing && styles.buttonDisabled,
+            ]}
+            onPress={handleImportDeck}
+            disabled={importing}
+          >
+            {importing ? (
+              <View style={styles.buttonContent}>
+                <ActivityIndicator color="#000" />
+                <Text style={[styles.buttonText, { color: '#000' }]}>{progress}</Text>
+              </View>
+            ) : (
+              <Text style={[styles.buttonText, { color: '#000' }]}>Choose File</Text>
+            )}
+          </Pressable>
+        </View>
+
+        {/* Danger Zone */}
+        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.danger, borderWidth: 1 }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: theme.colors.danger }]}>
+              Danger Zone
+            </Text>
+          </View>
+          <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>
+            Clear all data and start fresh. This action cannot be undone.
+          </Text>
+
+          <Pressable
+            style={[styles.button, { backgroundColor: theme.colors.danger }]}
+            onPress={handleClearDatabase}
+          >
+            <Text style={[styles.buttonText, { color: '#FFF' }]}>Clear All Data</Text>
+          </Pressable>
+        </View>
+
+        {/* Info Section */}
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+              About
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>App</Text>
+            <Text style={[styles.infoValue, { color: theme.colors.textPrimary }]}>Anki SRS</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>Version</Text>
+            <Text style={[styles.infoValue, { color: theme.colors.textPrimary }]}>1.0.0</Text>
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -261,34 +320,33 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
     padding: s.lg,
+    gap: s.lg,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
-    marginBottom: s.xl,
+    marginBottom: s.md,
   },
-  section: {
-    marginBottom: s.xl,
+  card: {
+    padding: s.lg,
+    borderRadius: r.lg,
+    gap: s.md,
   },
-  sectionTitle: {
+  cardHeader: {
+    marginBottom: s.xs,
+  },
+  cardTitle: {
     fontSize: 20,
     fontWeight: '600',
-    marginBottom: s.sm,
   },
-  sectionDesc: {
+  cardDesc: {
     fontSize: 14,
-    marginBottom: s.md,
     lineHeight: 20,
   },
-  importButton: {
-    paddingVertical: s.md,
-    paddingHorizontal: s.lg,
-    borderRadius: r.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dangerButton: {
+  button: {
     paddingVertical: s.md,
     paddingHorizontal: s.lg,
     borderRadius: r.md,
@@ -296,21 +354,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 50,
   },
-  importButtonDisabled: {
+  buttonDisabled: {
     opacity: 0.6,
   },
-  importButtonText: {
-    color: '#FFFFFF',
+  buttonText: {
     fontSize: 16,
     fontWeight: '600',
   },
-  importingContainer: {
+  buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: s.sm,
   },
-  infoText: {
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: s.sm,
+  },
+  infoLabel: {
     fontSize: 14,
-    marginBottom: s.xs,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  themeOptions: {
+    flexDirection: 'row',
+    gap: s.sm,
+  },
+  themeOption: {
+    flex: 1,
+    paddingVertical: s.md,
+    paddingHorizontal: s.sm,
+    borderRadius: r.md,
+    borderWidth: 2,
+    alignItems: 'center',
+  },
+  themeOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

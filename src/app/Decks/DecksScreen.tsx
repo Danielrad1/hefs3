@@ -15,21 +15,21 @@ import { PersistenceService } from '../../services/anki/PersistenceService';
 
 interface DeckNode {
   deck: { id: string; name: string; cardCount: number; dueCount: number };
-  children: DeckNode[];
   level: number;
 }
 
 export default function DecksScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
-  const { decks, currentDeckId, setDeck, reload } = useScheduler();
+  const navigation = useNavigation<any>();
+  const { decks, setDeck: setCurrentDeck, currentDeckId, reload } = useScheduler();
   const [expandedDecks, setExpandedDecks] = useState<Set<string>>(new Set());
-  const [actionSheetVisible, setActionSheetVisible] = useState(false);
-  const [selectedDeck, setSelectedDeck] = useState<{ id: string; name: string } | null>(null);
   const [isCreatingDeck, setIsCreatingDeck] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [selectedDeck, setSelectedDeck] = useState<DeckWithStats | null>(null);
   const [renameModalVisible, setRenameModalVisible] = useState(false);
-  const [deckToRename, setDeckToRename] = useState<{ id: string; name: string } | null>(null);
+  const [deckToRename, setDeckToRename] = useState<DeckWithStats | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const deckService = React.useMemo(() => new DeckService(db), []);
   const cardService = React.useMemo(() => new CardService(db), []);
@@ -274,9 +274,9 @@ export default function DecksScreen() {
             styles.deckCard,
             {
               backgroundColor: theme.colors.surface,
-              borderColor: currentDeckId === node.deck.id ? theme.colors.accent : 'transparent',
-              borderWidth: 2,
               marginLeft: indent,
+              borderLeftWidth: currentDeckId === node.deck.id ? 4 : 0,
+              borderLeftColor: theme.colors.accent,
             },
           ]}
           onPress={() => {
@@ -286,21 +286,51 @@ export default function DecksScreen() {
               handleDeckPress(node.deck.id);
             }
           }}
+          onLongPress={() => {
+            setSelectedDeck(node.deck);
+            setActionSheetVisible(true);
+          }}
         >
-          <View style={styles.deckInfo}>
-            {hasChildren && (
-              <Text style={[styles.expandIcon, { color: theme.colors.textSecondary }]}>
-                {isExpanded ? '▼' : '▶'}
-              </Text>
-            )}
-            <View style={{ flex: 1 }}>
+          <View style={styles.deckHeader}>
+            <View style={styles.deckTitleRow}>
+              {hasChildren && (
+                <Text style={[styles.expandIcon, { color: theme.colors.textSecondary }]}>
+                  {isExpanded ? '▼' : '▶'}
+                </Text>
+              )}
               <Text style={[styles.deckName, { color: theme.colors.textPrimary }]}>
                 {leafName}
               </Text>
             </View>
-            <Text style={[styles.cardCount, { color: theme.colors.textSecondary }]}>
-              {node.deck.dueCount} due · {node.deck.cardCount} total
-            </Text>
+            <Pressable
+              style={styles.moreButton}
+              onPress={() => {
+                setSelectedDeck(node.deck);
+                setActionSheetVisible(true);
+              }}
+            >
+              <Text style={[styles.moreIcon, { color: theme.colors.textSecondary }]}>⋯</Text>
+            </Pressable>
+          </View>
+          
+          <View style={styles.deckStats}>
+            <View style={styles.statBadge}>
+              <Text style={[styles.statNumber, { color: theme.colors.accent }]}>
+                {node.deck.dueCount}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                due
+              </Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBadge}>
+              <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>
+                {node.deck.cardCount}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                total
+              </Text>
+            </View>
           </View>
         </Pressable>
       );
@@ -313,6 +343,49 @@ export default function DecksScreen() {
 
     return elements;
   };
+
+  // Filter decks by search query
+  const filteredDecks = React.useMemo(() => {
+    if (!searchQuery.trim()) return decks;
+    const query = searchQuery.toLowerCase();
+    return decks.filter(d => d.name.toLowerCase().includes(query));
+  }, [decks, searchQuery]);
+
+  // Build tree from filtered decks
+  const filteredDeckTree = React.useMemo(() => {
+    const tree: any[] = [];
+    const map = new Map<string, any>();
+
+    filteredDecks.forEach(deck => {
+      const node = {
+        deck,
+        level: 0,
+        children: [],
+      };
+      map.set(deck.name, node);
+    });
+
+    filteredDecks.forEach(deck => {
+      const node = map.get(deck.name);
+      if (!node) return;
+
+      const parts = deck.name.split('::');
+      if (parts.length > 1) {
+        const parentName = parts.slice(0, -1).join('::');
+        const parent = map.get(parentName);
+        if (parent) {
+          parent.children.push(node);
+          node.level = parent.level + 1;
+        } else {
+          tree.push(node);
+        }
+      } else {
+        tree.push(node);
+      }
+    });
+
+    return tree;
+  }, [filteredDecks]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
@@ -327,6 +400,23 @@ export default function DecksScreen() {
           >
             <Text style={styles.addButtonText}>+</Text>
           </Pressable>
+        </View>
+
+        {/* Search Bar */}
+        <View style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.searchIcon, { color: theme.colors.textSecondary }]}>🔍</Text>
+          <TextInput
+            style={[styles.searchInput, { color: theme.colors.textPrimary }]}
+            placeholder="Search decks..."
+            placeholderTextColor={theme.colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')}>
+              <Text style={[styles.clearIcon, { color: theme.colors.textSecondary }]}>✕</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Create deck input */}
@@ -365,7 +455,15 @@ export default function DecksScreen() {
         )}
 
         {/* Render deck tree */}
-        {renderDeckNode(buildDeckTree, 0)}
+        {filteredDecks.length > 0 ? (
+          renderDeckNode(filteredDeckTree, 0)
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+              {searchQuery ? 'No decks found' : 'No decks yet'}
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Deck Action Sheet */}
@@ -459,30 +557,86 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   deckCard: {
-    padding: s.md,
-    borderRadius: r.md,
-    marginBottom: s.xs,
+    padding: s.lg,
+    borderRadius: r.lg,
+    marginBottom: s.md,
   },
-  deckInfo: {
+  deckHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: s.md,
+  },
+  deckTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: s.sm,
+    flex: 1,
   },
   expandIcon: {
     fontSize: 14,
     width: 20,
-    textAlign: 'center',
   },
   deckName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
-  deckPath: {
-    fontSize: 12,
-    opacity: 0.7,
-    marginTop: 2,
+  moreButton: {
+    padding: s.xs,
   },
-  cardCount: {
-    fontSize: 13,
+  moreIcon: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  deckStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.md,
+  },
+  statBadge: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: s.xs / 2,
+  },
+  statLabel: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: r.lg,
+    paddingHorizontal: s.md,
+    paddingVertical: s.sm,
+    marginBottom: s.md,
+    gap: s.sm,
+  },
+  searchIcon: {
+    fontSize: 16,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    padding: 0,
+  },
+  clearIcon: {
+    fontSize: 18,
+    padding: s.xs,
+  },
+  emptyState: {
+    padding: s.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
   },
 });
