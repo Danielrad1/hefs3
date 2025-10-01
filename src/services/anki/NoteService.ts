@@ -7,7 +7,7 @@ import { AnkiNote, AnkiCard, CardType, CardQueue, FIELD_SEPARATOR, DEFAULT_EASE_
 import { nowSeconds, generateId } from './time';
 
 export interface CreateNoteParams {
-  modelId: string;
+  modelId: string | number;  // Accept both for flexibility
   deckId: string;
   fields: string[];
   tags?: string[];

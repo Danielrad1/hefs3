@@ -94,6 +94,8 @@ export function bootstrapFromSeed(db: InMemoryDb, cards: Card[]): void {
 export function toViewCard(ankiCard: AnkiCard, db: InMemoryDb): Card {
   const note = db.getNote(ankiCard.nid);
   if (!note) {
+    console.error(`[Adapter] Note ${ankiCard.nid} not found for card ${ankiCard.id}`);
+    console.error(`[Adapter] This card is orphaned and should be cleaned up`);
     throw new Error(`Note ${ankiCard.nid} not found`);
   }
 

@@ -166,6 +166,30 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleClearDatabase = () => {
+    Alert.alert(
+      'Clear All Data',
+      'This will delete ALL decks, cards, and progress. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Everything',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await PersistenceService.clear();
+              db.clear();
+              reload();
+              Alert.alert('Success', 'All data has been cleared. You can now import decks fresh.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to clear database');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
@@ -198,6 +222,23 @@ export default function SettingsScreen() {
           ) : (
             <Text style={styles.importButtonText}>Import .apkg File</Text>
           )}
+        </Pressable>
+      </View>
+
+      {/* Danger Zone */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.danger }]}>
+          Danger Zone
+        </Text>
+        <Text style={[styles.sectionDesc, { color: theme.colors.textSecondary }]}>
+          Clear all data and start fresh. Useful for fixing database issues.
+        </Text>
+
+        <Pressable
+          style={[styles.dangerButton, { backgroundColor: theme.colors.danger }]}
+          onPress={handleClearDatabase}
+        >
+          <Text style={styles.importButtonText}>Clear All Data</Text>
         </Pressable>
       </View>
 
@@ -241,6 +282,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   importButton: {
+    paddingVertical: s.md,
+    paddingHorizontal: s.lg,
+    borderRadius: r.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dangerButton: {
     paddingVertical: s.md,
     paddingHorizontal: s.lg,
     borderRadius: r.md,

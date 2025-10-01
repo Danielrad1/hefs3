@@ -550,6 +550,7 @@ export class InMemoryDb {
   // ==========================================================================
 
   clear(): void {
+    console.log('[InMemoryDb] Clearing all data...');
     this.cards.clear();
     this.notes.clear();
     this.decks.clear();
@@ -558,16 +559,35 @@ export class InMemoryDb {
     this.media.clear();
     this.revlog = [];
     this.graves = [];
+    this.col = null;
+    this.colConfig = null;
+    
+    // Reinitialize with defaults
     this.initializeCollection();
+    console.log('[InMemoryDb] Database cleared and reinitialized');
   }
 
-  incrementNextPos(): number {
-    if (!this.colConfig) {
-      throw new Error('Collection config not initialized');
+  /**
+   * Remove orphaned cards (cards without notes)
+   */
+  cleanupOrphanedCards(): number {
+    const allCards = this.getAllCards();
+    let removedCount = 0;
+    
+    allCards.forEach(card => {
+      const note = this.notes.get(card.nid);
+      if (!note) {
+        console.warn('[InMemoryDb] Removing orphaned card:', card.id, 'missing note:', card.nid);
+        this.cards.delete(card.id);
+        removedCount++;
+      }
+    });
+    
+    if (removedCount > 0) {
+      console.log('[InMemoryDb] Removed', removedCount, 'orphaned cards');
     }
-    const nextPos = this.colConfig.nextPos;
-    this.colConfig.nextPos += 1;
-    return nextPos;
+    
+    return removedCount;
   }
 
   // ==========================================================================
@@ -619,10 +639,20 @@ export class InMemoryDb {
     this.graves = snapshot.graves || [];
     snapshot.decks.forEach((deck: Deck) => this.decks.set(deck.id, deck));
     snapshot.deckConfigs.forEach((conf: DeckConfig) => this.deckConfigs.set(conf.id, conf));
-    snapshot.models.forEach((model: Model) => this.models.set(model.id, model));
+    // Convert model IDs to numbers (JSON keys are strings)
+    snapshot.models.forEach((model: Model) => {
+      const numericId = typeof model.id === 'string' ? parseInt(model.id, 10) : model.id;
+      this.models.set(numericId, { ...model, id: numericId });
+    });
     snapshot.media.forEach((media: Media) => this.media.set(media.id, media));
     this.colConfig = snapshot.colConfig;
     this.usn = snapshot.usn;
+    
+    // Cleanup orphaned cards after loading
+    const orphanedCount = this.cleanupOrphanedCards();
+    if (orphanedCount > 0) {
+      console.log('[InMemoryDb] Cleaned up', orphanedCount, 'orphaned cards after loading');
+    }
   }
 }
 

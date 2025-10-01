@@ -58,9 +58,16 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     console.log('[SchedulerProvider] Next card:', nextAnkiCard?.id);
 
     if (currentAnkiCard) {
-      setCurrent(toViewCard(currentAnkiCard, db));
-      setCardType(currentAnkiCard.type);
-      setNextCardDueInSeconds(null); // Card available now
+      try {
+        setCurrent(toViewCard(currentAnkiCard, db));
+        setCardType(currentAnkiCard.type);
+        setNextCardDueInSeconds(null); // Card available now
+      } catch (error) {
+        console.error('[SchedulerProvider] Error loading current card:', error);
+        // Skip this card and try to get next one
+        setCurrent(null);
+        setCardType(null);
+      }
     } else {
       setCurrent(null);
       setCardType(null);
@@ -87,7 +94,12 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (nextAnkiCard && nextAnkiCard.id !== currentAnkiCard?.id) {
-      setNext(toViewCard(nextAnkiCard, db));
+      try {
+        setNext(toViewCard(nextAnkiCard, db));
+      } catch (error) {
+        console.error('[SchedulerProvider] Error loading next card:', error);
+        setNext(null);
+      }
     } else {
       setNext(null);
     }

@@ -100,7 +100,7 @@ export interface AnkiCard {
 export interface AnkiNote {
   id: string;           // note ID (stringified int64)
   guid: string;         // globally unique ID
-  mid: string;          // model (note type) ID
+  mid: string | number; // model (note type) ID - Anki uses numbers
   mod: number;          // last modified (epoch seconds)
   usn: number;          // update sequence number
   tags: string;         // space-separated tags with surrounding spaces

@@ -47,8 +47,8 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
       console.log('[NoteEditor] Using first model:', models[0].id, models[0].name);
       return models[0].id;
     }
-    console.warn('[NoteEditor] No models found! Falling back to "1"');
-    return '1'; // Fallback to Basic if no models exist
+    console.warn('[NoteEditor] No models found! Falling back to 1');
+    return 1; // Fallback to Basic if no models exist (numeric ID)
   };
   
   const getDefaultDeckId = () => {
