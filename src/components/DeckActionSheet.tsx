@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../design/theme';
 import { s } from '../design/spacing';
 import { r } from '../design/radii';
@@ -66,7 +67,11 @@ export default function DeckActionSheet({
                 }}
               >
                 {action.icon && (
-                  <Text style={styles.icon}>{action.icon}</Text>
+                  <Ionicons 
+                    name={action.icon as any} 
+                    size={22} 
+                    color={action.destructive ? theme.colors.danger : theme.colors.accent} 
+                  />
                 )}
                 <Text
                   style={[
@@ -131,9 +136,6 @@ const styles = StyleSheet.create({
     padding: s.lg,
     gap: s.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  icon: {
-    fontSize: 20,
   },
   actionLabel: {
     fontSize: 16,

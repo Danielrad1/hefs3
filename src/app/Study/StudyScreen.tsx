@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useTheme } from '../../design';
@@ -13,7 +13,7 @@ export default function StudyScreen() {
   const theme = useTheme();
   const haptics = useHaptics();
   const confettiRef = useRef<ConfettiCannon>(null);
-  const { current, next, cardType, answer, bootstrap } = useScheduler();
+  const { current, next, cardType, answer, bootstrap, currentDeckId, decks } = useScheduler();
   
   const [isCurrentRevealed, setIsCurrentRevealed] = useState(false);
   const [responseStartTime, setResponseStartTime] = useState(Date.now());
@@ -116,6 +116,22 @@ export default function StudyScreen() {
     };
   });
 
+  // Show message if no deck is selected
+  if (currentDeckId === null) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+        <View style={styles.emptyState}>
+          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
+            No Deck Selected
+          </Text>
+          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+            Please select a deck from the Decks tab to start studying
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   if (!current) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -189,5 +205,22 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 5,
     pointerEvents: 'none',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });

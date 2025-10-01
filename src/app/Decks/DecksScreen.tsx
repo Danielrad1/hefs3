@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { useScheduler } from '../../context/SchedulerProvider';
 import { s } from '../../design/spacing';
@@ -13,9 +14,17 @@ import { CardService } from '../../services/anki/CardService';
 import { db } from '../../services/anki/InMemoryDb';
 import { PersistenceService } from '../../services/anki/PersistenceService';
 
+interface DeckWithStats {
+  id: string;
+  name: string;
+  cardCount: number;
+  dueCount: number;
+}
+
 interface DeckNode {
-  deck: { id: string; name: string; cardCount: number; dueCount: number };
+  deck: DeckWithStats;
   level: number;
+  children: DeckNode[];
 }
 
 export default function DecksScreen() {
@@ -47,7 +56,7 @@ export default function DecksScreen() {
     (navigation as any).navigate('DeckDetail', { deckId });
   };
 
-  const handleDeckLongPress = (deck: { id: string; name: string }) => {
+  const handleDeckLongPress = (deck: DeckWithStats) => {
     setSelectedDeck(deck);
     setActionSheetVisible(true);
   };
@@ -70,7 +79,11 @@ export default function DecksScreen() {
   };
 
   const handleRenameDeck = (deckId: string, oldName: string) => {
-    setDeckToRename({ id: deckId, name: oldName });
+    // Find the full deck object
+    const deck = decks.find(d => d.id === deckId);
+    if (deck) {
+      setDeckToRename(deck);
+    }
     setRenameModalVisible(true);
   };
 
@@ -131,24 +144,24 @@ export default function DecksScreen() {
     }
   };
 
-  const getDeckActions = (deck: { id: string; name: string }): DeckAction[] => {
+  const getDeckActions = (deck: DeckWithStats): DeckAction[] => {
     const actions: DeckAction[] = [
       {
         id: 'study',
         label: 'Study Now',
-        icon: '📚',
+        icon: 'book-outline',
         onPress: () => handleDeckPress(deck.id),
       },
       {
         id: 'rename',
         label: 'Rename',
-        icon: '✏️',
+        icon: 'create-outline',
         onPress: () => handleRenameDeck(deck.id, deck.name),
       },
       {
         id: 'suspend',
         label: 'Suspend All Cards',
-        icon: '⏸️',
+        icon: 'pause-outline',
         onPress: () => handleSuspendAll(deck.id),
       },
     ];
@@ -158,7 +171,7 @@ export default function DecksScreen() {
       actions.push({
         id: 'delete',
         label: 'Delete Deck',
-        icon: '🗑️',
+        icon: 'trash-outline',
         destructive: true,
         onPress: () => handleDeleteDeck(deck.id, deck.name),
       });
@@ -168,7 +181,7 @@ export default function DecksScreen() {
   };
 
   const handleAllDecks = () => {
-    setDeck(null);  // null = all decks
+    setCurrentDeck(null);  // null = all decks
     navigation.navigate('Study' as never);
   };
 
@@ -294,9 +307,12 @@ export default function DecksScreen() {
           <View style={styles.deckHeader}>
             <View style={styles.deckTitleRow}>
               {hasChildren && (
-                <Text style={[styles.expandIcon, { color: theme.colors.textSecondary }]}>
-                  {isExpanded ? '▼' : '▶'}
-                </Text>
+                <Ionicons 
+                  name={isExpanded ? 'chevron-down' : 'chevron-forward'} 
+                  size={16} 
+                  color={theme.colors.textSecondary}
+                  style={styles.expandIcon}
+                />
               )}
               <Text style={[styles.deckName, { color: theme.colors.textPrimary }]}>
                 {leafName}
@@ -309,7 +325,7 @@ export default function DecksScreen() {
                 setActionSheetVisible(true);
               }}
             >
-              <Text style={[styles.moreIcon, { color: theme.colors.textSecondary }]}>⋯</Text>
+              <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.textSecondary} />
             </Pressable>
           </View>
           
@@ -404,7 +420,7 @@ export default function DecksScreen() {
 
         {/* Search Bar */}
         <View style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.searchIcon, { color: theme.colors.textSecondary }]}>🔍</Text>
+          <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.colors.textPrimary }]}
             placeholder="Search decks..."
@@ -414,7 +430,7 @@ export default function DecksScreen() {
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')}>
-              <Text style={[styles.clearIcon, { color: theme.colors.textSecondary }]}>✕</Text>
+              <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
             </Pressable>
           )}
         </View>
@@ -574,8 +590,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   expandIcon: {
-    fontSize: 14,
-    width: 20,
+    marginRight: 4,
   },
   deckName: {
     fontSize: 18,
@@ -583,10 +598,6 @@ const styles = StyleSheet.create({
   },
   moreButton: {
     padding: s.xs,
-  },
-  moreIcon: {
-    fontSize: 24,
-    fontWeight: '700',
   },
   deckStats: {
     flexDirection: 'row',
@@ -620,17 +631,10 @@ const styles = StyleSheet.create({
     marginBottom: s.md,
     gap: s.sm,
   },
-  searchIcon: {
-    fontSize: 16,
-  },
   searchInput: {
     flex: 1,
     fontSize: 16,
     padding: 0,
-  },
-  clearIcon: {
-    fontSize: 18,
-    padding: s.xs,
   },
   emptyState: {
     padding: s.xl,

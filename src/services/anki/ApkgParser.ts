@@ -82,7 +82,7 @@ export class ApkgParser {
     
     // Decode first 16 bytes to check SQLite header
     const headerBase64 = testRead.substring(0, 24); // ~16 bytes in base64
-    const headerBinary = atob(headerBase64);
+    const headerBinary = this.base64DecodeHeader(headerBase64);
     console.log('[ApkgParser] First 16 bytes as string:', headerBinary);
     console.log('[ApkgParser] Expected: "SQLite format 3"');
 
@@ -271,6 +271,32 @@ export class ApkgParser {
   }
 
   /**
+   * Sanitize filename to prevent path traversal and ensure safe characters
+   */
+  private sanitizeFilename(filename: string): string {
+    // Remove any path components (../ or ..\)
+    let sanitized = filename.replace(/\.\.[/\\]/g, '');
+    
+    // Replace unsafe characters with underscore
+    // Allow: alphanumeric, dot, dash, underscore
+    sanitized = sanitized.replace(/[^A-Za-z0-9._-]/g, '_');
+    
+    // Limit length to 255 chars (common filesystem limit)
+    if (sanitized.length > 255) {
+      const ext = sanitized.substring(sanitized.lastIndexOf('.'));
+      const name = sanitized.substring(0, 255 - ext.length);
+      sanitized = name + ext;
+    }
+    
+    // Ensure not empty
+    if (!sanitized || sanitized === '') {
+      sanitized = `file_${Date.now()}`;
+    }
+    
+    return sanitized;
+  }
+
+  /**
    * Extract media files from the .apkg
    */
   private async extractMedia(zip: JSZip): Promise<Map<string, string>> {
@@ -292,10 +318,16 @@ export class ApkgParser {
     for (const [id, filename] of Object.entries(mediaMapping)) {
       const file = zip.file(id);
       if (file) {
-        const blob = await file.async('uint8array');
-        const destPath = `${this.mediaDir}${filename}`;
+        // Sanitize filename to prevent path traversal attacks
+        const sanitizedFilename = this.sanitizeFilename(filename);
+        if (sanitizedFilename !== filename) {
+          console.warn(`[ApkgParser] Sanitized filename from "${filename}" to "${sanitizedFilename}"`);
+        }
         
-        console.log(`[ApkgParser] Writing media file: ${filename} to ${destPath}`);
+        const blob = await file.async('uint8array');
+        const destPath = `${this.mediaDir}${sanitizedFilename}`;
+        
+        console.log(`[ApkgParser] Writing media file: ${sanitizedFilename} to ${destPath}`);
         await FileSystem.writeAsStringAsync(
           destPath,
           this.uint8ArrayToBase64(blob),
@@ -305,9 +337,9 @@ export class ApkgParser {
         // Verify file was written
         const fileInfo = await FileSystem.getInfoAsync(destPath);
         const size = fileInfo.exists && !fileInfo.isDirectory ? (fileInfo as any).size : 0;
-        console.log(`[ApkgParser] Media file written: ${filename}, exists: ${fileInfo.exists}, size: ${size}`);
+        console.log(`[ApkgParser] Media file written: ${sanitizedFilename}, exists: ${fileInfo.exists}, size: ${size}`);
 
-        mediaMap.set(id, filename);
+        mediaMap.set(id, sanitizedFilename);
       } else {
         console.warn(`[ApkgParser] Media file ${id} (${filename}) not found in zip`);
       }
@@ -334,14 +366,63 @@ export class ApkgParser {
 
   /**
    * Convert Uint8Array to base64 string
+   * Using safe implementation that works in React Native without atob/btoa
    */
   private uint8ArrayToBase64(uint8Array: Uint8Array): string {
-    let binary = '';
-    const len = uint8Array.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(uint8Array[i]);
+    const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let result = '';
+    const len = uint8Array.length;
+    
+    for (let i = 0; i < len; i += 3) {
+      const byte1 = uint8Array[i];
+      const byte2 = i + 1 < len ? uint8Array[i + 1] : 0;
+      const byte3 = i + 2 < len ? uint8Array[i + 2] : 0;
+      
+      const encoded1 = byte1 >> 2;
+      const encoded2 = ((byte1 & 0x03) << 4) | (byte2 >> 4);
+      const encoded3 = ((byte2 & 0x0f) << 2) | (byte3 >> 6);
+      const encoded4 = byte3 & 0x3f;
+      
+      result += base64Chars[encoded1];
+      result += base64Chars[encoded2];
+      result += i + 1 < len ? base64Chars[encoded3] : '=';
+      result += i + 2 < len ? base64Chars[encoded4] : '=';
     }
-    return btoa(binary);
+    
+    return result;
+  }
+
+  /**
+   * Decode base64 string to check SQLite header
+   */
+  private base64DecodeHeader(base64: string): string {
+    const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let result = '';
+    const len = Math.min(24, base64.length); // Only decode first 24 chars (~16 bytes)
+    
+    for (let i = 0; i < len; i += 4) {
+      const idx1 = base64Chars.indexOf(base64[i]);
+      const idx2 = base64Chars.indexOf(base64[i + 1]);
+      const idx3 = base64Chars.indexOf(base64[i + 2]);
+      const idx4 = base64Chars.indexOf(base64[i + 3]);
+      
+      if (idx1 === -1 || idx2 === -1) break;
+      
+      const byte1 = (idx1 << 2) | (idx2 >> 4);
+      result += String.fromCharCode(byte1);
+      
+      if (idx3 !== -1) {
+        const byte2 = ((idx2 & 0x0f) << 4) | (idx3 >> 2);
+        result += String.fromCharCode(byte2);
+      }
+      
+      if (idx4 !== -1) {
+        const byte3 = ((idx3 & 0x03) << 6) | idx4;
+        result += String.fromCharCode(byte3);
+      }
+    }
+    
+    return result;
   }
 
   /**

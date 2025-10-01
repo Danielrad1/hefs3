@@ -3,7 +3,7 @@
  * React context for accessing scheduler state and methods
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { Card } from '../domain/models';
 import { Difficulty } from '../domain/srsTypes';
 import { db } from '../services/anki/InMemoryDb';
@@ -11,6 +11,7 @@ import { SchedulerV2 } from '../services/anki/SchedulerV2';
 import { bootstrapFromSeed, toViewCard } from '../services/anki/Adapter';
 import { RevlogEase, CardType } from '../services/anki/schema';
 import { isDue } from '../services/anki/time';
+import { PersistenceService } from '../services/anki/PersistenceService';
 
 interface SchedulerContextValue {
   current: Card | null;
@@ -47,6 +48,9 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
   });
   const [decks, setDecks] = useState<Array<{ id: string; name: string; cardCount: number; dueCount: number }>>([]);
   const [nextCardDueInSeconds, setNextCardDueInSeconds] = useState<number | null>(null);
+  
+  // Debounced save timer
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load current and next cards
   const loadCards = useCallback(() => {
@@ -133,6 +137,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
 
   // Set active deck
   const setDeck = useCallback((deckId: string | null) => {
+    console.log('[SchedulerProvider] Setting active deck to:', deckId || 'all decks');
     setCurrentDeckId(deckId);
   }, []);
 
@@ -194,6 +199,16 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     // Process answer
     scheduler.answer(current.id, ease, responseTimeMs);
 
+    // Debounced save to persist review progress
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      PersistenceService.save(db).catch((error) => {
+        console.error('[SchedulerProvider] Error saving after review:', error);
+      });
+    }, 500);
+
     // Load next cards
     loadCards();
   }, [current, cardType, scheduler, loadCards]);
@@ -215,6 +230,15 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     loadCards();
   }, [loadCards, currentDeckId]);
+
+  // Cleanup save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
 
   const value: SchedulerContextValue = {
     current,

@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../design/theme';
 import { s } from '../design/spacing';
 import { r } from '../design/radii';
@@ -53,13 +54,19 @@ export default function MediaPickerSheet({
   };
 
   const handleLibrary = async () => {
+    console.log('[MediaPickerSheet] handleLibrary called, type:', type);
+    
     try {
+      console.log('[MediaPickerSheet] Requesting permissions...');
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('[MediaPickerSheet] Permission status:', status);
+      
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Photo library permission is required');
         return;
       }
 
+      console.log('[MediaPickerSheet] Launching image library...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes:
           type === 'image'
@@ -69,25 +76,32 @@ export default function MediaPickerSheet({
         allowsEditing: type === 'image',
       });
 
+      console.log('[MediaPickerSheet] Image picker result:', { canceled: result.canceled, hasAssets: !!result.assets?.[0] });
+
       if (!result.canceled && result.assets[0]) {
         const uri = result.assets[0].uri;
         const filename = uri.split('/').pop() || `media-${Date.now()}`;
+        console.log('[MediaPickerSheet] Calling onMediaSelected with:', { uri, filename });
         onMediaSelected(uri, filename);
+      } else {
+        console.log('[MediaPickerSheet] User canceled or no asset selected');
         onClose();
       }
     } catch (error) {
       console.error('[MediaPickerSheet] Library error:', error);
-      Alert.alert('Error', 'Failed to pick media');
+      console.error('[MediaPickerSheet] Error details:', error instanceof Error ? error.message : 'Unknown');
+      Alert.alert('Error', `Failed to pick media: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      onClose();
     }
   };
 
   const actions = type === 'image'
     ? [
-        { id: 'camera', label: 'Take Photo', icon: '📷', onPress: handleCamera },
-        { id: 'library', label: 'Choose from Library', icon: '🖼️', onPress: handleLibrary },
+        { id: 'camera', label: 'Take Photo', icon: 'camera-outline' as const, onPress: handleCamera },
+        { id: 'library', label: 'Choose from Library', icon: 'images-outline' as const, onPress: handleLibrary },
       ]
     : [
-        { id: 'library', label: 'Choose Audio File', icon: '🎵', onPress: handleLibrary },
+        { id: 'library', label: 'Choose Audio File', icon: 'musical-notes-outline' as const, onPress: handleLibrary },
         // Audio recording could be added here with expo-av
       ];
 
@@ -111,7 +125,7 @@ export default function MediaPickerSheet({
                 style={[styles.action, { borderBottomColor: theme.colors.border }]}
                 onPress={action.onPress}
               >
-                <Text style={styles.icon}>{action.icon}</Text>
+                <Ionicons name={action.icon} size={24} color={theme.colors.accent} />
                 <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>
                   {action.label}
                 </Text>
@@ -161,9 +175,6 @@ const styles = StyleSheet.create({
     padding: s.lg,
     gap: s.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  icon: {
-    fontSize: 24,
   },
   actionLabel: {
     fontSize: 16,

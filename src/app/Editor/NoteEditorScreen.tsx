@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
@@ -14,7 +15,7 @@ import { MediaService } from '../../services/anki/MediaService';
 import { ClozeService } from '../../services/anki/ClozeService';
 import { PersistenceService } from '../../services/anki/PersistenceService';
 import { useScheduler } from '../../context/SchedulerProvider';
-import RichTextEditor from './components/RichTextEditor';
+import WYSIWYGEditor, { WYSIWYGEditorRef } from '../../components/WYSIWYGEditor';
 import MediaPickerSheet, { MediaType } from '../../components/MediaPickerSheet';
 import { FIELD_SEPARATOR, MODEL_TYPE_CLOZE } from '../../services/anki/schema';
 
@@ -72,6 +73,7 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
   const [mediaPickerVisible, setMediaPickerVisible] = useState(false);
   const [mediaType, setMediaType] = useState<MediaType>('image');
   const [isSaving, setIsSaving] = useState(false);
+  const editorRefs = React.useRef<Record<number, WYSIWYGEditorRef | null>>({});
 
   const model = db.getModel(modelId);
   const deck = db.getDeck(deckId);
@@ -112,33 +114,53 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
     setFieldSelections((prev) => ({ ...prev, [index]: selection }));
   };
 
-  const handleInsertImage = () => {
+  const handleInsertImage = (fieldIndex: number) => {
+    setActiveFieldIndex(fieldIndex);
     setMediaType('image');
     setMediaPickerVisible(true);
   };
 
-  const handleInsertAudio = () => {
+  const handleInsertAudio = (fieldIndex: number) => {
+    setActiveFieldIndex(fieldIndex);
     setMediaType('audio');
     setMediaPickerVisible(true);
   };
 
+  const handleInsertCloze = (fieldIndex: number) => {
+    const editorRef = editorRefs.current[fieldIndex];
+    if (editorRef) {
+      editorRef.insertCloze();
+    }
+  };
+
   const handleMediaSelected = async (uri: string, filename: string) => {
+    console.log('[NoteEditor] handleMediaSelected called with:', { uri, filename, mediaType });
+    
+    // Close the sheet first to prevent crashes
+    setMediaPickerVisible(false);
+    
     try {
+      console.log('[NoteEditor] Adding media file...');
       const media = await mediaService.addMediaFile(uri, filename);
+      console.log('[NoteEditor] Media added successfully:', media);
       
-      // Insert media reference into active field
-      const mediaTag =
-        mediaType === 'image'
-          ? `<img src="${media.filename}" />`
-          : `[sound:${media.filename}]`;
-      
-      const currentValue = fields[activeFieldIndex] || '';
-      handleFieldChange(activeFieldIndex, currentValue + mediaTag);
-      
-      Alert.alert('Success', 'Media added to field');
+      // Insert media into active field using editor ref
+      const editorRef = editorRefs.current[activeFieldIndex];
+      if (editorRef) {
+        console.log('[NoteEditor] Inserting into editor, field index:', activeFieldIndex);
+        if (mediaType === 'image') {
+          editorRef.insertImage(media.filename);
+        } else {
+          editorRef.insertAudio(media.filename);
+        }
+        console.log('[NoteEditor] Media inserted successfully');
+      } else {
+        console.warn('[NoteEditor] No editor ref found for index:', activeFieldIndex);
+      }
     } catch (error) {
       console.error('[NoteEditor] Error adding media:', error);
-      Alert.alert('Error', 'Failed to add media');
+      console.error('[NoteEditor] Error stack:', error instanceof Error ? error.stack : 'No stack');
+      Alert.alert('Error', `Failed to add media: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -217,107 +239,106 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation?.goBack?.()}>
-          <Text style={[styles.headerButton, { color: theme.colors.accent }]}>Cancel</Text>
+      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+        <Pressable 
+          onPress={() => navigation?.goBack?.()} 
+          style={styles.headerButton}
+        >
+          <Ionicons name="close" size={28} color={theme.colors.textPrimary} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-          {noteId ? 'Edit Note' : 'Add Note'}
-        </Text>
-        <Pressable onPress={handleSave} disabled={isSaving}>
-          <Text
-            style={[
-              styles.headerButton,
-              { color: isSaving ? theme.colors.textSecondary : theme.colors.accent },
-            ]}
-          >
-            {isSaving ? 'Saving...' : 'Save'}
+        <View style={styles.headerCenter}>
+          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+            {noteId ? 'Edit Note' : 'Create Note'}
           </Text>
+          <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
+            {model?.name || ''}
+          </Text>
+        </View>
+        <Pressable 
+          onPress={handleSave} 
+          disabled={isSaving}
+          style={[styles.saveButton, { backgroundColor: isSaving ? theme.colors.border : theme.colors.accent }]}
+        >
+          {isSaving ? (
+            <Ionicons name="hourglass-outline" size={20} color="#000" />
+          ) : (
+            <Ionicons name="checkmark" size={20} color="#000" />
+          )}
         </Pressable>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {/* Deck and Model info */}
-        <View style={[styles.infoCard, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>Deck</Text>
-          <Text style={[styles.infoValue, { color: theme.colors.textPrimary }]}>
-            {deck?.name || 'Unknown'}
-          </Text>
-          <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>Type</Text>
-          <Text style={[styles.infoValue, { color: theme.colors.textPrimary }]}>
-            {model.name}
-          </Text>
-        </View>
-
         {/* Fields */}
         {model.flds.map((field, index) => (
           <View key={index} style={styles.fieldContainer}>
-            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
-              {field.name}
-              {index === 0 && ' (required)'}
-            </Text>
-            <RichTextEditor
+            <View style={styles.fieldHeader}>
+              <Text style={[styles.fieldLabel, { color: theme.colors.textPrimary }]}>
+                {field.name}
+              </Text>
+              {index === 0 && (
+                <View style={[styles.requiredBadge, { backgroundColor: theme.colors.danger + '20' }]}>
+                  <Text style={[styles.requiredText, { color: theme.colors.danger }]}>Required</Text>
+                </View>
+              )}
+            </View>
+            <WYSIWYGEditor
+              ref={(ref) => {
+                editorRefs.current[index] = ref;
+              }}
               value={fields[index] || ''}
-              onChangeText={(value) => handleFieldChange(index, value)}
+              onChangeText={(value: string) => handleFieldChange(index, value)}
               placeholder={`Enter ${field.name.toLowerCase()}...`}
-              onInsertImage={handleInsertImage}
-              onInsertAudio={handleInsertAudio}
-              onInsertCloze={model.type === MODEL_TYPE_CLOZE ? () => {
-                // Use ClozeService to insert cloze properly
-                const currentValue = fields[index] || '';
-                const selection = fieldSelections[index] || { start: currentValue.length, end: currentValue.length };
-                const result = clozeService.insertCloze(currentValue, selection);
-                handleFieldChange(index, result.html);
-              } : undefined}
-              onSelectionChange={(sel) => handleFieldSelectionChange(index, sel)}
+              onInsertImage={() => handleInsertImage(index)}
+              onInsertAudio={() => handleInsertAudio(index)}
+              onInsertCloze={model.type === MODEL_TYPE_CLOZE ? () => handleInsertCloze(index) : undefined}
               multiline
-              style={{ marginTop: s.sm }}
             />
           </View>
         ))}
 
         {/* Tags */}
-        <View style={styles.tagsContainer}>
-          <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>Tags</Text>
+        <View style={styles.tagsSection}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="pricetag-outline" size={20} color={theme.colors.accent} />
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Tags</Text>
+            <Text style={[styles.tagCount, { color: theme.colors.textSecondary }]}>({tags.length})</Text>
+          </View>
           <View style={styles.tagsInputRow}>
-            <TextInput
-              style={[
-                styles.tagInput,
-                {
-                  backgroundColor: theme.colors.surface,
-                  color: theme.colors.textPrimary,
-                  borderColor: theme.colors.border,
-                },
-              ]}
-              value={tagInput}
-              onChangeText={setTagInput}
-              placeholder="Add tag..."
-              placeholderTextColor={theme.colors.textSecondary}
-              onSubmitEditing={handleAddTag}
-            />
+            <View style={[styles.tagInputContainer, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <Ionicons name="add-circle-outline" size={20} color={theme.colors.textSecondary} />
+              <TextInput
+                style={[styles.tagInput, { color: theme.colors.textPrimary }]}
+                value={tagInput}
+                onChangeText={setTagInput}
+                placeholder="Add tag..."
+                placeholderTextColor={theme.colors.textSecondary}
+                onSubmitEditing={handleAddTag}
+              />
+            </View>
             <Pressable
               style={[styles.addTagButton, { backgroundColor: theme.colors.accent }]}
               onPress={handleAddTag}
             >
-              <Text style={styles.addTagButtonText}>+</Text>
+              <Ionicons name="add" size={24} color="#000" />
             </Pressable>
           </View>
-          <View style={styles.tagsChips}>
-            {tags.map((tag) => (
-              <Pressable
-                key={tag}
-                style={[styles.tagChip, { backgroundColor: theme.colors.surface }]}
-                onPress={() => handleRemoveTag(tag)}
-              >
-                <Text style={[styles.tagChipText, { color: theme.colors.textPrimary }]}>
-                  {tag}
-                </Text>
-                <Text style={[styles.tagChipClose, { color: theme.colors.textSecondary }]}>
-                  ×
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          {tags.length > 0 && (
+            <View style={styles.tagsChips}>
+              {tags.map((tag) => (
+                <Pressable
+                  key={tag}
+                  style={[styles.tagChip, { backgroundColor: theme.colors.accent + '15', borderColor: theme.colors.accent + '40' }]}
+                  onPress={() => handleRemoveTag(tag)}
+                >
+                  <Ionicons name="pricetag" size={14} color={theme.colors.accent} />
+                  <Text style={[styles.tagChipText, { color: theme.colors.textPrimary }]}>
+                    {tag}
+                  </Text>
+                  <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -340,17 +361,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: s.md,
+    paddingHorizontal: s.lg,
+    paddingVertical: s.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   headerButton: {
-    fontSize: 16,
-    fontWeight: '600',
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  saveButton: {
+    width: 44,
+    height: 44,
+    borderRadius: r.md,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
@@ -358,58 +397,74 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: s.lg,
     gap: s.lg,
-  },
-  infoCard: {
-    padding: s.md,
-    borderRadius: r.md,
-    gap: s.xs,
-  },
-  infoLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  infoValue: {
-    fontSize: 16,
-    marginBottom: s.sm,
+    paddingBottom: s.xl * 2,
   },
   fieldContainer: {
-    gap: s.sm,
+    gap: s.md,
+  },
+  fieldHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: s.xs,
   },
   fieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: s.sm,
+  requiredBadge: {
+    paddingHorizontal: s.sm,
+    paddingVertical: 2,
+    borderRadius: r.sm,
   },
-  tagsContainer: {
+  requiredText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tagsSection: {
+    gap: s.md,
+    marginTop: s.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: s.sm,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  tagCount: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   tagsInputRow: {
     flexDirection: 'row',
     gap: s.sm,
   },
-  tagInput: {
+  tagInputContainer: {
     flex: 1,
-    padding: s.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: s.md,
     borderRadius: r.md,
     borderWidth: 1,
+    gap: s.sm,
+  },
+  tagInput: {
+    flex: 1,
+    paddingVertical: s.md,
     fontSize: 16,
   },
   addTagButton: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: r.md,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  addTagButtonText: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#000',
   },
   tagsChips: {
     flexDirection: 'row',
@@ -419,17 +474,14 @@ const styles = StyleSheet.create({
   tagChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: s.xs,
+    paddingVertical: s.sm,
     paddingHorizontal: s.md,
     borderRadius: r.pill,
+    borderWidth: 1,
     gap: s.xs,
   },
   tagChipText: {
     fontSize: 14,
-    fontWeight: '500',
-  },
-  tagChipClose: {
-    fontSize: 20,
     fontWeight: '600',
   },
   errorText: {

@@ -25,13 +25,40 @@ export class MediaService {
   }
 
   /**
+   * Sanitize filename to prevent path traversal and ensure safe characters
+   */
+  private sanitizeFilename(filename: string): string {
+    // Remove any path components (../ or ..\)
+    let sanitized = filename.replace(/\.\.[/\\]/g, '');
+    
+    // Replace unsafe characters with underscore
+    // Allow: alphanumeric, dot, dash, underscore
+    sanitized = sanitized.replace(/[^A-Za-z0-9._-]/g, '_');
+    
+    // Limit length to 255 chars (common filesystem limit)
+    if (sanitized.length > 255) {
+      const ext = sanitized.substring(sanitized.lastIndexOf('.'));
+      const name = sanitized.substring(0, 255 - ext.length);
+      sanitized = name + ext;
+    }
+    
+    // Ensure not empty
+    if (!sanitized || sanitized === '') {
+      sanitized = `file_${Date.now()}`;
+    }
+    
+    return sanitized;
+  }
+
+  /**
    * Add media file from URI (from picker or camera)
    */
   async addMediaFile(sourceUri: string, filename?: string): Promise<Media> {
     await this.ensureMediaDir();
 
-    // Generate filename if not provided
-    const finalFilename = filename || this.generateFilename(sourceUri);
+    // Generate filename if not provided, then sanitize
+    const rawFilename = filename || this.generateFilename(sourceUri);
+    const finalFilename = this.sanitizeFilename(rawFilename);
     const localUri = MEDIA_DIR + finalFilename;
 
     // Calculate SHA1 hash

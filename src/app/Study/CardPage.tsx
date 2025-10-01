@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions, Text } from 'react-native';
 import Animated, { 
   useAnimatedStyle, 
   withTiming, 
@@ -22,7 +22,7 @@ import CardContentRenderer from '../../components/CardContentRenderer';
 
 const { height, width } = Dimensions.get('window');
 
-const SWIPE_THRESHOLD = 80;
+const SWIPE_THRESHOLD = 100;
 
 type CardPageProps = {
   card: Card;
@@ -41,6 +41,7 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
   const isRevealed = useSharedValue(false);
   const revealProgress = useSharedValue(0);
   const shadowProgress = useSharedValue(0);
+  const touchStartY = useSharedValue(0); // Track where finger started vertically
   
   // React state for revealed status (for rendering)
   const [revealed, setRevealed] = React.useState(false);
@@ -98,11 +99,16 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
     });
 
   const panGesture = Gesture.Pan()
+    .onBegin((event) => {
+      'worklet';
+      // Store the Y position where the touch started (relative to card center)
+      touchStartY.value = event.y - (height / 2);
+    })
     .onUpdate((event) => {
       'worklet';
       // Only allow rating swipes when answer is fully visible
       if (isRevealed.value && revealProgress.value === 1) {
-        // After reveal, allow all directional swipes
+        // Tinder-style: translation follows finger exactly
         translateX.value = event.translationX;
         translateY.value = event.translationY;
         
@@ -114,12 +120,18 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
     })
     .onEnd((event) => {
       if (isRevealed.value && revealProgress.value === 1) {
-        // Check which direction was swiped
+        // Use velocity for more natural feel
         const absX = Math.abs(event.translationX);
         const absY = Math.abs(event.translationY);
+        const velocityX = event.velocityX;
+        const velocityY = event.velocityY;
         
-        if (absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD) {
-          // Determine direction and fling card off screen quickly
+        // Check if swipe was strong enough (distance OR velocity)
+        const isStrongSwipe = absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD || 
+                             Math.abs(velocityX) > 500 || Math.abs(velocityY) > 500;
+        
+        if (isStrongSwipe) {
+          // Determine direction based on which axis has more movement
           let difficulty: Difficulty;
           
           if (absY > absX) {
@@ -127,31 +139,53 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
             if (event.translationY > 0) {
               // Down = Again
               difficulty = 'again';
-              translateY.value = withTiming(height * 1.5, { duration: 250 });
+              translateY.value = withSpring(height * 1.5, { 
+                velocity: velocityY,
+                damping: 20,
+                stiffness: 90
+              });
             } else {
               // Up = Good
               difficulty = 'good';
-              translateY.value = withTiming(-height * 1.5, { duration: 250 });
+              translateY.value = withSpring(-height * 1.5, { 
+                velocity: velocityY,
+                damping: 20,
+                stiffness: 90
+              });
             }
           } else {
             // Horizontal swipe
             if (event.translationX > 0) {
               // Right = Easy
               difficulty = 'easy';
-              translateX.value = withTiming(width * 1.5, { duration: 250 });
+              translateX.value = withSpring(width * 1.5, { 
+                velocity: velocityX,
+                damping: 20,
+                stiffness: 90
+              });
             } else {
               // Left = Hard
               difficulty = 'hard';
-              translateX.value = withTiming(-width * 1.5, { duration: 250 });
+              translateX.value = withSpring(-width * 1.5, { 
+                velocity: velocityX,
+                damping: 20,
+                stiffness: 90
+              });
             }
           }
           
           // Call onAnswer immediately (don't wait for animation)
           handleAnswer(difficulty);
         } else {
-          // Snap back
-          translateX.value = withSpring(0);
-          translateY.value = withSpring(0);
+          // Snap back with spring physics
+          translateX.value = withSpring(0, {
+            damping: 15,
+            stiffness: 150
+          });
+          translateY.value = withSpring(0, {
+            damping: 15,
+            stiffness: 150
+          });
           
           // Reset overlay
           if (onSwipeChange) {
@@ -168,12 +202,26 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
     ];
 
     if (isRevealed.value) {
-      const rotation = interpolate(
+      // Calculate rotation based on horizontal swipe AND vertical touch position
+      // If you swipe from bottom, card rotates less (or opposite direction)
+      // This creates natural physics like Tinder
+      const baseRotation = interpolate(
         translateX.value,
         [-width / 2, 0, width / 2],
         [-15, 0, 15],
         Extrapolate.CLAMP
       );
+      
+      // Adjust rotation based on where finger started vertically
+      // Touch at top = more rotation, touch at bottom = less/reverse rotation
+      const verticalFactor = interpolate(
+        touchStartY.value,
+        [-height / 4, 0, height / 4],
+        [1.5, 1, 0.5], // Top = more rotation, bottom = less rotation
+        Extrapolate.CLAMP
+      );
+      
+      const rotation = baseRotation * verticalFactor;
       transforms.push({ rotate: `${rotation}deg` });
     }
 
@@ -237,33 +285,96 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
     } as any;
   });
 
-  const [swipeIcon, setSwipeIcon] = React.useState('✓');
+  const [swipeLabel, setSwipeLabel] = React.useState('GOOD');
+  const [swipeColor, setSwipeColor] = React.useState('#10B981');
 
-  const iconAnimatedStyle = useAnimatedStyle(() => {
+  const overlayAnimatedStyle = useAnimatedStyle(() => {
     if (!isRevealed.value) return { opacity: 0 };
 
     const absX = Math.abs(translateX.value);
     const absY = Math.abs(translateY.value);
     const totalDistance = absX + absY;
     
-    if (totalDistance < 20) return { opacity: 0 }; // Hide icon on tiny movements
+    if (totalDistance < 30) return { opacity: 0 };
     
-    // More visible icon opacity
-    const opacity = Math.min(totalDistance / 120, 1);
+    // Opacity based on swipe distance (like Tinder)
+    const opacity = Math.min(totalDistance / 150, 1);
 
-    // Determine icon based on swipe direction
-    let icon = '✓';
+    // Determine label and color based on swipe direction
+    let label = 'GOOD';
+    let color = '#10B981'; // green
+    
     if (absY > absX) {
-      icon = translateY.value > 0 ? '↻' : '✓'; // Again or Good
+      if (translateY.value > 0) {
+        label = 'AGAIN';
+        color = '#EF4444'; // red
+      } else {
+        label = 'GOOD';
+        color = '#10B981'; // green
+      }
     } else {
-      icon = translateX.value > 0 ? '☆' : '!'; // Easy or Hard
+      if (translateX.value > 0) {
+        label = 'EASY';
+        color = '#3B82F6'; // blue
+      } else {
+        label = 'HARD';
+        color = '#F59E0B'; // orange
+      }
     }
     
-    if (totalDistance > 20) {
-      runOnJS(setSwipeIcon)(icon);
+    if (totalDistance > 30) {
+      runOnJS(setSwipeLabel)(label);
+      runOnJS(setSwipeColor)(color);
     }
 
     return { opacity };
+  });
+  
+  // Position overlay based on swipe direction
+  const overlayPositionStyle = useAnimatedStyle(() => {
+    const absX = Math.abs(translateX.value);
+    const absY = Math.abs(translateY.value);
+    
+    // Determine which direction is being swiped
+    if (absY > absX) {
+      // Vertical swipe
+      if (translateY.value > 0) {
+        // Swiping DOWN = AGAIN = show at TOP
+        return {
+          top: 60,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+        };
+      } else {
+        // Swiping UP = GOOD = show at BOTTOM
+        return {
+          top: 730,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+        };
+      }
+    } else {
+      // Horizontal swipe
+      if (translateX.value > 0) {
+        // Swiping RIGHT = EASY = show at TOP LEFT
+        return {
+          top: 60,
+          left: 20,
+          right: 0,
+          alignItems: 'flex-start',
+        };
+      } else {
+        // Swiping LEFT = HARD = show at TOP RIGHT
+        return {
+          top: 60,
+          left: 0,
+          right: 20,
+          alignItems: 'flex-end',
+        };
+      }
+    }
   });
 
   const combinedGesture = Gesture.Race(tapGesture, panGesture);
@@ -283,9 +394,11 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
           </Animated.View>
         </View>
 
-        {/* Swipe direction icon - on top */}
-        <Animated.View style={[styles.iconContainer, iconAnimatedStyle]} pointerEvents="none">
-          <Animated.Text style={styles.icon}>{swipeIcon}</Animated.Text>
+        {/* Tinder-style swipe overlay */}
+        <Animated.View style={[styles.swipeOverlay, overlayPositionStyle, overlayAnimatedStyle]} pointerEvents="none">
+          <View style={[styles.swipeLabelContainer, { borderColor: swipeColor }]}>
+            <Text style={[styles.swipeLabel, { color: swipeColor }]}>{swipeLabel}</Text>
+          </View>
         </Animated.View>
       </Animated.View>
     </GestureDetector>
@@ -321,16 +434,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 38,
   },
-  iconContainer: {
+  swipeOverlay: {
     position: 'absolute',
-    alignSelf: 'center',
-    top: '45%',
+    // Position will be set dynamically by overlayPositionStyle
   },
-  icon: {
-    fontSize: 80,
-    color: 'white',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+  swipeLabelContainer: {
+    borderWidth: 4,
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    transform: [{ rotate: '-15deg' }],
+  },
+  swipeLabel: {
+    fontSize: 48,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
 });

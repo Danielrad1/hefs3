@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { useScheduler } from '../../context/SchedulerProvider';
 import { sampleCards } from '../../mocks/sampleCards';
@@ -46,7 +47,7 @@ export default function HomeScreen() {
         <View style={styles.hero}>
           <View style={styles.heroText}>
             <Text style={[styles.greeting, { color: theme.colors.textPrimary }]}>
-              Welcome back! 👋
+              Welcome back!
             </Text>
             <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
               You're doing amazing
@@ -55,7 +56,7 @@ export default function HomeScreen() {
           
           {/* Streak Badge - Inline */}
           <View style={[styles.streakBadge, { backgroundColor: theme.colors.accent + '15' }]}>
-            <Text style={styles.streakEmoji}>🔥</Text>
+            <Ionicons name="flame" size={24} color={theme.colors.accent} />
             <Text style={[styles.streakNumber, { color: theme.colors.accent }]}>{currentStreak}</Text>
           </View>
         </View>
@@ -113,12 +114,11 @@ export default function HomeScreen() {
                     }
                   ]}>
                     {!isFuture && (
-                      <Text style={[
-                        styles.dayIcon,
-                        { color: completed ? '#FFF' : theme.colors.danger }
-                      ]}>
-                        {completed ? '✓' : '✕'}
-                      </Text>
+                      <Ionicons 
+                        name={completed ? 'checkmark' : 'close'} 
+                        size={16} 
+                        color={completed ? '#FFF' : theme.colors.danger}
+                      />
                     )}
                   </View>
                   <Text style={[
@@ -215,9 +215,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: s.md,
     borderRadius: r.pill,
   },
-  streakEmoji: {
-    fontSize: 24,
-  },
   streakNumber: {
     fontSize: 24,
     fontWeight: '800',
@@ -303,10 +300,6 @@ const styles = StyleSheet.create({
   },
   todayBox: {
     borderWidth: 4,
-  },
-  dayIcon: {
-    fontSize: 16,
-    fontWeight: '700',
   },
   dayLabel: {
     fontSize: 10,

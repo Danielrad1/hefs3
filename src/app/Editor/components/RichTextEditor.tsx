@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { View, TextInput, StyleSheet, Pressable, Text, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../design/theme';
 import { s } from '../../../design/spacing';
 import { r } from '../../../design/radii';
@@ -88,31 +89,31 @@ export default function RichTextEditor({
     {
       id: 'bold',
       label: 'B',
-      icon: '𝐁',
+      icon: 'text',
       onPress: () => wrapSelection('<b>', '</b>'),
     },
     {
       id: 'italic',
       label: 'I',
-      icon: '𝐼',
+      icon: 'text',
       onPress: () => wrapSelection('<i>', '</i>'),
     },
     {
       id: 'underline',
       label: 'U',
-      icon: 'U̲',
+      icon: 'text',
       onPress: () => wrapSelection('<u>', '</u>'),
     },
     {
       id: 'highlight',
       label: 'H',
-      icon: '🖍',
+      icon: 'color-fill-outline',
       onPress: () => wrapSelection('<mark>', '</mark>'),
     },
     {
       id: 'code',
       label: '<>',
-      icon: '</>',
+      icon: 'code-slash-outline',
       onPress: () => wrapSelection('<code>', '</code>'),
     },
   ];
@@ -123,8 +124,8 @@ export default function RichTextEditor({
   if (onInsertImage) {
     mediaButtons.push({
       id: 'image',
-      label: '🖼',
-      icon: '🖼',
+      label: 'IMG',
+      icon: 'image-outline',
       onPress: onInsertImage,
     });
   }
@@ -132,8 +133,8 @@ export default function RichTextEditor({
   if (onInsertAudio) {
     mediaButtons.push({
       id: 'audio',
-      label: '🎵',
-      icon: '🎵',
+      label: 'AUD',
+      icon: 'musical-notes-outline',
       onPress: onInsertAudio,
     });
   }
@@ -142,7 +143,7 @@ export default function RichTextEditor({
     mediaButtons.push({
       id: 'cloze',
       label: '[...]',
-      icon: '[...]',
+      icon: 'ellipsis-horizontal-circle-outline',
       onPress: onInsertCloze,
     });
   }
@@ -162,9 +163,13 @@ export default function RichTextEditor({
             style={[styles.toolbarButton, { backgroundColor: theme.colors.bg }]}
             onPress={button.onPress}
           >
-            <Text style={[styles.toolbarButtonText, { color: theme.colors.textPrimary }]}>
-              {button.icon}
-            </Text>
+            {button.id === 'bold' || button.id === 'italic' || button.id === 'underline' ? (
+              <Text style={[styles.toolbarButtonText, { color: theme.colors.textPrimary }]}>
+                {button.label}
+              </Text>
+            ) : (
+              <Ionicons name={button.icon as any} size={20} color={theme.colors.textPrimary} />
+            )}
           </Pressable>
         ))}
         
@@ -177,9 +182,7 @@ export default function RichTextEditor({
                 style={[styles.toolbarButton, { backgroundColor: theme.colors.bg }]}
                 onPress={button.onPress}
               >
-                <Text style={[styles.toolbarButtonText, { color: theme.colors.textPrimary }]}>
-                  {button.icon}
-                </Text>
+                <Ionicons name={button.icon as any} size={20} color={theme.colors.accent} />
               </Pressable>
             ))}
           </>

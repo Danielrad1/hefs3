@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
@@ -209,21 +210,56 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
   };
 
   const handleSuspendAll = async () => {
+    const unsuspendedCards = cards.filter(c => c.queue !== CardQueue.Suspended);
+    
+    if (unsuspendedCards.length === 0) {
+      Alert.alert('No Cards', 'All cards are already suspended');
+      return;
+    }
+    
     Alert.alert(
       'Suspend All Cards',
-      `Suspend all ${cards.length} cards in this deck?`,
+      `Suspend ${unsuspendedCards.length} cards in this deck?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Suspend',
           onPress: async () => {
             try {
-              cardService.suspend(cards.map((c) => c.id));
+              cardService.suspend(unsuspendedCards.map((c) => c.id));
               await PersistenceService.save(db);
               reload();
-              Alert.alert('Success', `Suspended ${cards.length} cards`);
+              Alert.alert('Success', `Suspended ${unsuspendedCards.length} cards`);
             } catch (error) {
               Alert.alert('Error', 'Failed to suspend cards');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleUnsuspendAll = async () => {
+    if (suspendedCards.length === 0) {
+      Alert.alert('No Cards', 'No suspended cards in this deck');
+      return;
+    }
+    
+    Alert.alert(
+      'Unsuspend All Cards',
+      `Unsuspend ${suspendedCards.length} cards in this deck?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unsuspend',
+          onPress: async () => {
+            try {
+              cardService.unsuspend(suspendedCards.map((c) => c.id));
+              await PersistenceService.save(db);
+              reload();
+              Alert.alert('Success', `Unsuspended ${suspendedCards.length} cards`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to unsuspend cards');
             }
           },
         },
@@ -378,47 +414,60 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
             style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
             onPress={handleStudy}
           >
-            <Text style={styles.primaryButtonText}>📚 Study Now</Text>
+            <Ionicons name="book-outline" size={20} color="#000" style={{ marginRight: s.sm }} />
+            <Text style={styles.primaryButtonText}>Study Now</Text>
           </Pressable>
           <Pressable
             style={[styles.primaryButton, { backgroundColor: theme.colors.success }]}
             onPress={handleAddNote}
           >
-            <Text style={styles.primaryButtonText}>➕ Add Note</Text>
+            <Ionicons name="add-circle-outline" size={20} color="#000" style={{ marginRight: s.sm }} />
+            <Text style={styles.primaryButtonText}>Add Note</Text>
           </Pressable>
         </View>
 
         {/* Secondary Actions */}
         <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
           <Pressable style={styles.actionRow} onPress={handleBrowseCards}>
-            <Text style={styles.actionIcon}>🔍</Text>
+            <Ionicons name="search-outline" size={22} color={theme.colors.accent} />
             <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Browse Cards</Text>
-            <Text style={[styles.actionChevron, { color: theme.colors.textSecondary }]}>›</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
           </Pressable>
           
           <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
           
           <Pressable style={styles.actionRow} onPress={handleRenameDeck}>
-            <Text style={styles.actionIcon}>✏️</Text>
+            <Ionicons name="create-outline" size={22} color={theme.colors.accent} />
             <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Rename Deck</Text>
-            <Text style={[styles.actionChevron, { color: theme.colors.textSecondary }]}>›</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
           </Pressable>
           
           <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
           
           <Pressable style={styles.actionRow} onPress={handleSuspendAll}>
-            <Text style={styles.actionIcon}>⏸️</Text>
+            <Ionicons name="pause-outline" size={22} color={theme.colors.accent} />
             <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Suspend All Cards</Text>
-            <Text style={[styles.actionChevron, { color: theme.colors.textSecondary }]}>›</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
           </Pressable>
+          
+          {suspendedCards.length > 0 && (
+            <>
+              <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+              <Pressable style={styles.actionRow} onPress={handleUnsuspendAll}>
+                <Ionicons name="play-outline" size={22} color={theme.colors.success} />
+                <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Unsuspend All Cards</Text>
+                <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+              </Pressable>
+            </>
+          )}
           
           {deckId !== '1' && (
             <>
               <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
               <Pressable style={styles.actionRow} onPress={handleDeleteDeck}>
-                <Text style={styles.actionIcon}>🗑️</Text>
+                <Ionicons name="trash-outline" size={22} color={theme.colors.danger} />
                 <Text style={[styles.actionLabel, { color: theme.colors.danger }]}>Delete Deck</Text>
-                <Text style={[styles.actionChevron, { color: theme.colors.textSecondary }]}>›</Text>
+                <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
               </Pressable>
             </>
           )}
@@ -521,6 +570,8 @@ const styles = StyleSheet.create({
     padding: s.lg,
     borderRadius: r.md,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   primaryButtonText: {
     fontSize: 18,
@@ -533,16 +584,10 @@ const styles = StyleSheet.create({
     paddingVertical: s.md,
     gap: s.md,
   },
-  actionIcon: {
-    fontSize: 20,
-  },
   actionLabel: {
     flex: 1,
     fontSize: 16,
     fontWeight: '500',
-  },
-  actionChevron: {
-    fontSize: 24,
   },
   divider: {
     height: StyleSheet.hairlineWidth,

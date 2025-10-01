@@ -436,6 +436,26 @@ export class InMemoryDb {
     return this.colConfig;
   }
 
+  /**
+   * Increment and return the next position for new cards
+   * This is used to maintain sequential ordering of new cards
+   */
+  incrementNextPos(): number {
+    if (!this.colConfig) {
+      throw new Error('Collection config not initialized');
+    }
+    const currentPos = this.colConfig.nextPos;
+    this.colConfig.nextPos += 1;
+    
+    // Sync to col.conf JSON
+    if (this.col) {
+      this.col.conf = JSON.stringify(this.colConfig);
+      this.col.mod = nowMillis();
+    }
+    
+    return currentPos;
+  }
+
   // ==========================================================================
   // MODELS
   // ==========================================================================

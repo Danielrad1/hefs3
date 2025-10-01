@@ -14,6 +14,7 @@ interface ThemeContextType {
     border: string;
     textPrimary: string;
     textSecondary: string;
+    textTertiary: string;
     accent: string;
     success: string;
     warning: string;
@@ -37,6 +38,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     border: '#2A2A2A',
     textPrimary: '#FFFFFF',
     textSecondary: '#A0A0A0',
+    textTertiary: '#707070',
     accent: '#3B82F6',
     success: '#10B981',
     warning: '#F59E0B',
@@ -47,6 +49,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     border: 'rgba(0, 0, 0, 0.1)',
     textPrimary: '#1B1B1F',
     textSecondary: '#4B4B57',
+    textTertiary: '#8B8B97',
     accent: '#3B82F6',
     success: '#10B981',
     warning: '#F59E0B',
