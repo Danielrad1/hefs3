@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { ApkgParser } from '../../services/anki/ApkgParser';
 import { db } from '../../services/anki/InMemoryDb';
+import { PersistenceService } from '../../services/anki/PersistenceService';
+import { MediaService } from '../../services/anki/MediaService';
 import { useScheduler } from '../../context/SchedulerProvider';
 
 export default function SettingsScreen() {
@@ -53,10 +56,28 @@ export default function SettingsScreen() {
       setProgress('Loading into database...');
       
       // Don't clear - merge with existing data
-      // Update collection if needed
-      if (!db.getCol()) {
-        db.updateCol({
-          ...parsed.col,
+      // Collection metadata can be updated if needed (col always exists)
+      // Optionally merge timestamps, but keep existing nextPos etc.
+
+      // Import models from collection
+      console.log('[Settings] Importing models...');
+      if (parsed.col.models) {
+        const modelsObj = typeof parsed.col.models === 'string' 
+          ? JSON.parse(parsed.col.models) 
+          : parsed.col.models;
+        
+        Object.values(modelsObj).forEach((model: any) => {
+          console.log('[Settings] - Model:', model.name, '(id:', model.id + ')');
+          db.addModel(model);
+        });
+      }
+
+      // Import deck configs
+      console.log('[Settings] Importing deck configs...');
+      if (parsed.deckConfigs && parsed.deckConfigs.size > 0) {
+        parsed.deckConfigs.forEach((config) => {
+          console.log('[Settings] - Deck config:', config.name, '(id:', config.id + ')');
+          db.addDeckConfig(config);
         });
       }
 
@@ -78,6 +99,24 @@ export default function SettingsScreen() {
       parsed.cards.forEach((card) => {
         db.addCard(card);
       });
+
+      // Register media files in database for GC and dedupe
+      console.log('[Settings] Registering', parsed.mediaFiles.size, 'media files in DB...');
+      const mediaService = new MediaService(db);
+      // Media files are already written by ApkgParser to media/ dir
+      // Just register them in the database (no copying needed)
+      for (const [mediaId, filename] of parsed.mediaFiles.entries()) {
+        try {
+          const media = await mediaService.registerExistingMedia(filename);
+          if (media && __DEV__) {
+            console.log('[Settings] - Registered media:', filename);
+          } else if (!media) {
+            console.warn('[Settings] - Could not register media:', filename);
+          }
+        } catch (error) {
+          console.error('[Settings] Error registering media:', filename, error);
+        }
+      }
       
       // Verify what's in the database after import
       const allDecks = db.getAllDecks();
@@ -87,6 +126,11 @@ export default function SettingsScreen() {
         console.log('[Settings] -', d.name, ':', deckCards.length, 'cards');
       });
 
+      setProgress('Saving...');
+      
+      // Save database to persistent storage
+      await PersistenceService.save(db);
+      
       setProgress('Complete!');
       
       // Reset to "All Decks" so imported cards are visible

@@ -1,11 +1,17 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../design/theme';
 import { useScheduler } from '../../context/SchedulerProvider';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
+import DeckActionSheet, { DeckAction } from '../../components/DeckActionSheet';
+import TextInputModal from '../../components/TextInputModal';
+import { DeckService } from '../../services/anki/DeckService';
+import { CardService } from '../../services/anki/CardService';
+import { db } from '../../services/anki/InMemoryDb';
+import { PersistenceService } from '../../services/anki/PersistenceService';
 
 interface DeckNode {
   deck: { id: string; name: string; cardCount: number; dueCount: number };
@@ -16,8 +22,17 @@ interface DeckNode {
 export default function DecksScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
-  const { decks, currentDeckId, setDeck } = useScheduler();
-  const [expandedDecks, setExpandedDecks] = React.useState<Set<string>>(new Set());
+  const { decks, currentDeckId, setDeck, reload } = useScheduler();
+  const [expandedDecks, setExpandedDecks] = useState<Set<string>>(new Set());
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [selectedDeck, setSelectedDeck] = useState<{ id: string; name: string } | null>(null);
+  const [isCreatingDeck, setIsCreatingDeck] = useState(false);
+  const [newDeckName, setNewDeckName] = useState('');
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
+  const [deckToRename, setDeckToRename] = useState<{ id: string; name: string } | null>(null);
+
+  const deckService = React.useMemo(() => new DeckService(db), []);
+  const cardService = React.useMemo(() => new CardService(db), []);
 
   // Log decks whenever they change
   React.useEffect(() => {
@@ -28,9 +43,128 @@ export default function DecksScreen() {
   }, [decks]);
 
   const handleDeckPress = (deckId: string) => {
-    setDeck(deckId);
-    // Navigate to Study screen
-    navigation.navigate('Study' as never);
+    // Navigate to Deck Detail screen
+    (navigation as any).navigate('DeckDetail', { deckId });
+  };
+
+  const handleDeckLongPress = (deck: { id: string; name: string }) => {
+    setSelectedDeck(deck);
+    setActionSheetVisible(true);
+  };
+
+  const handleCreateDeck = async () => {
+    if (!newDeckName.trim()) {
+      Alert.alert('Error', 'Deck name cannot be empty');
+      return;
+    }
+
+    try {
+      deckService.createDeck(newDeckName.trim());
+      await PersistenceService.save(db);
+      setNewDeckName('');
+      setIsCreatingDeck(false);
+      reload();
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to create deck');
+    }
+  };
+
+  const handleRenameDeck = (deckId: string, oldName: string) => {
+    setDeckToRename({ id: deckId, name: oldName });
+    setRenameModalVisible(true);
+  };
+
+  const handleRenameConfirm = async (newName: string) => {
+    if (!deckToRename || !newName.trim()) {
+      setRenameModalVisible(false);
+      setDeckToRename(null);
+      return;
+    }
+
+    try {
+      deckService.renameDeck(deckToRename.id, newName.trim());
+      await PersistenceService.save(db);
+      reload();
+      setRenameModalVisible(false);
+      setDeckToRename(null);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to rename deck');
+      setRenameModalVisible(false);
+      setDeckToRename(null);
+    }
+  };
+
+  const handleDeleteDeck = (deckId: string, deckName: string) => {
+    const cards = db.getCardsByDeck(deckId);
+    Alert.alert(
+      'Delete Deck',
+      `This will permanently delete "${deckName}" and all ${cards.length} cards. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Everything',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              deckService.deleteDeck(deckId, { deleteCards: true });
+              await PersistenceService.save(db);
+              reload();
+            } catch (error) {
+              console.error('Error deleting deck:', error);
+              Alert.alert('Error', error instanceof Error ? error.message : 'Failed to delete deck');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSuspendAll = async (deckId: string) => {
+    try {
+      const cards = cardService.findCards({ deck: deckService.getDeck(deckId)?.name });
+      cardService.suspend(cards.map((c) => c.id));
+      await PersistenceService.save(db);
+      reload();
+      Alert.alert('Success', 'All cards in deck have been suspended');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to suspend cards');
+    }
+  };
+
+  const getDeckActions = (deck: { id: string; name: string }): DeckAction[] => {
+    const actions: DeckAction[] = [
+      {
+        id: 'study',
+        label: 'Study Now',
+        icon: '📚',
+        onPress: () => handleDeckPress(deck.id),
+      },
+      {
+        id: 'rename',
+        label: 'Rename',
+        icon: '✏️',
+        onPress: () => handleRenameDeck(deck.id, deck.name),
+      },
+      {
+        id: 'suspend',
+        label: 'Suspend All Cards',
+        icon: '⏸️',
+        onPress: () => handleSuspendAll(deck.id),
+      },
+    ];
+
+    // Only allow deleting non-default decks
+    if (deck.id !== '1') {
+      actions.push({
+        id: 'delete',
+        label: 'Delete Deck',
+        icon: '🗑️',
+        destructive: true,
+        onPress: () => handleDeleteDeck(deck.id, deck.name),
+      });
+    }
+
+    return actions;
   };
 
   const handleAllDecks = () => {
@@ -43,8 +177,10 @@ export default function DecksScreen() {
     const tree: DeckNode[] = [];
     const deckMap = new Map<string, DeckNode>();
 
-    // Sort decks by name to process parents before children
-    const sortedDecks = [...decks].sort((a, b) => a.name.localeCompare(b.name));
+    // Filter out Default deck and sort by name
+    const sortedDecks = [...decks]
+      .filter(d => d.id !== '1' && d.name !== 'Default')
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     sortedDecks.forEach(deck => {
       const parts = deck.name.split('::');
@@ -181,33 +317,84 @@ export default function DecksScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Choose a Deck
-        </Text>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            Decks
+          </Text>
+          <Pressable
+            style={[styles.addButton, { backgroundColor: theme.colors.accent }]}
+            onPress={() => setIsCreatingDeck(true)}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </Pressable>
+        </View>
 
-        {/* All Decks option */}
-        <Pressable
-          style={[
-            styles.deckCard,
-            { 
-              backgroundColor: theme.colors.surface,
-              borderColor: currentDeckId === null ? theme.colors.accent : 'transparent',
-              borderWidth: 2,
-            }
-          ]}
-          onPress={handleAllDecks}
-        >
-          <Text style={[styles.deckName, { color: theme.colors.textPrimary }]}>
-            All Decks
-          </Text>
-          <Text style={[styles.cardCount, { color: theme.colors.textSecondary }]}>
-            {totalDue} due · {totalCards} total
-          </Text>
-        </Pressable>
+        {/* Create deck input */}
+        {isCreatingDeck && (
+          <View style={[styles.createDeckCard, { backgroundColor: theme.colors.surface }]}>
+            <TextInput
+              style={[styles.input, { color: theme.colors.textPrimary, borderColor: theme.colors.border }]}
+              placeholder="Enter deck name (e.g., Parent::Child)"
+              placeholderTextColor={theme.colors.textSecondary}
+              value={newDeckName}
+              onChangeText={setNewDeckName}
+              autoFocus
+            />
+            <View style={styles.createActions}>
+              <Pressable
+                style={[styles.createButton, { backgroundColor: theme.colors.surface }]}
+                onPress={() => {
+                  setIsCreatingDeck(false);
+                  setNewDeckName('');
+                }}
+              >
+                <Text style={[styles.createButtonText, { color: theme.colors.textSecondary }]}>
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.createButton, { backgroundColor: theme.colors.accent }]}
+                onPress={handleCreateDeck}
+              >
+                <Text style={[styles.createButtonText, { color: '#000' }]}>
+                  Create
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         {/* Render deck tree */}
         {renderDeckNode(buildDeckTree, 0)}
       </ScrollView>
+
+      {/* Deck Action Sheet */}
+      {selectedDeck && (
+        <DeckActionSheet
+          visible={actionSheetVisible}
+          deckName={selectedDeck.name}
+          actions={getDeckActions(selectedDeck)}
+          onClose={() => {
+            setActionSheetVisible(false);
+            setSelectedDeck(null);
+          }}
+        />
+      )}
+
+      {/* Rename Modal */}
+      <TextInputModal
+        visible={renameModalVisible}
+        title="Rename Deck"
+        message="Enter new name:"
+        defaultValue={deckToRename?.name || ''}
+        placeholder="Deck name"
+        onConfirm={handleRenameConfirm}
+        onCancel={() => {
+          setRenameModalVisible(false);
+          setDeckToRename(null);
+        }}
+        confirmText="Rename"
+      />
     </SafeAreaView>
   );
 }
@@ -223,10 +410,53 @@ const styles = StyleSheet.create({
     padding: s.lg,
     gap: s.md,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: s.md,
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButtonText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#000',
+  },
+  createDeckCard: {
+    padding: s.md,
+    borderRadius: r.md,
     marginBottom: s.md,
+    gap: s.md,
+  },
+  input: {
+    padding: s.md,
+    borderRadius: r.sm,
+    borderWidth: 1,
+    fontSize: 16,
+  },
+  createActions: {
+    flexDirection: 'row',
+    gap: s.sm,
+    justifyContent: 'flex-end',
+  },
+  createButton: {
+    paddingVertical: s.sm,
+    paddingHorizontal: s.lg,
+    borderRadius: r.sm,
+  },
+  createButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   deckCard: {
     padding: s.md,

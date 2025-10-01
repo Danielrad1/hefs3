@@ -11,6 +11,7 @@ import {
   CardQueue,
   FIELD_SEPARATOR,
   DEFAULT_DECK_ID,
+  DEFAULT_MODEL_ID,
   DEFAULT_EASE_FACTOR,
 } from './schema';
 import { InMemoryDb } from './InMemoryDb';
@@ -47,7 +48,7 @@ export function bootstrapFromSeed(db: InMemoryDb, cards: Card[]): void {
     const note: AnkiNote = {
       id: noteId,
       guid: `seed-${noteId}`,
-      mid: '1',  // default model
+      mid: DEFAULT_MODEL_ID,
       mod: now,
       usn: -1,
       tags: ' ',  // empty tags

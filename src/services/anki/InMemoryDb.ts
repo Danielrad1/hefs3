@@ -12,7 +12,12 @@ import {
   DeckConfig,
   ColConfig,
   Deck,
+  Model,
+  Media,
   DEFAULT_DECK_ID,
+  DEFAULT_MODEL_ID,
+  MODEL_TYPE_STANDARD,
+  MODEL_TYPE_CLOZE,
 } from './schema';
 import { nowSeconds, nowMillis, generateId } from './time';
 
@@ -29,6 +34,8 @@ export class InMemoryDb {
   // Parsed JSON configs (cached)
   private decks: Map<string, Deck> = new Map();
   private deckConfigs: Map<string, DeckConfig> = new Map();
+  private models: Map<number, Model> = new Map();  // Anki uses numeric IDs
+  private media: Map<string, Media> = new Map();
   private colConfig: ColConfig | null = null;
 
   // Update sequence number (local changes = -1)
@@ -96,8 +103,104 @@ export class InMemoryDb {
       rollover: 4,  // 4 AM
     };
 
+    // Create default Basic model
+    const basicModel: Model = {
+      id: DEFAULT_MODEL_ID,
+      name: 'Basic',
+      type: MODEL_TYPE_STANDARD,
+      mod: now,
+      usn: this.usn,
+      sortf: 0,
+      did: DEFAULT_DECK_ID,
+      tmpls: [
+        {
+          name: 'Card 1',
+          ord: 0,
+          qfmt: '{{Front}}',
+          afmt: '{{FrontSide}}\n\n<hr id="answer">\n\n{{Back}}',
+          bqfmt: '',
+          bafmt: '',
+          did: null,
+        },
+      ],
+      flds: [
+        {
+          name: 'Front',
+          ord: 0,
+          sticky: false,
+          rtl: false,
+          font: 'Arial',
+          size: 20,
+          description: '',
+        },
+        {
+          name: 'Back',
+          ord: 1,
+          sticky: false,
+          rtl: false,
+          font: 'Arial',
+          size: 20,
+          description: '',
+        },
+      ],
+      css: '.card {\n font-family: arial;\n font-size: 20px;\n text-align: center;\n color: black;\n background-color: white;\n}',
+      latexPre: '',
+      latexPost: '',
+      req: [[0, 'all', [0]]],
+      tags: [],
+    };
+
+    // Create default Cloze model
+    const clozeModel: Model = {
+      id: 2,
+      name: 'Cloze',
+      type: MODEL_TYPE_CLOZE,
+      mod: now,
+      usn: this.usn,
+      sortf: 0,
+      did: DEFAULT_DECK_ID,
+      tmpls: [
+        {
+          name: 'Cloze',
+          ord: 0,
+          qfmt: '{{cloze:Text}}',
+          afmt: '{{cloze:Text}}<br>{{Extra}}',
+          bqfmt: '',
+          bafmt: '',
+          did: null,
+        },
+      ],
+      flds: [
+        {
+          name: 'Text',
+          ord: 0,
+          sticky: false,
+          rtl: false,
+          font: 'Arial',
+          size: 20,
+          description: '',
+        },
+        {
+          name: 'Extra',
+          ord: 1,
+          sticky: false,
+          rtl: false,
+          font: 'Arial',
+          size: 20,
+          description: '',
+        },
+      ],
+      css: '.card {\n font-family: arial;\n font-size: 20px;\n text-align: center;\n color: black;\n background-color: white;\n}\n.cloze {\n font-weight: bold;\n color: blue;\n}',
+      latexPre: '',
+      latexPost: '',
+      req: [[0, 'all', [0]]],
+      tags: [],
+    };
+
     this.decks.set(DEFAULT_DECK_ID, defaultDeck);
     this.deckConfigs.set('1', defaultDeckConfig);
+    this.models.set(DEFAULT_MODEL_ID, basicModel);
+    this.models.set(2, clozeModel);
     this.colConfig = defaultColConfig;
 
     this.col = {
@@ -110,7 +213,7 @@ export class InMemoryDb {
       usn: this.usn,
       ls: nowMs,
       conf: JSON.stringify(defaultColConfig),
-      models: JSON.stringify({}),
+      models: JSON.stringify({ [DEFAULT_MODEL_ID]: basicModel, '2': clozeModel }),
       decks: JSON.stringify({ [DEFAULT_DECK_ID]: defaultDeck }),
       dconf: JSON.stringify({ '1': defaultDeckConfig }),
       tags: JSON.stringify({}),
@@ -249,6 +352,30 @@ export class InMemoryDb {
     this.syncDecksToCol();
   }
 
+  updateDeck(id: string, updates: Partial<Deck>): void {
+    const deck = this.decks.get(id);
+    if (!deck) {
+      throw new Error(`Deck ${id} not found`);
+    }
+    this.decks.set(id, {
+      ...deck,
+      ...updates,
+      mod: nowSeconds(),
+      usn: this.usn,
+    });
+    this.syncDecksToCol();
+  }
+
+  deleteDeck(id: string): void {
+    this.decks.delete(id);
+    this.graves.push({
+      usn: this.usn,
+      oid: id,
+      type: 2,  // deck
+    });
+    this.syncDecksToCol();
+  }
+
   private syncDecksToCol(): void {
     if (!this.col) return;
     const decksObj: Record<string, Deck> = {};
@@ -263,6 +390,39 @@ export class InMemoryDb {
     return this.deckConfigs.get(id);
   }
 
+  getAllDeckConfigs(): DeckConfig[] {
+    return Array.from(this.deckConfigs.values());
+  }
+
+  addDeckConfig(config: DeckConfig): void {
+    this.deckConfigs.set(config.id, config);
+    this.syncDeckConfigsToCol();
+  }
+
+  updateDeckConfig(id: string, updates: Partial<DeckConfig>): void {
+    const config = this.deckConfigs.get(id);
+    if (!config) {
+      throw new Error(`Deck config ${id} not found`);
+    }
+    this.deckConfigs.set(id, {
+      ...config,
+      ...updates,
+      mod: nowSeconds(),
+      usn: this.usn,
+    });
+    this.syncDeckConfigsToCol();
+  }
+
+  private syncDeckConfigsToCol(): void {
+    if (!this.col) return;
+    const configsObj: Record<string, DeckConfig> = {};
+    this.deckConfigs.forEach((config, id) => {
+      configsObj[id] = config;
+    });
+    this.col.dconf = JSON.stringify(configsObj);
+    this.col.mod = nowMillis();
+  }
+
   getDeckConfigForDeck(deckId: string): DeckConfig | undefined {
     const deck = this.decks.get(deckId);
     if (!deck) return undefined;
@@ -274,6 +434,89 @@ export class InMemoryDb {
       throw new Error('Collection config not initialized');
     }
     return this.colConfig;
+  }
+
+  // ==========================================================================
+  // MODELS
+  // ==========================================================================
+
+  getModel(id: string | number): Model | undefined {
+    // Accept both string and number, convert to number (Anki uses numbers)
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    return this.models.get(numericId);
+  }
+
+  getAllModels(): Model[] {
+    return Array.from(this.models.values());
+  }
+
+  addModel(model: Model): void {
+    // Ensure ID is a number (Anki way)
+    const normalizedModel = {
+      ...model,
+      id: typeof model.id === 'string' ? parseInt(model.id, 10) : model.id,
+    };
+    this.models.set(normalizedModel.id, normalizedModel);
+    this.syncModelsToCol();
+  }
+
+  updateModel(id: string | number, updates: Partial<Model>): void {
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    const model = this.models.get(numericId);
+    if (!model) {
+      throw new Error(`Model ${id} not found`);
+    }
+    this.models.set(numericId, {
+      ...model,
+      ...updates,
+      mod: nowSeconds(),
+      usn: this.usn,
+    });
+    this.syncModelsToCol();
+  }
+
+  deleteModel(id: string | number): void {
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    this.models.delete(numericId);
+    this.syncModelsToCol();
+  }
+
+  private syncModelsToCol(): void {
+    if (!this.col) return;
+    const modelsObj: Record<string, Model> = {};
+    this.models.forEach((model, id) => {
+      modelsObj[id] = model;
+    });
+    this.col.models = JSON.stringify(modelsObj);
+    this.col.mod = nowMillis();
+  }
+
+  // ==========================================================================
+  // MEDIA
+  // ==========================================================================
+
+  getMedia(id: string): Media | undefined {
+    return this.media.get(id);
+  }
+
+  getMediaByFilename(filename: string): Media | undefined {
+    return Array.from(this.media.values()).find((m) => m.filename === filename);
+  }
+
+  getMediaBySha1(sha1: string): Media | undefined {
+    return Array.from(this.media.values()).find((m) => m.sha1 === sha1);
+  }
+
+  getAllMedia(): Media[] {
+    return Array.from(this.media.values());
+  }
+
+  addMedia(media: Media): void {
+    this.media.set(media.id, media);
+  }
+
+  deleteMedia(id: string): void {
+    this.media.delete(id);
   }
 
   // ==========================================================================
@@ -311,6 +554,8 @@ export class InMemoryDb {
     this.notes.clear();
     this.decks.clear();
     this.deckConfigs.clear();
+    this.models.clear();
+    this.media.clear();
     this.revlog = [];
     this.graves = [];
     this.initializeCollection();
@@ -323,6 +568,61 @@ export class InMemoryDb {
     const nextPos = this.colConfig.nextPos;
     this.colConfig.nextPos += 1;
     return nextPos;
+  }
+
+  // ==========================================================================
+  // PERSISTENCE (JSON Snapshots)
+  // ==========================================================================
+
+  /**
+   * Export database to JSON for persistence
+   */
+  toJSON(): string {
+    const snapshot = {
+      version: 1,
+      col: this.col,
+      cards: Array.from(this.cards.values()),
+      notes: Array.from(this.notes.values()),
+      revlog: this.revlog,
+      graves: this.graves,
+      decks: Array.from(this.decks.values()),
+      deckConfigs: Array.from(this.deckConfigs.values()),
+      models: Array.from(this.models.values()),
+      media: Array.from(this.media.values()),
+      colConfig: this.colConfig,
+      usn: this.usn,
+    };
+    return JSON.stringify(snapshot);
+  }
+
+  /**
+   * Import database from JSON
+   */
+  fromJSON(json: string): void {
+    const snapshot = JSON.parse(json);
+
+    // Clear existing data
+    this.cards.clear();
+    this.notes.clear();
+    this.decks.clear();
+    this.deckConfigs.clear();
+    this.models.clear();
+    this.media.clear();
+    this.revlog = [];
+    this.graves = [];
+
+    // Restore data
+    this.col = snapshot.col;
+    snapshot.cards.forEach((card: AnkiCard) => this.cards.set(card.id, card));
+    snapshot.notes.forEach((note: AnkiNote) => this.notes.set(note.id, note));
+    this.revlog = snapshot.revlog || [];
+    this.graves = snapshot.graves || [];
+    snapshot.decks.forEach((deck: Deck) => this.decks.set(deck.id, deck));
+    snapshot.deckConfigs.forEach((conf: DeckConfig) => this.deckConfigs.set(conf.id, conf));
+    snapshot.models.forEach((model: Model) => this.models.set(model.id, model));
+    snapshot.media.forEach((media: Media) => this.media.set(media.id, media));
+    this.colConfig = snapshot.colConfig;
+    this.usn = snapshot.usn;
   }
 }
 

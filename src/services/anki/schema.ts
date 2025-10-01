@@ -188,12 +188,68 @@ export interface Deck {
   browserCollapsed: boolean;
 }
 
+/** Model/NoteType definition (from col.models) */
+export interface Model {
+  id: number;  // Anki uses numeric IDs (timestamps)
+  name: string;
+  type: number;              // 0=standard, 1=cloze
+  mod: number;
+  usn: number;
+  sortf: number;             // sort field index
+  did: string;               // default deck ID
+  tmpls: Template[];         // card templates
+  flds: Field[];             // field definitions
+  css: string;               // shared CSS
+  latexPre: string;
+  latexPost: string;
+  req: any[];                // template requirements
+  tags: string[];            // tags to add to new notes
+}
+
+/** Field definition within a Model */
+export interface Field {
+  name: string;
+  ord: number;               // ordinal/position
+  sticky: boolean;           // preserve value when adding cards
+  rtl: boolean;              // right-to-left
+  font: string;
+  size: number;              // font size
+  description: string;
+}
+
+/** Card template within a Model */
+export interface Template {
+  name: string;
+  ord: number;               // ordinal/position
+  qfmt: string;              // question format (front)
+  afmt: string;              // answer format (back)
+  bqfmt: string;             // browser question format
+  bafmt: string;             // browser answer format
+  did: string | null;        // override deck ID
+}
+
+/** Media file */
+export interface Media {
+  id: string;
+  filename: string;
+  mime: string;
+  sha1: string;
+  size: number;
+  localUri: string;          // local file path
+  created: number;           // epoch seconds
+}
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 export const FIELD_SEPARATOR = '\x1f';
 export const DEFAULT_DECK_ID = '1';
+export const DEFAULT_MODEL_ID = 1;  // Anki uses numeric IDs
 export const DEFAULT_EASE_FACTOR = 2500;  // 2.5 in permille
 export const MIN_EASE_FACTOR = 1300;      // 1.3 in permille
 export const MAX_EASE_FACTOR = 2600;      // 2.6 in permille (not enforced by Anki, but reasonable cap)
+
+// Model types
+export const MODEL_TYPE_STANDARD = 0;
+export const MODEL_TYPE_CLOZE = 1;

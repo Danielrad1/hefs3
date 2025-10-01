@@ -17,6 +17,7 @@ interface SchedulerContextValue {
   next: Card | null;
   cardType: CardType | null;
   currentDeckId: string | null;
+  nextCardDueInSeconds: number | null; // Seconds until next card is due (for learning cards)
   answer: (difficulty: Difficulty, responseTimeMs: number) => void;
   bootstrap: (cards: Card[]) => void;
   setDeck: (deckId: string | null) => void;
@@ -45,6 +46,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     totalCards: 0,
   });
   const [decks, setDecks] = useState<Array<{ id: string; name: string; cardCount: number; dueCount: number }>>([]);
+  const [nextCardDueInSeconds, setNextCardDueInSeconds] = useState<number | null>(null);
 
   // Load current and next cards
   const loadCards = useCallback(() => {
@@ -58,9 +60,30 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     if (currentAnkiCard) {
       setCurrent(toViewCard(currentAnkiCard, db));
       setCardType(currentAnkiCard.type);
+      setNextCardDueInSeconds(null); // Card available now
     } else {
       setCurrent(null);
       setCardType(null);
+      
+      // No card due - find next card that will become due
+      const allCards = currentDeckId ? db.getCardsByDeck(currentDeckId) : db.getAllCards();
+      const learningCards = allCards.filter(c => c.type === 1 || c.type === 3); // Learning/relearning
+      
+      if (learningCards.length > 0) {
+        const now = Math.floor(Date.now() / 1000);
+        const nextDueTimes = learningCards
+          .map(c => c.due)
+          .filter(due => due > now)
+          .sort((a, b) => a - b);
+        
+        if (nextDueTimes.length > 0) {
+          setNextCardDueInSeconds(nextDueTimes[0] - now);
+        } else {
+          setNextCardDueInSeconds(null);
+        }
+      } else {
+        setNextCardDueInSeconds(null);
+      }
     }
 
     if (nextAnkiCard && nextAnkiCard.id !== currentAnkiCard?.id) {
@@ -176,11 +199,17 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     loadCards();
   }, [loadCards]);
 
+  // Load cards on mount and when deck changes
+  useEffect(() => {
+    loadCards();
+  }, [loadCards, currentDeckId]);
+
   const value: SchedulerContextValue = {
     current,
     next,
     cardType,
     currentDeckId,
+    nextCardDueInSeconds,
     answer,
     bootstrap,
     setDeck,

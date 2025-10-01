@@ -1,0 +1,277 @@
+/**
+ * NoteService - High-level operations for note management
+ */
+
+import { InMemoryDb } from './InMemoryDb';
+import { AnkiNote, AnkiCard, CardType, CardQueue, FIELD_SEPARATOR, DEFAULT_EASE_FACTOR, DEFAULT_MODEL_ID, MODEL_TYPE_CLOZE } from './schema';
+import { nowSeconds, generateId } from './time';
+
+export interface CreateNoteParams {
+  modelId: string;
+  deckId: string;
+  fields: string[];
+  tags?: string[];
+}
+
+export interface UpdateNoteParams {
+  fields?: string[];
+  tags?: string[];
+}
+
+export class NoteService {
+  constructor(private db: InMemoryDb) {}
+
+  /**
+   * Create a new note and generate cards
+   */
+  createNote(params: CreateNoteParams): AnkiNote {
+    const model = this.db.getModel(params.modelId);
+    if (!model) {
+      throw new Error(`Model ${params.modelId} not found`);
+    }
+
+    const deck = this.db.getDeck(params.deckId);
+    if (!deck) {
+      throw new Error(`Deck ${params.deckId} not found`);
+    }
+
+    if (params.fields.length !== model.flds.length) {
+      throw new Error(`Expected ${model.flds.length} fields, got ${params.fields.length}`);
+    }
+
+    const now = nowSeconds();
+    const noteId = generateId();
+
+    // Create note
+    const note: AnkiNote = {
+      id: noteId,
+      guid: `note-${noteId}`,
+      mid: params.modelId,
+      mod: now,
+      usn: -1,
+      tags: params.tags ? ` ${params.tags.join(' ')} ` : ' ',
+      flds: params.fields.join(FIELD_SEPARATOR),
+      sfld: 0,
+      csum: this.hashField(params.fields[model.sortf] || ''),
+      flags: 0,
+      data: '',
+    };
+
+    this.db.addNote(note);
+
+    // Generate cards based on model type
+    this.generateCards(note, model, params.deckId);
+
+    return note;
+  }
+
+  /**
+   * Update an existing note
+   */
+  updateNote(noteId: string, params: UpdateNoteParams): void {
+    const note = this.db.getNote(noteId);
+    if (!note) {
+      throw new Error(`Note ${noteId} not found`);
+    }
+
+    const model = this.db.getModel(note.mid);
+    if (!model) {
+      throw new Error(`Model ${note.mid} not found`);
+    }
+
+    const updates: Partial<AnkiNote> = {};
+
+    if (params.fields) {
+      if (params.fields.length !== model.flds.length) {
+        throw new Error(`Expected ${model.flds.length} fields, got ${params.fields.length}`);
+      }
+      updates.flds = params.fields.join(FIELD_SEPARATOR);
+      updates.csum = this.hashField(params.fields[model.sortf] || '');
+    }
+
+    if (params.tags) {
+      updates.tags = ` ${params.tags.join(' ')} `;
+    }
+
+    this.db.updateNote(noteId, updates);
+
+    // Regenerate cards if fields changed (for cloze notes)
+    if (params.fields && model.type === MODEL_TYPE_CLOZE) {
+      // Delete existing cards
+      const existingCards = this.db.getAllCards().filter((c) => c.nid === noteId);
+      existingCards.forEach((card) => this.db.deleteCard(card.id));
+
+      // Get deck from first card or use model's default deck
+      const deckId = existingCards[0]?.did || model.did;
+      
+      // Regenerate cards
+      this.generateCards(note, model, deckId);
+    }
+  }
+
+  /**
+   * Delete a note and all its cards
+   */
+  deleteNote(noteId: string): void {
+    const note = this.db.getNote(noteId);
+    if (!note) {
+      throw new Error(`Note ${noteId} not found`);
+    }
+
+    // Delete all cards for this note
+    const cards = this.db.getAllCards().filter((c) => c.nid === noteId);
+    cards.forEach((card) => this.db.deleteCard(card.id));
+
+    // Delete the note
+    this.db.deleteNote(noteId);
+  }
+
+  /**
+   * Get a note by ID
+   */
+  getNote(noteId: string): AnkiNote | undefined {
+    return this.db.getNote(noteId);
+  }
+
+  /**
+   * Get all notes
+   */
+  getAllNotes(): AnkiNote[] {
+    return this.db.getAllNotes();
+  }
+
+  /**
+   * Change note type (model)
+   */
+  changeNoteType(noteId: string, targetModelId: string, fieldMapping: Record<number, number>): void {
+    const note = this.db.getNote(noteId);
+    if (!note) {
+      throw new Error(`Note ${noteId} not found`);
+    }
+
+    const targetModel = this.db.getModel(targetModelId);
+    if (!targetModel) {
+      throw new Error(`Target model ${targetModelId} not found`);
+    }
+
+    const oldFields = note.flds.split(FIELD_SEPARATOR);
+    const newFields = new Array(targetModel.flds.length).fill('');
+
+    // Map old fields to new fields
+    Object.entries(fieldMapping).forEach(([oldIdx, newIdx]) => {
+      const oldIndex = parseInt(oldIdx);
+      if (oldFields[oldIndex] !== undefined) {
+        newFields[newIdx] = oldFields[oldIndex];
+      }
+    });
+
+    // Delete old cards
+    const existingCards = this.db.getAllCards().filter((c) => c.nid === noteId);
+    const deckId = existingCards[0]?.did || targetModel.did;
+    existingCards.forEach((card) => this.db.deleteCard(card.id));
+
+    // Update note
+    this.db.updateNote(noteId, {
+      mid: targetModelId,
+      flds: newFields.join(FIELD_SEPARATOR),
+      csum: this.hashField(newFields[targetModel.sortf] || ''),
+    });
+
+    // Generate new cards
+    const updatedNote = this.db.getNote(noteId)!;
+    this.generateCards(updatedNote, targetModel, deckId);
+  }
+
+  /**
+   * Generate cards for a note based on its model
+   */
+  private generateCards(note: AnkiNote, model: any, deckId: string): void {
+    const now = nowSeconds();
+
+    if (model.type === MODEL_TYPE_CLOZE) {
+      // Generate cards for each cloze deletion
+      const fields = note.flds.split(FIELD_SEPARATOR);
+      const clozeField = fields[0] || '';
+      const clozeIndices = this.extractClozeIndices(clozeField);
+
+      clozeIndices.forEach((clozeIndex) => {
+        const cardId = generateId();
+        const card: AnkiCard = {
+          id: cardId,
+          nid: note.id,
+          did: deckId,
+          ord: clozeIndex - 1, // ord is 0-based, cloze is 1-based
+          mod: now,
+          usn: -1,
+          type: CardType.New,
+          queue: CardQueue.New,
+          due: this.db.incrementNextPos(),
+          ivl: 0,
+          factor: DEFAULT_EASE_FACTOR,
+          reps: 0,
+          lapses: 0,
+          left: 0,
+          odue: 0,
+          odid: '0',
+          flags: 0,
+          data: '',
+        };
+        this.db.addCard(card);
+      });
+    } else {
+      // Standard model: generate one card per template
+      model.tmpls.forEach((template: any) => {
+        const cardId = generateId();
+        const card: AnkiCard = {
+          id: cardId,
+          nid: note.id,
+          did: deckId,
+          ord: template.ord,
+          mod: now,
+          usn: -1,
+          type: CardType.New,
+          queue: CardQueue.New,
+          due: this.db.incrementNextPos(),
+          ivl: 0,
+          factor: DEFAULT_EASE_FACTOR,
+          reps: 0,
+          lapses: 0,
+          left: 0,
+          odue: 0,
+          odid: '0',
+          flags: 0,
+          data: '',
+        };
+        this.db.addCard(card);
+      });
+    }
+  }
+
+  /**
+   * Extract cloze indices from text (e.g., {{c1::...}} {{c3::...}} => [1, 3])
+   */
+  private extractClozeIndices(text: string): number[] {
+    const clozeRegex = /{{c(\d+)::/g;
+    const indices = new Set<number>();
+    let match;
+
+    while ((match = clozeRegex.exec(text)) !== null) {
+      indices.add(parseInt(match[1]));
+    }
+
+    return Array.from(indices).sort((a, b) => a - b);
+  }
+
+  /**
+   * Simple hash for checksum
+   */
+  private hashField(field: string): number {
+    let hash = 0;
+    for (let i = 0; i < field.length; i++) {
+      const char = field.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash) % 0xFFFFFFFF;
+  }
+}
