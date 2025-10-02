@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
+import { View, Text, Image, StyleSheet, Pressable, ScrollView, Dimensions, useWindowDimensions } from 'react-native';
+import RenderHtml from 'react-native-render-html';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../design/theme';
 import { s } from '../design/spacing';
 
@@ -477,9 +479,11 @@ function AudioPlayer({ filename, theme }: { filename: string; theme: any }) {
               }
             ]}
           >
-            <Text style={[styles.playIcon, { color: theme.colors.textPrimary }]}>
-              {isPlaying ? '⏸' : '▶'}
-            </Text>
+            <Ionicons 
+              name={isPlaying ? 'pause' : 'play'} 
+              size={20} 
+              color={theme.colors.textPrimary}
+            />
           </View>
         </Pressable>
 

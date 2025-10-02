@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../app/Home/HomeScreen';
 import StudyScreen from '../app/Study/StudyScreen';
 import SettingsScreen from '../app/Settings/SettingsScreen';
+import DiscoverScreen from '../app/Discover/DiscoverScreen';
 import DecksStack from './DecksStack';
 import { useTheme } from '../design/theme';
 
@@ -28,6 +29,8 @@ export default function Tabs() {
 
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Discover') {
+            iconName = focused ? 'compass' : 'compass-outline';
           } else if (route.name === 'Decks') {
             iconName = focused ? 'albums' : 'albums-outline';
           } else if (route.name === 'Study') {
@@ -41,6 +44,7 @@ export default function Tabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Decks" component={DecksStack} />
       <Tab.Screen name="Study" component={StudyScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />

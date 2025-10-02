@@ -13,19 +13,12 @@ import { DeckService } from '../../services/anki/DeckService';
 import { CardService } from '../../services/anki/CardService';
 import { db } from '../../services/anki/InMemoryDb';
 import { PersistenceService } from '../../services/anki/PersistenceService';
-
-interface DeckWithStats {
-  id: string;
-  name: string;
-  cardCount: number;
-  dueCount: number;
-}
-
-interface DeckNode {
-  deck: DeckWithStats;
-  level: number;
-  children: DeckNode[];
-}
+import { useDeckImport } from './hooks/useDeckImport';
+import DeckCard from './components/DeckCard';
+import AddDeckModal from './components/AddDeckModal';
+import ImportProgressModal from './components/ImportProgressModal';
+import CreateDeckForm from './components/CreateDeckForm';
+import { buildDeckTree, filterDecks, DeckWithStats, DeckNode } from './utils/deckTreeUtils';
 
 export default function DecksScreen() {
   const theme = useTheme();
@@ -39,9 +32,13 @@ export default function DecksScreen() {
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [deckToRename, setDeckToRename] = useState<DeckWithStats | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [addDeckModalVisible, setAddDeckModalVisible] = useState(false);
 
   const deckService = React.useMemo(() => new DeckService(db), []);
   const cardService = React.useMemo(() => new CardService(db), []);
+  
+  // Use import hook
+  const { importing, importProgress, handleImportDeck } = useDeckImport(reload);
 
   // Log decks whenever they change
   React.useEffect(() => {
@@ -186,73 +183,7 @@ export default function DecksScreen() {
   };
 
   // Build tree structure from flat deck list
-  const buildDeckTree = React.useMemo(() => {
-    const tree: DeckNode[] = [];
-    const deckMap = new Map<string, DeckNode>();
-
-    // Filter out Default deck and sort by name
-    const sortedDecks = [...decks]
-      .filter(d => d.id !== '1' && d.name !== 'Default')
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    sortedDecks.forEach(deck => {
-      const parts = deck.name.split('::');
-      const node: DeckNode = {
-        deck: { ...deck }, // Clone so we can update stats
-        children: [],
-        level: parts.length - 1,
-      };
-
-      deckMap.set(deck.name, node);
-
-      if (parts.length === 1) {
-        // Root level deck
-        tree.push(node);
-      } else {
-        // Child deck - find parent
-        const parentName = parts.slice(0, -1).join('::');
-        const parent = deckMap.get(parentName);
-        if (parent) {
-          parent.children.push(node);
-        } else {
-          // Parent doesn't exist, add as root
-          tree.push(node);
-        }
-      }
-    });
-
-    // Calculate cumulative stats for parent decks (bottom-up)
-    const calculateStats = (node: DeckNode): { cardCount: number; dueCount: number } => {
-      if (node.children.length === 0) {
-        // Leaf node - use its own stats
-        return {
-          cardCount: node.deck.cardCount,
-          dueCount: node.deck.dueCount,
-        };
-      }
-
-      // Parent node - sum all children
-      let totalCards = node.deck.cardCount; // Start with own cards
-      let totalDue = node.deck.dueCount;
-
-      node.children.forEach(child => {
-        const childStats = calculateStats(child);
-        totalCards += childStats.cardCount;
-        totalDue += childStats.dueCount;
-      });
-
-      // Update parent's stats to reflect children
-      node.deck.cardCount = totalCards;
-      node.deck.dueCount = totalDue;
-
-      return { cardCount: totalCards, dueCount: totalDue };
-    };
-
-    // Calculate stats for all trees
-    tree.forEach(node => calculateStats(node));
-
-    return tree;
-  }, [decks]);
+  const deckTree = React.useMemo(() => buildDeckTree(decks), [decks]);
 
   const toggleExpand = (deckName: string) => {
     setExpandedDecks(prev => {
@@ -274,24 +205,17 @@ export default function DecksScreen() {
     const elements: React.ReactNode[] = [];
 
     nodes.forEach((node) => {
-      const parts = node.deck.name.split('::');
-      const leafName = parts[parts.length - 1];
       const hasChildren = node.children.length > 0;
       const isExpanded = expandedDecks.has(node.deck.name);
-      const indent = node.level * 20;
 
       elements.push(
-        <Pressable
+        <DeckCard
           key={node.deck.id}
-          style={[
-            styles.deckCard,
-            {
-              backgroundColor: theme.colors.surface,
-              marginLeft: indent,
-              borderLeftWidth: currentDeckId === node.deck.id ? 4 : 0,
-              borderLeftColor: theme.colors.accent,
-            },
-          ]}
+          deck={node.deck}
+          level={node.level}
+          hasChildren={hasChildren}
+          isExpanded={isExpanded}
+          isCurrentDeck={currentDeckId === node.deck.id}
           onPress={() => {
             if (hasChildren) {
               toggleExpand(node.deck.name);
@@ -303,52 +227,11 @@ export default function DecksScreen() {
             setSelectedDeck(node.deck);
             setActionSheetVisible(true);
           }}
-        >
-          <View style={styles.deckHeader}>
-            <View style={styles.deckTitleRow}>
-              {hasChildren && (
-                <Ionicons 
-                  name={isExpanded ? 'chevron-down' : 'chevron-forward'} 
-                  size={16} 
-                  color={theme.colors.textSecondary}
-                  style={styles.expandIcon}
-                />
-              )}
-              <Text style={[styles.deckName, { color: theme.colors.textPrimary }]}>
-                {leafName}
-              </Text>
-            </View>
-            <Pressable
-              style={styles.moreButton}
-              onPress={() => {
-                setSelectedDeck(node.deck);
-                setActionSheetVisible(true);
-              }}
-            >
-              <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.textSecondary} />
-            </Pressable>
-          </View>
-          
-          <View style={styles.deckStats}>
-            <View style={styles.statBadge}>
-              <Text style={[styles.statNumber, { color: theme.colors.accent }]}>
-                {node.deck.dueCount}
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                due
-              </Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBadge}>
-              <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>
-                {node.deck.cardCount}
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                total
-              </Text>
-            </View>
-          </View>
-        </Pressable>
+          onMorePress={() => {
+            setSelectedDeck(node.deck);
+            setActionSheetVisible(true);
+          }}
+        />
       );
 
       // Render children if expanded
@@ -361,11 +244,7 @@ export default function DecksScreen() {
   };
 
   // Filter decks by search query
-  const filteredDecks = React.useMemo(() => {
-    if (!searchQuery.trim()) return decks;
-    const query = searchQuery.toLowerCase();
-    return decks.filter(d => d.name.toLowerCase().includes(query));
-  }, [decks, searchQuery]);
+  const filteredDecks = React.useMemo(() => filterDecks(decks, searchQuery), [decks, searchQuery]);
 
   // Build tree from filtered decks
   const filteredDeckTree = React.useMemo(() => {
@@ -412,7 +291,7 @@ export default function DecksScreen() {
           </Text>
           <Pressable
             style={[styles.addButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => setIsCreatingDeck(true)}
+            onPress={() => setAddDeckModalVisible(true)}
           >
             <Text style={styles.addButtonText}>+</Text>
           </Pressable>
@@ -437,37 +316,15 @@ export default function DecksScreen() {
 
         {/* Create deck input */}
         {isCreatingDeck && (
-          <View style={[styles.createDeckCard, { backgroundColor: theme.colors.surface }]}>
-            <TextInput
-              style={[styles.input, { color: theme.colors.textPrimary, borderColor: theme.colors.border }]}
-              placeholder="Enter deck name (e.g., Parent::Child)"
-              placeholderTextColor={theme.colors.textSecondary}
-              value={newDeckName}
-              onChangeText={setNewDeckName}
-              autoFocus
-            />
-            <View style={styles.createActions}>
-              <Pressable
-                style={[styles.createButton, { backgroundColor: theme.colors.surface }]}
-                onPress={() => {
-                  setIsCreatingDeck(false);
-                  setNewDeckName('');
-                }}
-              >
-                <Text style={[styles.createButtonText, { color: theme.colors.textSecondary }]}>
-                  Cancel
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.createButton, { backgroundColor: theme.colors.accent }]}
-                onPress={handleCreateDeck}
-              >
-                <Text style={[styles.createButtonText, { color: '#000' }]}>
-                  Create
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          <CreateDeckForm
+            value={newDeckName}
+            onChangeText={setNewDeckName}
+            onCancel={() => {
+              setIsCreatingDeck(false);
+              setNewDeckName('');
+            }}
+            onCreate={handleCreateDeck}
+          />
         )}
 
         {/* Render deck tree */}
@@ -509,6 +366,23 @@ export default function DecksScreen() {
         }}
         confirmText="Rename"
       />
+
+      {/* Add Deck Options Modal */}
+      <AddDeckModal
+        visible={addDeckModalVisible}
+        onCreateNew={() => {
+          setAddDeckModalVisible(false);
+          setIsCreatingDeck(true);
+        }}
+        onImport={() => {
+          setAddDeckModalVisible(false);
+          handleImportDeck();
+        }}
+        onCancel={() => setAddDeckModalVisible(false)}
+      />
+
+      {/* Import Progress Modal */}
+      <ImportProgressModal visible={importing} progress={importProgress} />
     </SafeAreaView>
   );
 }
@@ -545,82 +419,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     color: '#000',
-  },
-  createDeckCard: {
-    padding: s.md,
-    borderRadius: r.md,
-    marginBottom: s.md,
-    gap: s.md,
-  },
-  input: {
-    padding: s.md,
-    borderRadius: r.sm,
-    borderWidth: 1,
-    fontSize: 16,
-  },
-  createActions: {
-    flexDirection: 'row',
-    gap: s.sm,
-    justifyContent: 'flex-end',
-  },
-  createButton: {
-    paddingVertical: s.sm,
-    paddingHorizontal: s.lg,
-    borderRadius: r.sm,
-  },
-  createButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  deckCard: {
-    padding: s.lg,
-    borderRadius: r.lg,
-    marginBottom: s.md,
-  },
-  deckHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: s.md,
-  },
-  deckTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s.sm,
-    flex: 1,
-  },
-  expandIcon: {
-    marginRight: 4,
-  },
-  deckName: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  moreButton: {
-    padding: s.xs,
-  },
-  deckStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s.md,
-  },
-  statBadge: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: s.xs / 2,
-  },
-  statLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: 'rgba(0,0,0,0.1)',
   },
   searchContainer: {
     flexDirection: 'row',
