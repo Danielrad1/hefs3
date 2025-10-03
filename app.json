@@ -16,11 +16,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.memorize-app",
+      "deploymentTarget": "15.5",
       "infoPlist": {
         "NSDocumentsFolderUsageDescription": "This app needs access to documents to import Anki decks",
         "NSCameraUsageDescription": "This app needs access to the camera to capture images for flashcards",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select images for flashcards",
-        "NSMicrophoneUsageDescription": "This app needs access to the microphone to record audio for flashcards"
+        "NSMicrophoneUsageDescription": "This app needs access to the microphone to record audio for flashcards",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -38,6 +40,11 @@
     "plugins": [
       "expo-sqlite",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b58c2019-3374-450f-96ab-3260e67bb02f"
+      }
+    }
   }
 }

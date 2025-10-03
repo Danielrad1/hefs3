@@ -15,7 +15,7 @@ export class PersistenceService {
     try {
       const json = db.toJSON();
       await FileSystem.writeAsStringAsync(DB_FILE, json);
-      console.log('[PersistenceService] Database saved successfully');
+      // Database saved successfully (removed log for performance)
     } catch (error) {
       console.error('[PersistenceService] Error saving database:', error);
       throw error;

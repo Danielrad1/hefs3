@@ -5,6 +5,8 @@
 import { InMemoryDb } from './InMemoryDb';
 import { AnkiNote, AnkiCard, CardType, CardQueue, FIELD_SEPARATOR, DEFAULT_EASE_FACTOR, DEFAULT_MODEL_ID, MODEL_TYPE_CLOZE } from './schema';
 import { nowSeconds, generateId } from './time';
+import { generateGuid } from './guid';
+import { calculateChecksum } from './checksum';
 
 export interface CreateNoteParams {
   modelId: string | number;  // Accept both for flexibility
@@ -42,17 +44,19 @@ export class NoteService {
     const now = nowSeconds();
     const noteId = generateId();
 
-    // Create note
+    // Create note (Anki-compatible format)
     const note: AnkiNote = {
       id: noteId,
-      guid: `note-${noteId}`,
+      guid: generateGuid(), // Proper base91 GUID
       mid: params.modelId,
       mod: now,
-      usn: -1,
-      tags: params.tags ? ` ${params.tags.join(' ')} ` : ' ',
-      flds: params.fields.join(FIELD_SEPARATOR),
+      usn: -1, // -1 = local changes not synced
+      tags: params.tags && params.tags.length > 0 
+        ? ` ${params.tags.join(' ')} ` // Surrounding spaces required!
+        : ' ', // Empty tags is single space
+      flds: params.fields.join(FIELD_SEPARATOR), // \x1F separator
       sfld: 0,
-      csum: this.hashField(params.fields[model.sortf] || ''),
+      csum: calculateChecksum(params.fields[model.sortf] || ''), // SHA1-based checksum
       flags: 0,
       data: '',
     };
@@ -86,11 +90,13 @@ export class NoteService {
         throw new Error(`Expected ${model.flds.length} fields, got ${params.fields.length}`);
       }
       updates.flds = params.fields.join(FIELD_SEPARATOR);
-      updates.csum = this.hashField(params.fields[model.sortf] || '');
+      updates.csum = calculateChecksum(params.fields[model.sortf] || ''); // Proper checksum
     }
 
-    if (params.tags) {
-      updates.tags = ` ${params.tags.join(' ')} `;
+    if (params.tags !== undefined) {
+      updates.tags = params.tags.length > 0 
+        ? ` ${params.tags.join(' ')} ` // Surrounding spaces!
+        : ' '; // Empty tags is single space
     }
 
     this.db.updateNote(noteId, updates);
@@ -174,7 +180,7 @@ export class NoteService {
     this.db.updateNote(noteId, {
       mid: targetModelId,
       flds: newFields.join(FIELD_SEPARATOR),
-      csum: this.hashField(newFields[targetModel.sortf] || ''),
+      csum: calculateChecksum(newFields[targetModel.sortf] || ''),
     });
 
     // Generate new cards
@@ -262,16 +268,4 @@ export class NoteService {
     return Array.from(indices).sort((a, b) => a - b);
   }
 
-  /**
-   * Simple hash for checksum
-   */
-  private hashField(field: string): number {
-    let hash = 0;
-    for (let i = 0; i < field.length; i++) {
-      const char = field.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return Math.abs(hash) % 0xFFFFFFFF;
-  }
 }

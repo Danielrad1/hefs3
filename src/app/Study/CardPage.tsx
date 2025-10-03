@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Dimensions, Text } from 'react-native';
+import { View, StyleSheet, Dimensions, Text, ScrollView } from 'react-native';
 import Animated, { 
   useAnimatedStyle, 
   withTiming, 
@@ -10,7 +10,7 @@ import Animated, {
   Extrapolate,
   useAnimatedReaction
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTheme } from '../../design';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
@@ -94,12 +94,36 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
   // Tap to toggle between question/answer, pan to rate
   const tapGesture = Gesture.Tap()
     .maxDuration(250)
+    .numberOfTaps(1)
     .onEnd(() => {
       'worklet';
       handleToggle();
     });
+  
+  // Two-finger scroll implementation
+  const scrollY = useSharedValue(0);
+  const contentHeight = useSharedValue(0);
+  const containerHeight = height * 0.8 - s.md * 2; // Card height minus padding
+  
 
+  
+  const scrollGesture = Gesture.Pan()
+    .minPointers(2)
+    .maxPointers(2)
+    .onChange((event) => {
+      'worklet';
+      const maxScroll = Math.max(0, contentHeight.value - containerHeight);
+      const newScrollY = scrollY.value - event.changeY;
+      scrollY.value = Math.max(0, Math.min(newScrollY, maxScroll));
+    });
+  
+  const scrollAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -scrollY.value }]
+  }));
+
+  // One-finger pan for rating swipes
   const panGesture = Gesture.Pan()
+    .maxPointers(1)
     .onBegin((event) => {
       'worklet';
       // Store the Y position where the touch started (relative to card center)
@@ -233,6 +257,9 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
 
   const [displayText, setDisplayText] = React.useState(card.front);
   const hasSwapped = useSharedValue(false);
+  
+  // Check if this is a cloze card (contains cloze deletions)
+  const isClozeCard = card.front.includes('{{c');
 
   React.useEffect(() => {
     // Reset when card changes
@@ -245,6 +272,13 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
   useAnimatedReaction(
     () => revealProgress.value,
     (current, previous) => {
+      // For cloze cards, keep showing the same text (front) - the renderer handles reveal
+      if (isClozeCard) {
+        // Don't swap text for cloze cards
+        return;
+      }
+      
+      // For normal cards, switch between front and back
       // Switch to back when crossing 0.5 going forward
       if (current >= 0.5 && (previous === null || previous < 0.5) && !hasSwapped.value) {
         hasSwapped.value = true;
@@ -378,7 +412,11 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
     }
   });
 
-  const combinedGesture = Gesture.Race(tapGesture, panGesture);
+  // Simultaneous: allow two-finger scroll independently from tap/swipe
+  const combinedGesture = Gesture.Simultaneous(
+    scrollGesture,
+    Gesture.Race(tapGesture, panGesture)
+  );
 
   return (
     <GestureDetector gesture={combinedGesture}>
@@ -386,12 +424,21 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
         {/* Single card with text that changes */}
         <View style={styles.cardContainer}>
           <Animated.View style={[styles.card, { backgroundColor: theme.colors.surface }, sh.card, cardShadowStyle]}>
-            <CardContentRenderer 
-              html={displayText}
-              revealed={revealed}
-              clozeIndex={0}
-              cardId={card.id}
-            />
+            <View style={styles.scrollContainer}>
+              <Animated.View 
+                style={[styles.scrollContent, scrollAnimatedStyle]}
+                onLayout={(e) => {
+                  contentHeight.value = e.nativeEvent.layout.height;
+                }}
+              >
+                <CardContentRenderer 
+                  html={isClozeCard && revealed ? `${displayText}<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(128,128,128,0.2);">${card.back}</div>` : displayText}
+                  revealed={revealed}
+                  clozeIndex={0}
+                  cardId={card.id}
+                />
+              </Animated.View>
+            </View>
           </Animated.View>
         </View>
 
@@ -426,8 +473,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '80%',
     borderRadius: r.lg,
-    padding: s.md,
     overflow: 'hidden',
+  },
+  scrollContainer: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  scrollContent: {
+    padding: s.md,
   },
   cardText: {
     fontSize: 28,

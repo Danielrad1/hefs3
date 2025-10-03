@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text as RNText, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import React, { useState, useLayoutEffect } from 'react';
+import { View, Text as RNText, StyleSheet, Pressable, useWindowDimensions, Image } from 'react-native';
 import RenderHtml from 'react-native-render-html';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -34,7 +34,101 @@ export default function CardContentRendererV2({
   cardId = '',
 }: CardContentRendererProps) {
   const theme = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  
+  // State to prevent rendering until dimensions are calculated
+  const [isReady, setIsReady] = useState(false);
+  
+  // Memoize content analysis to prevent recalculation on every render
+  const contentAnalysis = React.useMemo(() => {
+    const hasImages = /<img[^>]+>/i.test(html);
+    const textContent = html.replace(/<[^>]+>/g, '').trim();
+    const wordCount = textContent.split(/\s+/).length;
+    const charCount = textContent.length;
+    
+    // Calculate available space based on actual card dimensions
+    const cardHeight = height * 0.8; // Card takes 80% of screen height  
+    const cardWidth = width - (s.lg * 2); // Card width minus screen padding
+    const cardPadding = s.md * 2; // Top and bottom card padding
+    
+    // Dynamic text space based on actual content - use more of the available space
+    const estimatedTextSpace = wordCount <= 3 ? 20 : // Less space for short text
+                               wordCount <= 8 ? 35 : 
+                               wordCount <= 20 ? 50 : 70;
+    const margins = wordCount <= 3 ? 10 : 25; // Reduced margins to use more space
+    const availableHeight = cardHeight - cardPadding - estimatedTextSpace - margins;
+    
+    // Image width should be more conservative - not full card width
+    const maxImageWidth = cardWidth * 0.85; // 85% of card width, not 100%
+    
+    return {
+      hasImages,
+      textContent,
+      wordCount,
+      charCount,
+      cardHeight,
+      cardWidth,
+      availableHeight,
+      maxImageWidth
+    };
+  }, [html, width, height]);
+  
+  const { hasImages, textContent, wordCount, charCount, availableHeight, maxImageWidth } = contentAnalysis;
+  
+  // Use layout effect to ensure dimensions are ready before rendering
+  useLayoutEffect(() => {
+    if (width > 0 && height > 0) {
+      setIsReady(true);
+    }
+  }, [width, height]); // Don't reset on cardId change - dimensions don't change
+  
+  // Calculate sizing ONCE on mount, don't recalculate on reveal
+  // This keeps text size constant when flipping cards
+  const sizingConfig = React.useMemo(() => {
+    let imageHeight: number;
+    let fontSize: number = 16;
+    
+    if (hasImages) {
+      // Fixed image height - doesn't try to fit in available space
+      imageHeight = 300; // Standard image height
+      
+      // Font size based on word count only
+      if (wordCount <= 3) {
+        fontSize = Math.min(32, width * 0.08);
+      } else if (wordCount <= 10) {
+        fontSize = Math.min(26, width * 0.065);
+      } else if (wordCount <= 30) {
+        fontSize = 20;
+      } else if (wordCount <= 60) {
+        fontSize = 16;
+      } else {
+        fontSize = 14;
+      }
+    } else {
+      imageHeight = 0;
+      if (wordCount === 1) {
+        fontSize = Math.min(120, width * 0.15);
+      } else if (wordCount <= 3) {
+        fontSize = Math.min(80, width * 0.12);
+      } else if (wordCount <= 10) {
+        fontSize = Math.min(48, width * 0.08);
+      } else if (wordCount <= 30) {
+        fontSize = 32;
+      } else if (wordCount <= 60) {
+        fontSize = 24;
+      } else {
+        fontSize = 18;
+      }
+    }
+    
+    return {
+      maxImageHeight: imageHeight,
+      baseFontSize: fontSize,
+      baseLineHeight: fontSize * 1.3
+    };
+  }, [hasImages, wordCount, width]); // Removed height and availableHeight - don't resize based on space
+
+  const { maxImageHeight, baseFontSize, baseLineHeight } = sizingConfig;
 
   // Memoize audio extraction based on HTML content
   const audioFiles = React.useMemo(() => {
@@ -77,7 +171,13 @@ export default function CardContentRendererV2({
     processed = processed.replace(
       /<img([^>]+)src="([^"]+)"([^>]*)>/gi,
       (match, before, src, after) => {
-        const mediaPath = `${FileSystem.documentDirectory}media/${src}`;
+        // Sanitize filename the same way it was saved during import
+        // Replace unsafe characters with underscore (matches ApkgParser.sanitizeFilename)
+        let sanitized = src.replace(/[^A-Za-z0-9._-]/g, '_');
+        
+        // URL encode for the file path
+        const encodedFilename = encodeURIComponent(sanitized);
+        const mediaPath = `${FileSystem.documentDirectory}media/${encodedFilename}`;
         return `<img${before}src="${mediaPath}"${after}>`;
       }
     );
@@ -85,46 +185,21 @@ export default function CardContentRendererV2({
     return processed;
   }, [html, revealed, clozeIndex, theme.colors.textPrimary]);
 
-  // Calculate dynamic font size based on content length
-  const textContent = processedHtml.replace(/<[^>]+>/g, '').trim();
-  const wordCount = textContent.split(/\s+/).length;
-  const charCount = textContent.length;
-  
-  let baseFontSize = 18;
-  let baseLineHeight = 28;
-  
-  // Dynamic sizing based on content length (like the old renderer)
-  if (wordCount === 1) {
-    baseFontSize = Math.min(120, width * 0.15);
-    baseLineHeight = baseFontSize * 1.2;
-  } else if (wordCount <= 3) {
-    baseFontSize = Math.min(80, width * 0.12);
-    baseLineHeight = baseFontSize * 1.2;
-  } else if (wordCount <= 10) {
-    baseFontSize = Math.min(48, width * 0.08);
-    baseLineHeight = baseFontSize * 1.3;
-  } else if (wordCount <= 30) {
-    baseFontSize = 32;
-    baseLineHeight = 44;
-  } else if (wordCount <= 60) {
-    baseFontSize = 24;
-    baseLineHeight = 34;
-  } else {
-    baseFontSize = 18;
-    baseLineHeight = 26;
-  }
-
   // Custom renderers for specific HTML elements
-  const tagsStyles = {
+  const tagsStyles = React.useMemo(() => ({
     body: {
       color: theme.colors.textPrimary,
       fontSize: baseFontSize,
       lineHeight: baseLineHeight,
       textAlign: 'center' as const,
-      fontWeight: wordCount <= 3 ? '700' as const : wordCount <= 10 ? '600' as const : '400' as const,
+      fontWeight: hasImages && wordCount <= 3 ? '700' as const : // Bold for minimal text with images
+                  hasImages && wordCount <= 8 ? '600' as const : 
+                  wordCount <= 3 ? '700' as const : 
+                  wordCount <= 10 ? '600' as const : '400' as const,
     },
     p: {
-      marginVertical: 8,
+      marginVertical: hasImages && wordCount <= 3 ? 2 : // Minimal margins for short text
+                     hasImages ? 4 : 8,
     },
     strong: {
       fontWeight: '700' as const,
@@ -195,25 +270,55 @@ export default function CardContentRendererV2({
       opacity: 0.8,
     },
     img: {
-      marginVertical: 12,
+      marginVertical: hasImages && wordCount <= 3 ? 2 : 
+                     hasImages && wordCount <= 8 ? 4 : 6, // Tighter margins for better fit
+      maxWidth: maxImageWidth, // 85% of card width, not full width
+      maxHeight: maxImageHeight, // Dynamic height limit based on screen size
+      minHeight: hasImages ? 
+        (wordCount <= 3 ? Math.min(200, maxImageHeight * 0.6) : // Larger minimum for minimal text
+         wordCount <= 8 ? Math.min(150, maxImageHeight * 0.5) : 
+         Math.min(100, maxImageHeight * 0.3)) : undefined,
+      width: 'auto',
+      height: 'auto',
+      alignSelf: 'center',
+      objectFit: 'contain', // Maintain aspect ratio
     },
-  };
+  }), [theme.colors, baseFontSize, baseLineHeight, hasImages, wordCount, maxImageWidth, maxImageHeight]);
+
+  // Memoize renderersProps to prevent layout shifts
+  const renderersProps = React.useMemo(() => ({
+    img: {
+      enableExperimentalPercentWidth: true,
+      initialDimensions: {
+        width: maxImageWidth,
+        height: maxImageHeight,
+      },
+      computeEmbeddedMaxWidth: (availableWidth: number) => {
+        return Math.min(availableWidth, maxImageWidth);
+      },
+      computeEmbeddedMaxHeight: (availableHeight: number) => {
+        return Math.min(availableHeight, maxImageHeight);
+      },
+    },
+  }), [maxImageWidth, maxImageHeight]);
+
+  // Don't render until dimensions are stable
+  if (!isReady) {
+    return <View style={styles.container} />;
+  }
 
   return (
     <View style={styles.container} pointerEvents="box-none">
       <RenderHtml
-        contentWidth={width - s.lg * 2}
+        contentWidth={maxImageWidth}
         source={{ html: processedHtml }}
         tagsStyles={tagsStyles as any}
         defaultTextProps={{
           selectable: false,
         }}
         enableExperimentalMarginCollapsing
-        renderersProps={{
-          img: {
-            enableExperimentalPercentWidth: true,
-          },
-        }}
+        renderersProps={renderersProps}
+        ignoredDomTags={['font']}
       />
 
       {/* Audio Players */}
@@ -338,37 +443,22 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
   return (
     <GestureDetector gesture={audioTapGesture}>
       <View style={[styles.audioPlayer, { backgroundColor: theme.colors.surface }]}>
-        <View style={styles.audioControls}>
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              togglePlayPause();
-            }}
-            disabled={!sound}
-          >
-            <View style={[styles.playButton, { backgroundColor: theme.colors.accent, opacity: sound ? 1 : 0.3 }]}>
-              <Ionicons
-                name={isPlaying ? 'pause' : 'play'}
-                size={20}
-                color="#000"
-                style={isPlaying ? {} : { marginLeft: 2 }}
-              />
-            </View>
-          </Pressable>
-
-          <Pressable
-            onPress={handleReplay}
-            disabled={!sound}
-            style={styles.replayButton}
-          >
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            togglePlayPause();
+          }}
+          disabled={!sound}
+        >
+          <View style={[styles.playButton, { backgroundColor: theme.colors.accent, opacity: sound ? 1 : 0.3 }]}>
             <Ionicons
-              name="reload"
-              size={18}
-              color={theme.colors.textSecondary}
-              style={{ opacity: sound ? 1 : 0.3 }}
+              name={isPlaying ? 'pause' : 'play'}
+              size={20}
+              color="#000"
+              style={isPlaying ? {} : { marginLeft: 2 }}
             />
-          </Pressable>
-        </View>
+          </View>
+        </Pressable>
         
         {/* Progress Bar */}
         <View style={styles.progressContainer}>
@@ -391,6 +481,19 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
             </View>
           )}
         </View>
+
+        <Pressable
+          onPress={handleReplay}
+          disabled={!sound}
+          style={styles.replayButton}
+        >
+          <Ionicons
+            name="reload"
+            size={18}
+            color={theme.colors.textSecondary}
+            style={{ opacity: sound ? 1 : 0.3 }}
+          />
+        </Pressable>
       </View>
     </GestureDetector>
   );
@@ -402,6 +505,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: s.lg,
+    minHeight: '100%',
   },
   audioPlayer: {
     flexDirection: 'row',
@@ -411,11 +515,6 @@ const styles = StyleSheet.create({
     marginTop: s.md,
     gap: s.sm,
     minWidth: 280,
-  },
-  audioControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s.xs,
   },
   playButton: {
     width: 44,

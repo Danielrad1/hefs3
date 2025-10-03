@@ -19,6 +19,7 @@ interface ThemeContextType {
     success: string;
     warning: string;
     danger: string;
+    info: string;
   };
 }
 
@@ -43,6 +44,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     success: '#10B981',
     warning: '#F59E0B',
     danger: '#EF4444',
+    info: '#06B6D4',
   } : {
     bg: '#FFFFFF',
     surface: '#F5F7FB',
@@ -54,6 +56,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     success: '#10B981',
     warning: '#F59E0B',
     danger: '#EF4444',
+    info: '#06B6D4',
   };
 
   return (

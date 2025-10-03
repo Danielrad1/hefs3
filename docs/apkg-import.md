@@ -22,6 +22,7 @@
    - `expo-file-system` - File operations
    - `expo-sqlite` - SQLite database
    - `jszip` - ZIP extraction
+   - Optional (streaming unzip fallback): `expo-zip` or `react-native-zip-archive`
 
 ### **How It Works:**
 
@@ -120,6 +121,25 @@ Download any Anki deck:
 - HTML content displays as plain text
 - Cloze cards not yet supported
 - Templates not yet rendered
+
+### **File Size Limits (Mobile):**
+
+- Practical in-app import limit is ~200 MB per .apkg on mobile due to JS memory constraints.
+- For decks larger than 200 MB:
+  - Split into subdecks (<100 MB each) in Anki Desktop and export separately
+  - Remove large media and import them separately
+  - Or use the native streaming unzip fallback (expo-zip or react-native-zip-archive)
+  - Import on a device/emulator with more available RAM
+
+### **Streaming Unzip (Feature Flag):**
+
+- The parser supports a streaming unzip path that avoids building large strings in JS.
+- It activates when calling `parser.parse(uri, { enableStreaming: true })` and a native unzip module is available.
+- Supported modules (install one):
+  - `expo-zip` (Managed/Expo projects): `import { unzipAsync } from 'expo-zip'`
+  - `react-native-zip-archive` (Bare/Dev client): `import { unzip } from 'react-native-zip-archive'`
+- In this app, large imports (>100 MB) automatically request streaming mode. If the module isn't installed, the code falls back to JSZip.
+
 
 These will be implemented in Phase 3!
 

@@ -38,15 +38,9 @@ export default function DecksScreen() {
   const cardService = React.useMemo(() => new CardService(db), []);
   
   // Use import hook
-  const { importing, importProgress, handleImportDeck } = useDeckImport(reload);
+  const { importing, importProgress, handleImportDeck, cancelImport } = useDeckImport(reload, reload);
 
-  // Log decks whenever they change
-  React.useEffect(() => {
-    console.log('[DecksScreen] Received', decks.length, 'decks from scheduler:');
-    decks.forEach(d => {
-      console.log('[DecksScreen] -', d.name, ':', d.cardCount, 'cards,', d.dueCount, 'due');
-    });
-  }, [decks]);
+  // Removed excessive logging for performance
 
   const handleDeckPress = (deckId: string) => {
     // Navigate to Deck Detail screen
@@ -382,7 +376,11 @@ export default function DecksScreen() {
       />
 
       {/* Import Progress Modal */}
-      <ImportProgressModal visible={importing} progress={importProgress} />
+      <ImportProgressModal 
+        visible={importing} 
+        progress={importProgress}
+        onCancel={cancelImport}
+      />
     </SafeAreaView>
   );
 }

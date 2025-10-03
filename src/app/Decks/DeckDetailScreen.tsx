@@ -89,29 +89,15 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
       if (nextDueTimes.length > 0) {
         const secondsUntilDue = nextDueTimes[0] - now;
         setNextDueSeconds(secondsUntilDue);
-        if (__DEV__) {
-          const hours = Math.floor(secondsUntilDue / 3600);
-          const minutes = Math.floor((secondsUntilDue % 3600) / 60);
-          console.log('[DeckDetail] Next card in:', hours, 'hours', minutes, 'minutes');
-        }
       } else {
         setNextDueSeconds(null);
-        if (__DEV__) {
-          console.log('[DeckDetail] No future cards');
-        }
       }
     } else {
       // All cards are either due now or there are no cards
       if (actuallyDueCards.length > 0) {
         setNextDueSeconds(0);
-        if (__DEV__) {
-          console.log('[DeckDetail] Cards available now:', actuallyDueCards.length);
-        }
       } else {
         setNextDueSeconds(null);
-        if (__DEV__) {
-          console.log('[DeckDetail] No cards in deck');
-        }
       }
     }
   }, [cards, actuallyDueCards.length, refreshTrigger]);
@@ -133,23 +119,23 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
           setRefreshTrigger(prev => prev + 1); // Trigger recalculation
           reload(); // Refresh scheduler
         } else {
-          // Format time based on duration
-          if (remaining >= 3600) {
-            // Show hours for long waits
-            const hours = Math.floor(remaining / 3600);
-            const minutes = Math.floor((remaining % 3600) / 60);
+          // Format time based on duration - only show hours and minutes
+          const hours = Math.floor(remaining / 3600);
+          const minutes = Math.floor((remaining % 3600) / 60);
+          
+          if (hours > 0) {
             setTimeRemaining(`Next card in ${hours}h ${minutes}m`);
+          } else if (minutes > 0) {
+            setTimeRemaining(`Next card in ${minutes}m`);
           } else {
-            // Show minutes and seconds for short waits
-            const minutes = Math.floor(remaining / 60);
-            const seconds = remaining % 60;
-            setTimeRemaining(`Next card in ${minutes}m ${seconds}s`);
+            setTimeRemaining('Next card in <1m');
           }
         }
       };
       
       updateTimer(); // Initial update
-      const interval = setInterval(updateTimer, 1000);
+      // Update every minute instead of every second
+      const interval = setInterval(updateTimer, 60000);
       return () => clearInterval(interval);
     } else {
       setTimeRemaining('No cards due today');

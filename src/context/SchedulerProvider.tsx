@@ -54,12 +54,8 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
 
   // Load current and next cards
   const loadCards = useCallback(() => {
-    console.log('[SchedulerProvider] Loading cards for deck:', currentDeckId || 'all');
     const currentAnkiCard = scheduler.getNext(currentDeckId || undefined);
-    console.log('[SchedulerProvider] Current card:', currentAnkiCard?.id);
-    
     const nextAnkiCard = currentAnkiCard ? scheduler.peekNext(currentDeckId || undefined) : null;
-    console.log('[SchedulerProvider] Next card:', nextAnkiCard?.id);
 
     if (currentAnkiCard) {
       try {
@@ -137,7 +133,6 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
 
   // Set active deck
   const setDeck = useCallback((deckId: string | null) => {
-    console.log('[SchedulerProvider] Setting active deck to:', deckId || 'all decks');
     setCurrentDeckId(deckId);
   }, []);
 
@@ -222,7 +217,6 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
 
   // Reload function to refresh from database
   const reload = useCallback(() => {
-    console.log('[SchedulerProvider] Reloading from database');
     loadCards();
   }, [loadCards]);
 

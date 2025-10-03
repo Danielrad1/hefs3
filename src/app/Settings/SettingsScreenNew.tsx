@@ -2,9 +2,13 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Switch, Linking, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
+import { db } from '../../services/anki/InMemoryDb';
+import { PersistenceService } from '../../services/anki/PersistenceService';
+import { useScheduler } from '../../context/SchedulerProvider';
 
 interface SettingItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -73,6 +77,7 @@ function SectionHeader({ title }: SectionHeaderProps) {
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  const { reload } = useScheduler();
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [dailyReminder, setDailyReminder] = React.useState(true);
   const [showThemeModal, setShowThemeModal] = React.useState(false);
@@ -95,7 +100,6 @@ export default function SettingsScreen() {
   };
 
   const handleRateUs = () => {
-    // In production, use actual App Store/Play Store link
     Alert.alert('Rate Us', 'Thank you for your support! This would open the app store.');
   };
 
@@ -122,14 +126,12 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
             Settings
           </Text>
         </View>
 
-        {/* Premium Section */}
         <View style={styles.section}>
           <SettingItem
             icon="star"
@@ -141,7 +143,6 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Study Settings */}
         <SectionHeader title="STUDY" />
         <View style={styles.section}>
           <SettingItem
@@ -188,7 +189,6 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Appearance */}
         <SectionHeader title="APPEARANCE" />
         <View style={styles.section}>
           <SettingItem
@@ -210,7 +210,6 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Data & Storage */}
         <SectionHeader title="DATA & STORAGE" />
         <View style={styles.section}>
           <SettingItem
@@ -233,15 +232,45 @@ export default function SettingsScreen() {
 
           <SettingItem
             icon="trash"
-            title="Clear Cache"
-            subtitle="Free up storage space"
+            title="Clear All Data"
+            subtitle="Delete all decks and reset app"
             onPress={() => {
               Alert.alert(
-                'Clear Cache',
-                'This will clear temporary files. Your decks will not be affected.',
+                'Clear All Data',
+                'This will permanently delete ALL decks, cards, and progress. This cannot be undone.\n\nAre you sure?',
                 [
                   { text: 'Cancel', style: 'cancel' },
-                  { text: 'Clear', style: 'destructive', onPress: () => console.log('Cache cleared') },
+                  { 
+                    text: 'Delete Everything', 
+                    style: 'destructive', 
+                    onPress: async () => {
+                      try {
+                        // Clear all data from database
+                        db.clear();
+                        
+                        // Save empty database
+                        await PersistenceService.save(db);
+                        
+                        // Clear media files
+                        const mediaDir = `${FileSystem.documentDirectory}media/`;
+                        await FileSystem.deleteAsync(mediaDir, { idempotent: true });
+                        await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
+                        
+                        // Clear temp files
+                        const tempDir = `${FileSystem.documentDirectory}temp/`;
+                        await FileSystem.deleteAsync(tempDir, { idempotent: true });
+                        await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
+                        
+                        // Reload scheduler to refresh all screens
+                        reload();
+                        
+                        Alert.alert('Success', 'All data has been cleared.');
+                      } catch (error) {
+                        console.error('Error clearing data:', error);
+                        Alert.alert('Error', 'Failed to clear data. Please try again.');
+                      }
+                    }
+                  },
                 ]
               );
             }}
@@ -250,7 +279,6 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Support */}
         <SectionHeader title="SUPPORT" />
         <View style={styles.section}>
           <SettingItem
@@ -281,7 +309,6 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Legal */}
         <SectionHeader title="LEGAL" />
         <View style={styles.section}>
           <SettingItem
@@ -309,13 +336,11 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Version */}
         <Text style={[styles.version, { color: theme.colors.textTertiary }]}>
           Version 1.0.0
         </Text>
       </ScrollView>
 
-      {/* Theme Selection Modal */}
       <Modal
         visible={showThemeModal}
         transparent
