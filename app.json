@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.memorize-app",
-      "deploymentTarget": "15.5",
+      "deploymentTarget": "16.0",
       "infoPlist": {
         "NSDocumentsFolderUsageDescription": "This app needs access to documents to import Anki decks",
         "NSCameraUsageDescription": "This app needs access to the camera to capture images for flashcards",
