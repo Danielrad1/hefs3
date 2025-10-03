@@ -18,7 +18,7 @@ import { sh } from '../../design/shadows';
 import { Card } from '../../domain/models';
 import { Difficulty } from '../../domain/srsTypes';
 import { useHaptics } from '../../hooks/useHaptics';
-import CardContentRenderer from '../../components/CardContentRenderer';
+import CardContentRenderer from '../../components/CardContentRendererV2';
 
 const { height, width } = Dimensions.get('window');
 
@@ -93,6 +93,7 @@ export default function CardPage({ card, onAnswer, onSwipeChange, isCurrent = fa
 
   // Tap to toggle between question/answer, pan to rate
   const tapGesture = Gesture.Tap()
+    .maxDuration(250)
     .onEnd(() => {
       'worklet';
       handleToggle();

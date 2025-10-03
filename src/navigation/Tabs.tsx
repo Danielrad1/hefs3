@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../app/Home/HomeScreen';
 import StudyScreen from '../app/Study/StudyScreen';
-import SettingsScreen from '../app/Settings/SettingsScreen';
+import SettingsScreen from '../app/Settings/SettingsScreenNew';
 import DiscoverScreen from '../app/Discover/DiscoverScreen';
 import DecksStack from './DecksStack';
 import { useTheme } from '../design/theme';
@@ -44,9 +44,9 @@ export default function Tabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Decks" component={DecksStack} />
       <Tab.Screen name="Study" component={StudyScreen} />
+      <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
