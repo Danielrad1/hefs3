@@ -192,7 +192,6 @@ export default function StudyScreen() {
         style: null,
       });
     }
-    console.log(`[StudyScreen] Cards array: ${cardList.map(c => c.card.id).join(', ')}, current=${current?.id}, next=${next?.id}`);
     return cardList;
   }, [next, current, nextCardStyle]);
 
@@ -232,28 +231,25 @@ export default function StudyScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       {/* Card stack - all cards in same flat structure for React reconciliation */}
       <View style={styles.cardStack}>
-        {cards.map(({ card, zIndex, isCurrent, style }) => {
-          console.log(`[StudyScreen] Rendering card ${card.id}, isCurrent=${isCurrent}, zIndex=${zIndex}`);
-          return (
-            <Animated.View
-              key={card.id}
-              style={[
-                styles.cardWrapper,
-                { zIndex },
-                style,
-              ]}
-              pointerEvents={isCurrent ? 'auto' : 'none'}
-            >
-              <CardPage
-                card={card}
-                onAnswer={handleAnswer}
-                onSwipeChange={handleSwipeChange}
-                onReveal={handleReveal}
-                disabled={!isCurrent}
-              />
-            </Animated.View>
-          );
-        })}
+        {cards.map(({ card, zIndex, isCurrent, style }) => (
+          <Animated.View
+            key={card.id}
+            style={[
+              styles.cardWrapper,
+              { zIndex },
+              style,
+            ]}
+            pointerEvents={isCurrent ? 'auto' : 'none'}
+          >
+            <CardPage
+              card={card}
+              onAnswer={handleAnswer}
+              onSwipeChange={handleSwipeChange}
+              onReveal={handleReveal}
+              disabled={!isCurrent}
+            />
+          </Animated.View>
+        ))}
       </View>
       
       {/* Screen overlay for swipe feedback */}

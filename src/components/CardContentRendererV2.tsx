@@ -297,8 +297,6 @@ const CardContentRendererV2 = React.memo(function CardContentRendererV2({
   // Memoize defaultTextProps to prevent unnecessary re-renders
   const defaultTextProps = React.useMemo(() => ({ selectable: false }), []);
 
-  console.log(`[CardRenderer] 🎨 RENDER cardId=${cardId}, revealed=${revealed}, htmlLength=${contentHtml.length}`);
-
   return (
     <View style={styles.container}>
       <RenderHtml
@@ -321,10 +319,7 @@ const CardContentRendererV2 = React.memo(function CardContentRendererV2({
   // CRITICAL: Only compare cardId and revealed to prevent image flicker
   const cardIdSame = prevProps.cardId === nextProps.cardId;
   const revealedSame = prevProps.revealed === nextProps.revealed;
-  const htmlSame = prevProps.html === nextProps.html;
   const shouldSkip = cardIdSame && revealedSame;
-  
-  console.log(`[CardRenderer MEMO] cardId: ${prevProps.cardId} → ${nextProps.cardId} (${cardIdSame ? 'SAME' : 'CHANGED'}), revealed: ${prevProps.revealed} → ${nextProps.revealed} (${revealedSame ? 'SAME' : 'CHANGED'}), html: ${htmlSame ? 'SAME' : 'CHANGED'}, decision: ${shouldSkip ? 'SKIP' : 'RENDER'}`);
   
   return shouldSkip;
 });

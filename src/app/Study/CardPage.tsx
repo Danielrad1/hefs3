@@ -8,7 +8,8 @@ import Animated, {
   runOnJS,
   withSpring,
   Extrapolate,
-  useAnimatedScrollHandler
+  useAnimatedScrollHandler,
+  Easing
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTheme } from '../../design';
@@ -34,8 +35,6 @@ type CardPageProps = {
 };
 
 const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false }: CardPageProps) {
-  console.log(`[CardPage] 🎴 RENDER cardId=${card.id}, disabled=${disabled}`);
-  
   const theme = useTheme();
   const { selection } = useHaptics();
   const panRef = React.useRef<any>(null);
@@ -66,24 +65,34 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       if (onReveal) {
         runOnJS(onReveal)();
       }
-      revealProgress.value = withTiming(1, { duration: 300 });
+      // Cloze cards: instant reveal (no crossfade needed)
+      // Normal cards: smooth crossfade
+      const isCloze = card.front.includes('{{c');
+      revealProgress.value = withTiming(1, { 
+        duration: isCloze ? 200 : 350,
+        easing: isCloze ? Easing.out(Easing.ease) : Easing.out(Easing.cubic),
+      });
     }
   };
 
   const handleToggle = () => {
     'worklet';
     // Toggle between question and answer
+    const isCloze = card.front.includes('{{c');
+    
     if (revealProgress.value === 0) {
-      // Show answer - faster animation for better UX
+      // Show answer - instant for cloze, smooth for normal
       revealProgress.value = withTiming(1, {
-        duration: 250,
+        duration: isCloze ? 200 : 350,
+        easing: isCloze ? Easing.out(Easing.ease) : Easing.out(Easing.cubic),
       });
       runOnJS(selection)();
       handleReveal();
     } else {
       // Hide answer - go back to question
       revealProgress.value = withTiming(0, {
-        duration: 250,
+        duration: isCloze ? 200 : 350,
+        easing: isCloze ? Easing.out(Easing.ease) : Easing.out(Easing.cubic),
       });
       runOnJS(selection)();
       // Reset revealed state for cloze cards
@@ -320,28 +329,28 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
     }
   }, [card.id]); // Only depend on card.id for clean resets
 
-  // Separate opacity for front and back - no midpoint fade
+  // Smooth reveal - no flash for cloze cards
   const frontOpacity = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      revealProgress.value,
-      [0, 1],
-      [1, 0],
-      Extrapolate.CLAMP
-    );
-    return { opacity: opacity };
+    // For cloze cards, don't crossfade - just hide front instantly at midpoint
+    // For normal cards, smooth crossfade
+    const opacity = isClozeCard 
+      ? interpolate(revealProgress.value, [0, 0.01, 1], [1, 0, 0], Extrapolate.CLAMP)
+      : interpolate(revealProgress.value, [0, 0.5, 1], [1, 0, 0], Extrapolate.CLAMP);
+    
+    return { 
+      opacity: opacity,
+    };
   });
   
   const backOpacity = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      revealProgress.value,
-      [0, 1],
-      [0, 1],
-      Extrapolate.CLAMP
-    );
+    // For cloze cards, show back immediately to avoid flash
+    // For normal cards, smooth crossfade
+    const opacity = isClozeCard
+      ? interpolate(revealProgress.value, [0, 0.01, 1], [0, 1, 1], Extrapolate.CLAMP)
+      : interpolate(revealProgress.value, [0, 0.5, 1], [0, 0, 1], Extrapolate.CLAMP);
+    
     return { 
       opacity: opacity,
-      zIndex: opacity === 0 ? -1 : 1,
-      pointerEvents: opacity === 0 ? 'none' : 'auto'
     };
   });
 
@@ -459,6 +468,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
               bounces={false}
               overScrollMode="never"
               showsVerticalScrollIndicator={true}
+              removeClippedSubviews={false}
               contentContainerStyle={styles.scrollContent}
             >
                 {/* Spacer to establish scroll height */}
@@ -472,9 +482,9 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
                   />
                 </View>
                 
-                {/* Front view */}
+                {/* Front view - always rendered */}
                 <Animated.View 
-                  style={[{ opacity: 1 }, frontOpacity, { position: 'absolute', top: 40, left: 24, right: 24 }]}
+                  style={[frontOpacity, { position: 'absolute', top: 40, left: 24, right: 24 }]}
                   pointerEvents={revealed ? 'none' : 'auto'}
                 >
                   <CardContentRenderer
@@ -486,9 +496,9 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
                   />
                 </Animated.View>
                 
-                {/* Back view */}
+                {/* Back view - always rendered for instant flip */}
                 <Animated.View 
-                  style={[{ opacity: 0 }, backOpacity, { position: 'absolute', top: 40, left: 24, right: 24 }]}
+                  style={[backOpacity, { position: 'absolute', top: 40, left: 24, right: 24 }]}
                   pointerEvents={revealed ? 'auto' : 'none'}
                 >
                   <CardContentRenderer
@@ -518,8 +528,6 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   const cardIdSame = prevProps.card.id === nextProps.card.id;
   const disabledSame = prevProps.disabled === nextProps.disabled;
   const shouldSkip = cardIdSame && disabledSame;
-  
-  console.log(`[CardPage MEMO] ${prevProps.card.id} → ${nextProps.card.id} (${cardIdSame ? 'SAME' : 'CHANGED'}), disabled: ${prevProps.disabled} → ${nextProps.disabled} (${disabledSame ? 'SAME' : 'CHANGED'}), decision: ${shouldSkip ? 'SKIP' : 'RENDER'}`);
   
   return shouldSkip;
 });
