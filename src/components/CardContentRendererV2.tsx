@@ -1,14 +1,15 @@
 import React, { useState, useLayoutEffect } from 'react';
 import { View, Text as RNText, StyleSheet, Pressable, useWindowDimensions, Image } from 'react-native';
-import RenderHtml from 'react-native-render-html';
+import RenderHtml, { CustomBlockRenderer } from 'react-native-render-html';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../design/theme';
 import { s } from '../design/spacing';
 import { r } from '../design/radii';
+import * as Haptics from 'expo-haptics';
+import { ImageCache } from '../utils/ImageCache';
 
 interface CardContentRendererProps {
   html: string;
@@ -17,17 +18,21 @@ interface CardContentRendererProps {
   cardId?: string;
 }
 
+
 /**
  * Renders Anki card HTML content properly with full HTML support:
  * - Lists (ol, ul)
  * - Code blocks (pre, code)
+{{ ... }}
  * - Formatting (b, i, u, strong, em)
  * - Line breaks and paragraphs
  * - Images
  * - Audio files
  * - Cloze deletions
+ * 
+ * Memoized to prevent unnecessary re-renders and image reloading
  */
-export default function CardContentRendererV2({
+const CardContentRendererV2 = React.memo(function CardContentRendererV2({
   html,
   revealed = false,
   clozeIndex = 0,
@@ -36,99 +41,18 @@ export default function CardContentRendererV2({
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
   
-  // State to prevent rendering until dimensions are calculated
-  const [isReady, setIsReady] = useState(false);
+  // Calculate content dimensions accounting for card padding
+  // CardPage has: cardContainer padding (16px each side) + absolute positioning (24px each side) = 80px total
+  const horizontalPadding = (s.lg * 2) + (24 * 2); // cardContainer + absolute view padding
+  const contentWidth = width - horizontalPadding;
   
-  // Memoize content analysis to prevent recalculation on every render
-  const contentAnalysis = React.useMemo(() => {
-    const hasImages = /<img[^>]+>/i.test(html);
-    const textContent = html.replace(/<[^>]+>/g, '').trim();
-    const wordCount = textContent.split(/\s+/).length;
-    const charCount = textContent.length;
-    
-    // Calculate available space based on actual card dimensions
-    const cardHeight = height * 0.8; // Card takes 80% of screen height  
-    const cardWidth = width - (s.lg * 2); // Card width minus screen padding
-    const cardPadding = s.md * 2; // Top and bottom card padding
-    
-    // Dynamic text space based on actual content - use more of the available space
-    const estimatedTextSpace = wordCount <= 3 ? 20 : // Less space for short text
-                               wordCount <= 8 ? 35 : 
-                               wordCount <= 20 ? 50 : 70;
-    const margins = wordCount <= 3 ? 10 : 25; // Reduced margins to use more space
-    const availableHeight = cardHeight - cardPadding - estimatedTextSpace - margins;
-    
-    // Image width should be more conservative - not full card width
-    const maxImageWidth = cardWidth * 0.85; // 85% of card width, not 100%
-    
-    return {
-      hasImages,
-      textContent,
-      wordCount,
-      charCount,
-      cardHeight,
-      cardWidth,
-      availableHeight,
-      maxImageWidth
-    };
-  }, [html, width, height]);
+  const baseFontSize = 20; // Readable size
+  const baseLineHeight = 28; // ~1.4 ratio for readability
   
-  const { hasImages, textContent, wordCount, charCount, availableHeight, maxImageWidth } = contentAnalysis;
-  
-  // Use layout effect to ensure dimensions are ready before rendering
-  useLayoutEffect(() => {
-    if (width > 0 && height > 0) {
-      setIsReady(true);
-    }
-  }, [width, height]); // Don't reset on cardId change - dimensions don't change
-  
-  // Calculate sizing ONCE on mount, don't recalculate on reveal
-  // This keeps text size constant when flipping cards
-  const sizingConfig = React.useMemo(() => {
-    let imageHeight: number;
-    let fontSize: number = 16;
-    
-    if (hasImages) {
-      // Fixed image height - doesn't try to fit in available space
-      imageHeight = 300; // Standard image height
-      
-      // Font size based on word count only
-      if (wordCount <= 3) {
-        fontSize = Math.min(32, width * 0.08);
-      } else if (wordCount <= 10) {
-        fontSize = Math.min(26, width * 0.065);
-      } else if (wordCount <= 30) {
-        fontSize = 20;
-      } else if (wordCount <= 60) {
-        fontSize = 16;
-      } else {
-        fontSize = 14;
-      }
-    } else {
-      imageHeight = 0;
-      if (wordCount === 1) {
-        fontSize = Math.min(120, width * 0.15);
-      } else if (wordCount <= 3) {
-        fontSize = Math.min(80, width * 0.12);
-      } else if (wordCount <= 10) {
-        fontSize = Math.min(48, width * 0.08);
-      } else if (wordCount <= 30) {
-        fontSize = 32;
-      } else if (wordCount <= 60) {
-        fontSize = 24;
-      } else {
-        fontSize = 18;
-      }
-    }
-    
-    return {
-      maxImageHeight: imageHeight,
-      baseFontSize: fontSize,
-      baseLineHeight: fontSize * 1.3
-    };
-  }, [hasImages, wordCount, width]); // Removed height and availableHeight - don't resize based on space
-
-  const { maxImageHeight, baseFontSize, baseLineHeight } = sizingConfig;
+  // Calculate max image height accounting for card height (75% of screen) and vertical padding
+  const cardHeight = height * 0.75; // Card is 75% of screen height
+  const verticalPadding = s.xl + s.lg; // Top (24px) + Bottom (16px) padding
+  const maxImageHeight = Math.min(cardHeight - verticalPadding - 80, 400); // Leave room for text
 
   // Memoize audio extraction based on HTML content
   const audioFiles = React.useMemo(() => {
@@ -141,65 +65,39 @@ export default function CardContentRendererV2({
     return extractedAudio;
   }, [html]);
 
-  // Process HTML for cloze deletions and extract audio
-  const processedHtml = React.useMemo(() => {
+  // STEP 1: Fix image sources - ONCE per card (no cloze processing yet)
+  const baseHtml = React.useMemo(() => {
     let processed = html;
-
-    // Handle cloze deletions: {{c1::text}} or {{c1::text::hint}}
-    const clozeRegex = /{{c(\d+)::([^:}]+)(?:::([^}]+))?}}/gi;
-    processed = processed.replace(clozeRegex, (match, num, text, hint) => {
-      const clozeNum = parseInt(num);
-
-      if (clozeNum === clozeIndex + 1) {
-        // This is the cloze we're testing
-        if (revealed) {
-          return `<span style="color: #4CAF50; font-weight: bold; background-color: rgba(76, 175, 80, 0.1); padding: 2px 6px; border-radius: 4px;">${text}</span>`;
-        } else {
-          return `<span style="color: #2196F3; font-weight: bold; background-color: rgba(33, 150, 243, 0.1); padding: 2px 6px; border-radius: 4px;">[...]</span>`;
-        }
-      } else {
-        // Other clozes - show the text
-        return `<span style="color: ${theme.colors.textPrimary};">${text}</span>`;
-      }
-    });
-
-    // Remove audio tags from HTML
-    const audioRegex = /\[sound:([^\]]+)\]/gi;
-    processed = processed.replace(audioRegex, '');
 
     // Fix image sources to point to local media directory
     processed = processed.replace(
       /<img([^>]+)src="([^"]+)"([^>]*)>/gi,
       (match, before, src, after) => {
-        // Sanitize filename the same way it was saved during import
-        // Replace unsafe characters with underscore (matches ApkgParser.sanitizeFilename)
         let sanitized = src.replace(/[^A-Za-z0-9._-]/g, '_');
-        
-        // URL encode for the file path
         const encodedFilename = encodeURIComponent(sanitized);
         const mediaPath = `${FileSystem.documentDirectory}media/${encodedFilename}`;
         return `<img${before}src="${mediaPath}"${after}>`;
       }
     );
 
-    return processed;
-  }, [html, revealed, clozeIndex, theme.colors.textPrimary]);
+    // Remove audio tags
+    const audioRegex = /\[sound:([^\]]+)\]/gi;
+    processed = processed.replace(audioRegex, '');
 
-  // Custom renderers for specific HTML elements
+    return processed;
+  }, [html, cardId]); // ONLY raw HTML
+
+  // Custom renderers for specific HTML elements - consistent Anki-like styling
   const tagsStyles = React.useMemo(() => ({
     body: {
       color: theme.colors.textPrimary,
       fontSize: baseFontSize,
       lineHeight: baseLineHeight,
       textAlign: 'center' as const,
-      fontWeight: hasImages && wordCount <= 3 ? '700' as const : // Bold for minimal text with images
-                  hasImages && wordCount <= 8 ? '600' as const : 
-                  wordCount <= 3 ? '700' as const : 
-                  wordCount <= 10 ? '600' as const : '400' as const,
+      fontWeight: '400' as const,
     },
     p: {
-      marginVertical: hasImages && wordCount <= 3 ? 2 : // Minimal margins for short text
-                     hasImages ? 4 : 8,
+      marginVertical: 8,
     },
     strong: {
       fontWeight: '700' as const,
@@ -216,13 +114,23 @@ export default function CardContentRendererV2({
     u: {
       textDecorationLine: 'underline' as const,
     },
+    span: {
+      // Allow inline styles (Anki uses spans for colors)
+    },
+    font: {
+      // Allow inline styles (Anki uses font tags for colors)
+    },
     code: {
       fontFamily: 'Courier',
       backgroundColor: theme.colors.surface,
-      paddingHorizontal: 4,
-      paddingVertical: 2,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
       borderRadius: 4,
       fontSize: 16,
+    },
+    a: {
+      color: theme.colors.accent,
+      textDecorationLine: 'underline' as const,
     },
     pre: {
       backgroundColor: theme.colors.surface,
@@ -243,21 +151,21 @@ export default function CardContentRendererV2({
     },
     li: {
       marginVertical: 4,
-      fontSize: 18,
-      lineHeight: 26,
+      fontSize: baseFontSize,
+      lineHeight: baseLineHeight,
     },
     h1: {
-      fontSize: 32,
+      fontSize: 28,
       fontWeight: '700' as const,
       marginVertical: 12,
     },
     h2: {
-      fontSize: 28,
+      fontSize: 24,
       fontWeight: '700' as const,
       marginVertical: 10,
     },
     h3: {
-      fontSize: 24,
+      fontSize: 20,
       fontWeight: '600' as const,
       marginVertical: 8,
     },
@@ -267,58 +175,139 @@ export default function CardContentRendererV2({
       paddingLeft: 12,
       marginVertical: 8,
       fontStyle: 'italic' as const,
-      opacity: 0.8,
+      opacity: 0.9,
+    },
+    hr: {
+      borderBottomColor: 'rgba(128,128,128,0.25)',
+      borderBottomWidth: 2,
+      marginVertical: 16,
     },
     img: {
-      marginVertical: hasImages && wordCount <= 3 ? 2 : 
-                     hasImages && wordCount <= 8 ? 4 : 6, // Tighter margins for better fit
-      maxWidth: maxImageWidth, // 85% of card width, not full width
-      maxHeight: maxImageHeight, // Dynamic height limit based on screen size
-      minHeight: hasImages ? 
-        (wordCount <= 3 ? Math.min(200, maxImageHeight * 0.6) : // Larger minimum for minimal text
-         wordCount <= 8 ? Math.min(150, maxImageHeight * 0.5) : 
-         Math.min(100, maxImageHeight * 0.3)) : undefined,
-      width: 'auto',
-      height: 'auto',
-      alignSelf: 'center',
-      objectFit: 'contain', // Maintain aspect ratio
+      marginVertical: 20,
+      marginHorizontal: 0,
+      alignSelf: 'center' as const,
+      maxWidth: contentWidth,
+      maxHeight: maxImageHeight,
     },
-  }), [theme.colors, baseFontSize, baseLineHeight, hasImages, wordCount, maxImageWidth, maxImageHeight]);
+  }), [theme.colors.textPrimary, theme.colors.accent, theme.colors.surface, baseFontSize, baseLineHeight, contentWidth, maxImageHeight]);
 
-  // Memoize renderersProps to prevent layout shifts
+  // Simple renderersProps with no fade animation and aggressive caching
   const renderersProps = React.useMemo(() => ({
     img: {
       enableExperimentalPercentWidth: true,
-      initialDimensions: {
-        width: maxImageWidth,
-        height: maxImageHeight,
-      },
-      computeEmbeddedMaxWidth: (availableWidth: number) => {
-        return Math.min(availableWidth, maxImageWidth);
-      },
-      computeEmbeddedMaxHeight: (availableHeight: number) => {
-        return Math.min(availableHeight, maxImageHeight);
+      defaultImageProps: {
+        resizeMode: 'contain',
+        fadeDuration: 0,
+        // Prevent image reload flicker
+        cache: 'force-cache' as any,
+        // Keep loaded images in memory
+        recyclingKey: cardId,
       },
     },
-  }), [maxImageWidth, maxImageHeight]);
+  }), [cardId]);
 
-  // Don't render until dimensions are stable
-  if (!isReady) {
-    return <View style={styles.container} />;
-  }
+  // STEP 2: Skip image sizing - let images render at natural size
+  const sizedHtml = baseHtml;
+
+  // STEP 3: Apply cloze processing based on revealed state
+  // Builds BOTH front and back, but only uses one at a time
+  const frontHtml = React.useMemo(() => {
+    let processed = sizedHtml;
+
+    const clozeRegex = /{{c(\d+)::([\s\S]+?)(?:::([\s\S]+?))?}}/gi;
+    processed = processed.replace(clozeRegex, (match, num, text, hint) => {
+      const clozeNum = parseInt(num);
+
+      if (clozeNum === clozeIndex + 1) {
+        const hasImage = /<img[^>]*>/i.test(text);
+        
+        if (hasImage) {
+          const hiddenContent = text.replace(
+            /<img([^>]*)>/gi, 
+            (_imgMatch: string, attrs: string) => {
+              if (/style\s*=\s*"/i.test(attrs)) {
+                return `<img${attrs.replace(/style\s*=\s*"([^"]*)"/i, 'style="$1; opacity: 0;"')}>`;
+              } else {
+                return `<img${attrs} style="opacity: 0;">`;
+              }
+            }
+          );
+          return `<span style="background-color: rgba(59, 130, 246, 0.22); color: transparent; border-radius: 4px; padding: 0 2px; display: block; min-height: 20px;">${hiddenContent}</span>`;
+        } else {
+          // For text only: Split into words and wrap each to avoid highlighting whitespace
+          const words = text.split(/(\s+)/); // Keep whitespace in array
+          const highlighted = words.map((word: string) => {
+            // Only wrap non-whitespace
+            if (word.trim().length > 0) {
+              return `<span style="background-color: rgba(59, 130, 246, 0.22); color: transparent; border-radius: 4px; padding: 0 2px;">${word}</span>`;
+            }
+            return word; // Keep whitespace as-is
+          }).join('');
+          return highlighted;
+        }
+      } else {
+        return text;
+      }
+    });
+
+    return processed;
+  }, [sizedHtml, clozeIndex, cardId]);
+
+  const backHtml = React.useMemo(() => {
+    let processed = sizedHtml;
+
+    const clozeRegex = /{{c(\d+)::([\s\S]+?)(?:::([\s\S]+?))?}}/gi;
+    processed = processed.replace(clozeRegex, (match, num, text, hint) => {
+      const clozeNum = parseInt(num);
+
+      if (clozeNum === clozeIndex + 1) {
+        // Check if content contains images
+        const hasImage = /<img[^>]*>/i.test(text);
+        
+        if (hasImage) {
+          // For images, don't split - just highlight the whole thing
+          return `<span style="background-color: rgba(59, 130, 246, 0.18); color: inherit; border-radius: 4px; padding: 0 2px;">${text}</span>`;
+        } else {
+          // For text only: Split into words and wrap each to avoid highlighting whitespace
+          const words = text.split(/(\s+)/); // Keep whitespace in array
+          const highlighted = words.map((word: string) => {
+            // Only wrap non-whitespace
+            if (word.trim().length > 0) {
+              return `<span style="background-color: rgba(59, 130, 246, 0.18); color: inherit; border-radius: 4px; padding: 0 2px;">${word}</span>`;
+            }
+            return word; // Keep whitespace as-is
+          }).join('');
+          return highlighted;
+        }
+      } else {
+        return text;
+      }
+    });
+
+    return processed;
+  }, [sizedHtml, clozeIndex, cardId]);
+
+  // Use the appropriate HTML based on revealed state
+  // CardPage handles the crossfade animation
+  const contentHtml = revealed ? backHtml : frontHtml;
+  
+  // Memoize source object to prevent RenderHtml from seeing new prop every render
+  const htmlSource = React.useMemo(() => ({ html: contentHtml }), [contentHtml]);
+  
+  // Memoize defaultTextProps to prevent unnecessary re-renders
+  const defaultTextProps = React.useMemo(() => ({ selectable: false }), []);
+
+  console.log(`[CardRenderer] 🎨 RENDER cardId=${cardId}, revealed=${revealed}, htmlLength=${contentHtml.length}`);
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View style={styles.container}>
       <RenderHtml
-        contentWidth={maxImageWidth}
-        source={{ html: processedHtml }}
-        tagsStyles={tagsStyles as any}
-        defaultTextProps={{
-          selectable: false,
-        }}
-        enableExperimentalMarginCollapsing
+        contentWidth={contentWidth}
+        source={htmlSource}
+        tagsStyles={tagsStyles}
+        defaultTextProps={defaultTextProps}
+        enableCSSInlineProcessing
         renderersProps={renderersProps}
-        ignoredDomTags={['font']}
       />
 
       {/* Audio Players */}
@@ -327,7 +316,20 @@ export default function CardContentRendererV2({
       ))}
     </View>
   );
-}
+}, (prevProps, nextProps) => {
+  // Memo returns TRUE to SKIP re-render
+  // CRITICAL: Only compare cardId and revealed to prevent image flicker
+  const cardIdSame = prevProps.cardId === nextProps.cardId;
+  const revealedSame = prevProps.revealed === nextProps.revealed;
+  const htmlSame = prevProps.html === nextProps.html;
+  const shouldSkip = cardIdSame && revealedSame;
+  
+  console.log(`[CardRenderer MEMO] cardId: ${prevProps.cardId} → ${nextProps.cardId} (${cardIdSame ? 'SAME' : 'CHANGED'}), revealed: ${prevProps.revealed} → ${nextProps.revealed} (${revealedSame ? 'SAME' : 'CHANGED'}), html: ${htmlSame ? 'SAME' : 'CHANGED'}, decision: ${shouldSkip ? 'SKIP' : 'RENDER'}`);
+  
+  return shouldSkip;
+});
+
+export default CardContentRendererV2;
 
 /**
  * Audio player component - Anki style with progress bar
@@ -502,9 +504,8 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: s.lg,
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
     minHeight: '100%',
   },
   audioPlayer: {

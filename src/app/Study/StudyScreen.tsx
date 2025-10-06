@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Extrapolate } from 'react-native-reanimated';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useTheme } from '../../design';
 import { useHaptics } from '../../hooks/useHaptics';
 import { Difficulty } from '../../domain/srsTypes';
 import { sampleCards } from '../../mocks/sampleCards';
 import { useScheduler } from '../../context/SchedulerProvider';
+import { ImageCache } from '../../utils/ImageCache';
 import CardPage from './CardPage';
 
 export default function StudyScreen() {
@@ -19,6 +20,7 @@ export default function StudyScreen() {
   const [responseStartTime, setResponseStartTime] = useState(Date.now());
   
   const overlayColor = useSharedValue('rgba(0, 0, 0, 0)');
+  const currentCardSwipeDistance = useSharedValue(0);
 
   // DO NOT bootstrap here - it overwrites imported decks!
   // Bootstrap is only called from Settings after import or on first launch
@@ -26,14 +28,32 @@ export default function StudyScreen() {
   //   bootstrap(sampleCards);
   // }, [bootstrap]);
   
+  // Preload images and dimensions for current and next cards
+  // Fire and forget - don't trigger re-renders when complete
+  useEffect(() => {
+    if (current) {
+      ImageCache.preloadImagesFromHtml(current.front).catch(() => {});
+      ImageCache.preloadImagesFromHtml(current.back).catch(() => {});
+      ImageCache.ensureDimensionsFromHtml(current.front).catch(() => {});
+      ImageCache.ensureDimensionsFromHtml(current.back).catch(() => {});
+    }
+    if (next) {
+      ImageCache.preloadImagesFromHtml(next.front).catch(() => {});
+      ImageCache.preloadImagesFromHtml(next.back).catch(() => {});
+      ImageCache.ensureDimensionsFromHtml(next.front).catch(() => {});
+      ImageCache.ensureDimensionsFromHtml(next.back).catch(() => {});
+    }
+  }, [current, next]);
+  
   // Reset overlay and revealed state when card changes
   useEffect(() => {
     overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 300 });
+    currentCardSwipeDistance.value = 0; // Reset next card scale immediately
     setIsCurrentRevealed(false);
     setResponseStartTime(Date.now());
-  }, [current, overlayColor]);
+  }, [current, overlayColor, currentCardSwipeDistance]);
 
-  const handleAnswer = (difficulty: Difficulty) => {
+  const handleAnswer = React.useCallback((difficulty: Difficulty) => {
     if (!current) return;
 
     // Trigger appropriate haptic feedback
@@ -64,11 +84,12 @@ export default function StudyScreen() {
     setTimeout(() => {
       answer(difficulty, responseTimeMs);
     }, 250);
-  };
+  }, [current, haptics, responseStartTime, overlayColor, answer]);
 
-  const handleSwipeChange = (translateX: number, translateY: number, isRevealed: boolean) => {
+  const handleSwipeChange = React.useCallback((translateX: number, translateY: number, isRevealed: boolean) => {
     if (!isRevealed) {
       overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 400 });
+      currentCardSwipeDistance.value = 0;
       return;
     }
 
@@ -76,9 +97,13 @@ export default function StudyScreen() {
     const absY = Math.abs(translateY);
     const totalDistance = absX + absY;
     
+    // Update swipe distance for next card scale animation
+    currentCardSwipeDistance.value = totalDistance;
+    
     if (totalDistance < 10) {
       // Smooth fade out when releasing - animate the color itself
       overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 400 });
+      currentCardSwipeDistance.value = withTiming(0, { duration: 400 });
       return;
     }
     
@@ -108,13 +133,68 @@ export default function StudyScreen() {
 
     // Instant color change during swipe, smooth fade on release
     overlayColor.value = color;
-  };
+  }, [overlayColor, currentCardSwipeDistance]);
 
   const overlayStyle = useAnimatedStyle(() => {
     return {
       backgroundColor: overlayColor.value,
     };
   });
+
+  // Next card scale animation based on current card swipe distance
+  // MUST be before conditional returns to avoid hook ordering issues
+  const nextCardStyle = useAnimatedStyle(() => {
+    // Scale from 0.94 to 1.0 as current card swipes away (more dramatic effect)
+    const scale = interpolate(
+      currentCardSwipeDistance.value,
+      [0, 100],
+      [0.94, 1.0],
+      Extrapolate.CLAMP
+    );
+    
+    // Move up slightly as it scales (creates depth effect)
+    const translateY = interpolate(
+      currentCardSwipeDistance.value,
+      [0, 100],
+      [20, 0],
+      Extrapolate.CLAMP
+    );
+    
+    return {
+      transform: [
+        { scale },
+        { translateY }
+      ],
+    };
+  });
+
+  // Memoized callbacks for preview card
+  const emptyOnAnswer = React.useCallback(() => {}, []);
+  const handleReveal = React.useCallback(() => setIsCurrentRevealed(true), []);
+
+  // Collect all visible cards in a single flat array with stable keys
+  // MUST be before conditional returns to avoid hook ordering issues
+  const cards = React.useMemo(() => {
+    const cardList = [];
+    if (next) {
+      cardList.push({
+        card: next,
+        zIndex: 1,
+        isCurrent: false,
+        style: nextCardStyle,
+      });
+    }
+    if (current) {
+      cardList.push({
+        card: current,
+        zIndex: 10,
+        isCurrent: true,
+        style: null,
+      });
+    }
+    console.log(`[StudyScreen] Cards array: ${cardList.map(c => c.card.id).join(', ')}, current=${current?.id}, next=${next?.id}`);
+    return cardList;
+  }, [next, current, nextCardStyle]);
 
   // Show message if no deck is selected
   if (currentDeckId === null) {
@@ -135,35 +215,45 @@ export default function StudyScreen() {
   if (!current) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-        {/* TODO: Show completion screen */}
+        <View style={styles.emptyState}>
+          <Text style={[styles.completionEmoji]}>🎉</Text>
+          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
+            All Done!
+          </Text>
+          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+            You've reviewed all cards for this deck.
+          </Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      {/* Render next card behind (always visible for preview) */}
-      {next && (
-        <View key={`next-${next.id}`} style={[styles.cardWrapper, styles.nextCardWrapper]}>
-          <CardPage
-            card={next}
-            onAnswer={() => {}}
-            onSwipeChange={undefined}
-            isCurrent={false}
-            onReveal={undefined}
-          />
-        </View>
-      )}
-
-      {/* Render current card on top */}
-      <View key={`current-${current.id}`} style={[styles.cardWrapper, styles.currentCardWrapper]}>
-        <CardPage
-          card={current}
-          onAnswer={handleAnswer}
-          onSwipeChange={handleSwipeChange}
-          isCurrent={true}
-          onReveal={() => setIsCurrentRevealed(true)}
-        />
+      {/* Card stack - all cards in same flat structure for React reconciliation */}
+      <View style={styles.cardStack}>
+        {cards.map(({ card, zIndex, isCurrent, style }) => {
+          console.log(`[StudyScreen] Rendering card ${card.id}, isCurrent=${isCurrent}, zIndex=${zIndex}`);
+          return (
+            <Animated.View
+              key={card.id}
+              style={[
+                styles.cardWrapper,
+                { zIndex },
+                style,
+              ]}
+              pointerEvents={isCurrent ? 'auto' : 'none'}
+            >
+              <CardPage
+                card={card}
+                onAnswer={handleAnswer}
+                onSwipeChange={handleSwipeChange}
+                onReveal={handleReveal}
+                disabled={!isCurrent}
+              />
+            </Animated.View>
+          );
+        })}
       </View>
       
       {/* Screen overlay for swipe feedback */}
@@ -184,18 +274,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  cardStack: {
+    flex: 1,
+    position: 'relative',
+  },
   cardWrapper: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-  },
-  nextCardWrapper: {
-    zIndex: 1,
-  },
-  currentCardWrapper: {
-    zIndex: 10,
   },
   screenOverlay: {
     position: 'absolute',
@@ -211,6 +299,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
+  },
+  completionEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 24,
