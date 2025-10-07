@@ -11,7 +11,7 @@ import Animated, {
   useAnimatedScrollHandler,
   Easing
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView, GestureType } from 'react-native-gesture-handler';
 import { useTheme } from '../../design';
 import { ImageCache } from '../../utils/ImageCache';
 import { s } from '../../design/spacing';
@@ -37,8 +37,8 @@ type CardPageProps = {
 const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false }: CardPageProps) {
   const theme = useTheme();
   const { selection } = useHaptics();
-  const panRef = React.useRef<any>(null);
-  const scrollRef = React.useRef<any>(null);
+  const panRef = useRef<GestureType | undefined>(undefined);
+  const scrollRef = useRef<Animated.ScrollView>(null);
   
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -51,6 +51,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   const contentH = useSharedValue(0);
   const viewportH = useSharedValue(0);
   const gestureStartScrollY = useSharedValue(0); // Track scroll position at gesture start
+  const gestureStartedAtEdge = useSharedValue(false); // Track if gesture started at edge
   
   // React state for revealed status (for rendering)
   const [revealed, setRevealed] = React.useState(false);
@@ -141,6 +142,15 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       touchStartY.value = event.y - (height / 2);
       // Store scroll position at gesture start
       gestureStartScrollY.value = scrollY.value;
+      
+      // Check if gesture started at an edge (prevents accidental ratings while scrolling)
+      const EPS = 12;
+      const atTop = scrollY.value <= EPS;
+      const atBottom = (contentH.value - viewportH.value - scrollY.value) <= EPS;
+      const fits = (contentH.value - viewportH.value) <= EPS;
+      
+      // Allow vertical rating only if starting at an edge or content fits without scrolling
+      gestureStartedAtEdge.value = fits || atTop || atBottom;
     })
     .onUpdate((event) => {
       'worklet';
@@ -150,17 +160,22 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       const absX = Math.abs(event.translationX);
       const absY = Math.abs(event.translationY);
       
-      // Check if we're at scroll edges or content fits without scrolling
+      // Check current scroll position
       const EPS = 12;
       const atTop = scrollY.value <= EPS;
       const atBottom = (contentH.value - viewportH.value - scrollY.value) <= EPS;
       const fits = (contentH.value - viewportH.value) <= EPS;
       
       const isHorizontal = absX >= absY;
-      const canVerticalRate =
+      
+      // Vertical rating ONLY allowed if:
+      // 1. Gesture started at an edge
+      // 2. Still at appropriate edge for the swipe direction
+      const canVerticalRate = gestureStartedAtEdge.value && (
         fits ||
-        (atTop && event.translationY > 0) ||
-        (atBottom && event.translationY < 0);
+        (atTop && event.translationY > 0) ||  // Started at top, swiping down
+        (atBottom && event.translationY < 0)   // Started at bottom, swiping up
+      );
       
       // If scrolling (vertical movement without rating permission), ignore horizontal shake
       const isScrolling = absY > absX && !canVerticalRate;
@@ -181,14 +196,20 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
         const velocityX = event.velocityX;
         const velocityY = event.velocityY;
         
-        // Check if swipe was strong enough (distance OR velocity)
+        // Check current scroll position
         const EPS = 12;
         const atTop = scrollY.value <= EPS;
         const atBottom = (contentH.value - viewportH.value - scrollY.value) <= EPS;
         const fits = (contentH.value - viewportH.value) <= EPS;
         
         const isHorizontalSwipe = absX >= absY;
-        const canVerticalRate = fits || (atTop && event.translationY > 0) || (atBottom && event.translationY < 0);
+        
+        // Vertical rating ONLY allowed if gesture started at edge
+        const canVerticalRate = gestureStartedAtEdge.value && (
+          fits || 
+          (atTop && event.translationY > 0) || 
+          (atBottom && event.translationY < 0)
+        );
         
         const isStrongSwipe = absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD || 
                              Math.abs(velocityX) > 500 || Math.abs(velocityY) > 500;
@@ -323,6 +344,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       revealProgress.value = 0;
       isRevealed.value = false;
       setRevealed(false);
+      gestureStartedAtEdge.value = false;
       
       // Reset scroll position to top
       scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -459,7 +481,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
         <View style={styles.cardContainer}>
           <Animated.View style={[styles.card, { backgroundColor: theme.colors.surface }, sh.card]}>
             <Animated.ScrollView
-              ref={scrollRef as any}
+              ref={scrollRef}
               onLayout={(e) => { 
                 viewportH.value = e.nativeEvent.layout.height;
               }}

@@ -13,6 +13,9 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
   const cancelRef = useRef(false);
 
   const handleImportDeck = async () => {
+    // Snapshot for rollback on error or cancellation
+    let dbSnapshot: string | null = null;
+    
     try {
       // Small delay to let any modal close animation complete before opening picker
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -73,6 +76,11 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       setImporting(true);
       setImportProgress('Reading file...');
       
+      // **CREATE SNAPSHOT BEFORE IMPORT** for safe rollback
+      console.log('[DeckImport] Creating database snapshot before import...');
+      dbSnapshot = db.toJSON();
+      console.log('[DeckImport] Snapshot created successfully');
+      
       if (fileSizeMB > 100) {
         setImportProgress(`Reading large file (${fileSizeMB.toFixed(1)}MB)...`);
       } else if (fileSizeMB > 50) {
@@ -94,8 +102,6 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       });
       
       if (cancelRef.current) return;
-      
-      const importedDeckIds: string[] = [];
       
       const updateProgress = (msg: string) => {
         if (cancelRef.current) throw new Error('Import cancelled by user');
@@ -137,7 +143,6 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       const decksArr = Array.from(parsed.decks.values());
       for (let i = 0; i < decksArr.length; i++) {
         db.addDeck(decksArr[i]);
-        importedDeckIds.push(decksArr[i].id); // Track for rollback
         if (i % 10 === 0) {
           updateProgress(`Importing decks… (${i + 1}/${decksArr.length})`);
           await new Promise((r) => setTimeout(r, 0));
@@ -224,33 +229,20 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       setImporting(false);
       setImportProgress('');
       
-      // Handle cancellation - rollback imported data
+      // Handle cancellation - rollback imported data using snapshot
       if (error instanceof Error && error.message.includes('cancelled')) {
-        console.log('[DeckImport] Import cancelled, rolling back...');
+        console.log('[DeckImport] Import cancelled, rolling back to snapshot...');
         
-        // Remove any imported decks and their cards/notes
+        // Restore database from snapshot
         try {
-          const importedDeckIds: string[] = [];
-          // Get all decks that were just imported (they'll be the newest ones)
-          const allDecks = db.getAllDecks();
-          
-          // Remove decks, cards, and notes from this import
-          // Note: This is a best-effort cleanup. For perfect rollback,
-          // we'd need to track all IDs during import.
-          allDecks.forEach(deck => {
-            const deckCards = db.getCardsByDeck(deck.id);
-            deckCards.forEach(card => {
-              db.deleteCard(card.id);
-              const note = db.getNote(card.nid);
-              if (note) {
-                db.deleteNote(note.id);
-              }
-            });
-            db.deleteDeck(deck.id);
-          });
-          
-          await PersistenceService.save(db);
-          console.log('[DeckImport] Rollback complete');
+          if (dbSnapshot) {
+            console.log('[DeckImport] Restoring database from snapshot...');
+            db.fromJSON(dbSnapshot);
+            await PersistenceService.save(db);
+            console.log('[DeckImport] Rollback complete - database restored to pre-import state');
+          } else {
+            console.warn('[DeckImport] No snapshot available, cannot rollback');
+          }
           
           // Notify parent to refresh UI
           if (onCancel) {
@@ -258,6 +250,11 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
           }
         } catch (rollbackError) {
           console.error('[DeckImport] Rollback failed:', rollbackError);
+          Alert.alert(
+            'Rollback Failed',
+            'Could not restore database to previous state. Please restart the app.',
+            [{ text: 'OK' }]
+          );
         }
         
         return; // Silent return, user cancelled

@@ -51,41 +51,29 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Hero Section */}
-        <View style={styles.hero}>
-          <View style={styles.heroText}>
-            <Text style={[styles.greeting, { color: theme.colors.textPrimary }]}>
-              Ready to learn
-            </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-              {homeStats.currentStreak > 0 
-                ? `${homeStats.currentStreak} day streak!` 
-                : 'Start your streak today'}
-            </Text>
-          </View>
-          
-          {/* Streak Badge */}
-          {homeStats.currentStreak > 0 && (
-            <View style={[styles.streakBadge, { backgroundColor: theme.colors.accent + '15' }]}>
-              <Ionicons name="flame" size={24} color={theme.colors.accent} />
-              <Text style={[styles.streakNumber, { color: theme.colors.accent }]}>
-                {homeStats.currentStreak}
+        {/* Streak Badge */}
+        {homeStats.currentStreak > 0 && (
+          <View style={styles.streakContainer}>
+            <View style={[styles.streakBadge, { backgroundColor: theme.colors.warning + '15' }]}>
+              <Ionicons name="flame" size={20} color={theme.colors.warning} />
+              <Text style={[styles.streakText, { color: theme.colors.warning }]}>
+                {homeStats.currentStreak} day streak
               </Text>
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* Main CTA: Due Cards */}
         {homeStats.dueCount > 0 ? (
           <Pressable 
-            style={[styles.heroCard, { backgroundColor: theme.colors.accent }]}
+            style={[styles.heroCard, { backgroundColor: theme.colors.surface }]}
             onPress={() => navigation.navigate('Study' as never)}
           >
-            <Text style={styles.heroCardLabel}>Cards Due</Text>
-            <Text style={styles.heroCardValue}>{homeStats.dueCount}</Text>
+            <Text style={[styles.heroCardLabel, { color: theme.colors.textSecondary }]}>Cards Due</Text>
+            <Text style={[styles.heroCardValue, { color: theme.colors.info }]}>{homeStats.dueCount}</Text>
             <View style={styles.heroCardAction}>
-              <Text style={styles.heroCardActionText}>Start Studying</Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFF" />
+              <Text style={[styles.heroCardActionText, { color: theme.colors.textPrimary }]}>Start Studying</Text>
+              <Ionicons name="arrow-forward" size={20} color={theme.colors.info} />
             </View>
           </Pressable>
         ) : (
@@ -110,7 +98,7 @@ export default function HomeScreen() {
             
             <View style={styles.todayStats}>
               <View style={styles.todayStat}>
-                <Text style={[styles.todayStatValue, { color: theme.colors.accent }]}>
+                <Text style={[styles.todayStatValue, { color: theme.colors.textPrimary }]}>
                   {homeStats.todayReviewCount}
                 </Text>
                 <Text style={[styles.todayStatLabel, { color: theme.colors.textSecondary }]}>
@@ -169,7 +157,7 @@ export default function HomeScreen() {
                         ? theme.colors.success 
                         : theme.colors.surface,
                     borderColor: day.isToday
-                      ? theme.colors.accent
+                      ? theme.colors.textSecondary
                       : day.hasReviews 
                         ? theme.colors.success
                         : theme.colors.bg,
@@ -186,7 +174,7 @@ export default function HomeScreen() {
                 </View>
                 <Text style={[
                   styles.dayLabel, 
-                  { color: day.isToday ? theme.colors.accent : theme.colors.textSecondary }
+                  { color: day.isToday ? theme.colors.textPrimary : theme.colors.textSecondary }
                 ]}>
                   {day.dayLabel}
                 </Text>
@@ -203,8 +191,8 @@ export default function HomeScreen() {
         {/* Card Stats Grid */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: theme.colors.accent + '15' }]}>
-              <Ionicons name="library" size={20} color={theme.colors.accent} />
+            <View style={[styles.statIconContainer, { backgroundColor: theme.colors.textSecondary + '20' }]}>
+              <Ionicons name="library" size={20} color={theme.colors.textSecondary} />
             </View>
             <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
               {homeStats.totalCardsCount}
@@ -261,7 +249,7 @@ export default function HomeScreen() {
               </Text>
             </View>
             <View style={styles.allTimeStats}>
-              <Text style={[styles.allTimeValue, { color: theme.colors.accent }]}>
+              <Text style={[styles.allTimeValue, { color: theme.colors.textPrimary }]}>
                 {homeStats.totalReviewsAllTime.toLocaleString()}
               </Text>
               <Text style={[styles.allTimeLabel, { color: theme.colors.textSecondary }]}>
@@ -283,36 +271,22 @@ const styles = StyleSheet.create({
     padding: s.lg,
     paddingBottom: s.xl * 2,
   },
-  // Hero Section
-  hero: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: s.xl,
-  },
-  heroText: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: 32,
-    fontWeight: '800',
-    marginBottom: s.xs,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontWeight: '500',
+  // Streak Badge
+  streakContainer: {
+    alignItems: 'flex-start',
+    marginBottom: s.lg,
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s.sm,
+    gap: s.xs,
     paddingVertical: s.sm,
     paddingHorizontal: s.md,
     borderRadius: r.pill,
   },
-  streakNumber: {
-    fontSize: 24,
-    fontWeight: '800',
+  streakText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
   // Hero Card - Main CTA
   heroCard: {

@@ -232,23 +232,24 @@ export default function StudyScreen() {
       {/* Card stack - all cards in same flat structure for React reconciliation */}
       <View style={styles.cardStack}>
         {cards.map(({ card, zIndex, isCurrent, style }) => (
-          <Animated.View
-            key={card.id}
-            style={[
-              styles.cardWrapper,
-              { zIndex },
-              style,
-            ]}
-            pointerEvents={isCurrent ? 'auto' : 'none'}
-          >
-            <CardPage
-              card={card}
-              onAnswer={handleAnswer}
-              onSwipeChange={handleSwipeChange}
-              onReveal={handleReveal}
-              disabled={!isCurrent}
-            />
-          </Animated.View>
+          <React.Fragment key={card.id}>
+            <Animated.View
+              style={[
+                styles.cardWrapper,
+                { zIndex },
+                style,
+              ]}
+              pointerEvents={isCurrent ? 'auto' : 'none'}
+            >
+              <CardPage
+                card={card}
+                onAnswer={handleAnswer}
+                onSwipeChange={handleSwipeChange}
+                onReveal={handleReveal}
+                disabled={!isCurrent}
+              />
+            </Animated.View>
+          </React.Fragment>
         ))}
       </View>
       

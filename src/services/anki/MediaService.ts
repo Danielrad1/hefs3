@@ -26,14 +26,25 @@ export class MediaService {
 
   /**
    * Sanitize filename to prevent path traversal and ensure safe characters
+   * Strips all path components and ensures no directory separators remain
    */
   private sanitizeFilename(filename: string): string {
-    // Remove any path components (../ or ..\)
-    let sanitized = filename.replace(/\.\.[/\\]/g, '');
+    // Strip all path components - keep only the basename
+    // This handles both / and \ separators
+    const basename = filename.split(/[/\\]/).pop() || '';
     
-    // Replace unsafe characters with underscore
-    // Allow: alphanumeric, dot, dash, underscore
+    // Remove any remaining path traversal attempts
+    let sanitized = basename.replace(/\.\./g, '');
+    
+    // Replace all unsafe characters with underscore
+    // Allow ONLY: alphanumeric, dot, dash, underscore
+    // This ensures / and \ are also replaced
     sanitized = sanitized.replace(/[^A-Za-z0-9._-]/g, '_');
+    
+    // Final safety check: assert no path separators remain
+    if (sanitized.includes('/') || sanitized.includes('\\')) {
+      throw new Error(`Filename sanitization failed: path separators remain in "${sanitized}"`);
+    }
     
     // Limit length to 255 chars (common filesystem limit)
     if (sanitized.length > 255) {

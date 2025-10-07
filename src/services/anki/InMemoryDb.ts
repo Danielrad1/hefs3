@@ -620,6 +620,7 @@ export class InMemoryDb {
   toJSON(): string {
     const snapshot = {
       version: 1,
+      timestamp: Date.now(),
       col: this.col,
       cards: Array.from(this.cards.values()),
       notes: Array.from(this.notes.values()),
@@ -636,10 +637,45 @@ export class InMemoryDb {
   }
 
   /**
-   * Import database from JSON
+   * Import database from JSON with validation
+   * @throws Error if snapshot is invalid or corrupted
    */
   fromJSON(json: string): void {
-    const snapshot = JSON.parse(json);
+    let snapshot: any;
+    
+    // Parse with error handling
+    try {
+      snapshot = JSON.parse(json);
+    } catch (parseError) {
+      throw new Error(`Failed to parse database snapshot: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`);
+    }
+
+    // Validate required fields
+    if (!snapshot || typeof snapshot !== 'object') {
+      throw new Error('Invalid snapshot: must be an object');
+    }
+    
+    if (!snapshot.version || typeof snapshot.version !== 'number') {
+      throw new Error('Invalid snapshot: missing or invalid version');
+    }
+    
+    if (snapshot.version !== 1) {
+      throw new Error(`Unsupported snapshot version: ${snapshot.version}`);
+    }
+    
+    // Validate required arrays
+    const requiredArrays = ['cards', 'notes', 'decks', 'deckConfigs', 'models', 'media'];
+    for (const field of requiredArrays) {
+      if (!Array.isArray(snapshot[field])) {
+        throw new Error(`Invalid snapshot: ${field} must be an array`);
+      }
+    }
+    
+    if (!snapshot.col || typeof snapshot.col !== 'object') {
+      throw new Error('Invalid snapshot: col must be an object');
+    }
+
+    console.log('[InMemoryDb] Restoring snapshot from', snapshot.timestamp ? new Date(snapshot.timestamp).toISOString() : 'unknown time');
 
     // Clear existing data
     this.cards.clear();
@@ -652,26 +688,35 @@ export class InMemoryDb {
     this.graves = [];
 
     // Restore data
-    this.col = snapshot.col;
-    snapshot.cards.forEach((card: AnkiCard) => this.cards.set(card.id, card));
-    snapshot.notes.forEach((note: AnkiNote) => this.notes.set(note.id, note));
-    this.revlog = snapshot.revlog || [];
-    this.graves = snapshot.graves || [];
-    snapshot.decks.forEach((deck: Deck) => this.decks.set(deck.id, deck));
-    snapshot.deckConfigs.forEach((conf: DeckConfig) => this.deckConfigs.set(conf.id, conf));
-    // Convert model IDs to numbers (JSON keys are strings)
-    snapshot.models.forEach((model: Model) => {
-      const numericId = typeof model.id === 'string' ? parseInt(model.id, 10) : model.id;
-      this.models.set(numericId, { ...model, id: numericId });
-    });
-    snapshot.media.forEach((media: Media) => this.media.set(media.id, media));
-    this.colConfig = snapshot.colConfig;
-    this.usn = snapshot.usn;
-    
-    // Cleanup orphaned cards after loading
-    const orphanedCount = this.cleanupOrphanedCards();
-    if (orphanedCount > 0) {
-      console.log('[InMemoryDb] Cleaned up', orphanedCount, 'orphaned cards after loading');
+    try {
+      this.col = snapshot.col;
+      snapshot.cards.forEach((card: AnkiCard) => this.cards.set(card.id, card));
+      snapshot.notes.forEach((note: AnkiNote) => this.notes.set(note.id, note));
+      this.revlog = snapshot.revlog || [];
+      this.graves = snapshot.graves || [];
+      snapshot.decks.forEach((deck: Deck) => this.decks.set(deck.id, deck));
+      snapshot.deckConfigs.forEach((conf: DeckConfig) => this.deckConfigs.set(conf.id, conf));
+      // Convert model IDs to numbers (JSON keys are strings)
+      snapshot.models.forEach((model: Model) => {
+        const numericId = typeof model.id === 'string' ? parseInt(model.id, 10) : model.id;
+        this.models.set(numericId, { ...model, id: numericId });
+      });
+      snapshot.media.forEach((media: Media) => this.media.set(media.id, media));
+      this.colConfig = snapshot.colConfig;
+      this.usn = snapshot.usn;
+      
+      // Cleanup orphaned cards after loading
+      const orphanedCount = this.cleanupOrphanedCards();
+      if (orphanedCount > 0) {
+        console.log('[InMemoryDb] Cleaned up', orphanedCount, 'orphaned cards after loading');
+      }
+      
+      console.log('[InMemoryDb] Snapshot restored successfully');
+    } catch (restoreError) {
+      // If restoration fails, reinitialize to prevent corrupted state
+      console.error('[InMemoryDb] Failed to restore snapshot, reinitializing:', restoreError);
+      this.clear();
+      throw new Error(`Failed to restore database snapshot: ${restoreError instanceof Error ? restoreError.message : 'Unknown error'}`);
     }
   }
 }
