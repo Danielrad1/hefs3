@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndic
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
@@ -158,7 +159,27 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
 
     if (!note) return null;
     const fields = note.flds.split(FIELD_SEPARATOR);
-    const frontSnippet = fields[0] ? fields[0].replace(/<[^>]*>/g, '').substring(0, 100) : '';
+    
+    // Clean up HTML and cloze syntax for display
+    let frontSnippet = fields[0] || '';
+    frontSnippet = frontSnippet.replace(/<[^>]*>/g, ''); // Remove HTML
+    frontSnippet = frontSnippet.replace(/\{\{c\d+::/g, ''); // Remove cloze opening
+    frontSnippet = frontSnippet.replace(/::.*?\}\}/g, ''); // Remove cloze hints
+    frontSnippet = frontSnippet.replace(/\}\}/g, ''); // Remove closing braces
+    frontSnippet = frontSnippet.substring(0, 80).trim();
+    
+    // Check for media in all fields
+    const allFields = note.flds;
+    const hasImage = /<img[^>]+>/i.test(allFields);
+    const hasAudio = /\[sound:[^\]]+\]/i.test(allFields);
+    
+    // Get deck name (last part only)
+    const deckName = deck?.name?.split('::').pop() || 'Unknown';
+    
+    // Get card type info
+    const typeInfo = card.type === 0 ? { label: 'New', color: theme.colors.info } : 
+                     card.type === 1 ? { label: 'Learning', color: theme.colors.warning } : 
+                     { label: 'Review', color: theme.colors.textSecondary };
 
     return (
       <Pressable
@@ -179,16 +200,30 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
           <Text
             style={[styles.frontText, { color: theme.colors.textPrimary }]}
             numberOfLines={2}
+            ellipsizeMode="tail"
           >
             {frontSnippet}
           </Text>
           <View style={styles.cardMeta}>
-            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
-              {deck?.name || 'Unknown'}
-            </Text>
-            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
-              {card.type === 0 ? 'New' : card.type === 1 ? 'Learn' : 'Review'}
-            </Text>
+            <View style={styles.metaLeft}>
+              <Ionicons name="folder-outline" size={12} color={theme.colors.textSecondary} />
+              <Text style={[styles.metaText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                {deckName}
+              </Text>
+            </View>
+            <View style={styles.metaRight}>
+              {hasImage && (
+                <Ionicons name="image-outline" size={14} color={theme.colors.info} />
+              )}
+              {hasAudio && (
+                <Ionicons name="musical-notes-outline" size={14} color={theme.colors.warning} />
+              )}
+              <View style={[styles.typeBadge, { backgroundColor: typeInfo.color + '20' }]}>
+                <Text style={[styles.typeText, { color: typeInfo.color }]}>
+                  {typeInfo.label}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
         {card.flags > 0 && (
@@ -468,30 +503,63 @@ const styles = StyleSheet.create({
     paddingBottom: s.xl,
   },
   cardRow: {
-    flexDirection: 'row',
-    padding: s.md,
-    borderRadius: r.md,
+    marginHorizontal: s.lg,
+    marginBottom: s.md,
+    borderRadius: r.lg,
     borderWidth: 1,
-    gap: s.md,
-    marginBottom: s.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: s.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   cardContent: {
     flex: 1,
-    gap: s.xs,
   },
   frontText: {
-    fontSize: 14,
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: s.sm,
     fontWeight: '500',
   },
   cardMeta: {
     flexDirection: 'row',
-    gap: s.md,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: s.sm,
+  },
+  metaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
   },
   metaText: {
     fontSize: 12,
+    flex: 1,
+  },
+  metaRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  typeBadge: {
+    paddingHorizontal: s.sm,
+    paddingVertical: 4,
+    borderRadius: r.sm,
+  },
+  typeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   flag: {
     width: 4,
+    height: 40,
     borderRadius: 2,
   },
   loadingState: {
