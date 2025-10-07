@@ -29,20 +29,24 @@ export default function StudyScreen() {
   // }, [bootstrap]);
   
   // Preload images and dimensions for current and next cards
-  // Fire and forget - don't trigger re-renders when complete
+  // Deferred to prevent blocking UI - fire and forget
   useEffect(() => {
-    if (current) {
-      ImageCache.preloadImagesFromHtml(current.front).catch(() => {});
-      ImageCache.preloadImagesFromHtml(current.back).catch(() => {});
-      ImageCache.ensureDimensionsFromHtml(current.front).catch(() => {});
-      ImageCache.ensureDimensionsFromHtml(current.back).catch(() => {});
-    }
-    if (next) {
-      ImageCache.preloadImagesFromHtml(next.front).catch(() => {});
-      ImageCache.preloadImagesFromHtml(next.back).catch(() => {});
-      ImageCache.ensureDimensionsFromHtml(next.front).catch(() => {});
-      ImageCache.ensureDimensionsFromHtml(next.back).catch(() => {});
-    }
+    // Defer preloading to next frame to not block rendering
+    const timer = setTimeout(() => {
+      if (current) {
+        ImageCache.preloadImagesFromHtml(current.front).catch(() => {});
+        ImageCache.preloadImagesFromHtml(current.back).catch(() => {});
+        ImageCache.ensureDimensionsFromHtml(current.front).catch(() => {});
+        ImageCache.ensureDimensionsFromHtml(current.back).catch(() => {});
+      }
+      if (next) {
+        ImageCache.preloadImagesFromHtml(next.front).catch(() => {});
+        ImageCache.preloadImagesFromHtml(next.back).catch(() => {});
+        ImageCache.ensureDimensionsFromHtml(next.front).catch(() => {});
+        ImageCache.ensureDimensionsFromHtml(next.back).catch(() => {});
+      }
+    }, 100); // Small delay to let UI render first
+    return () => clearTimeout(timer);
   }, [current, next]);
   
   // Reset overlay and revealed state when card changes

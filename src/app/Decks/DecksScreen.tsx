@@ -283,12 +283,6 @@ export default function DecksScreen() {
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
             Decks
           </Text>
-          <Pressable
-            style={[styles.addButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => setAddDeckModalVisible(true)}
-          >
-            <Text style={styles.addButtonText}>+</Text>
-          </Pressable>
         </View>
 
         {/* Search Bar */}
@@ -332,6 +326,14 @@ export default function DecksScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Floating Add Deck Button */}
+      <Pressable
+        style={[styles.fab, { backgroundColor: theme.colors.accent }]}
+        onPress={() => setAddDeckModalVisible(true)}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </Pressable>
 
       {/* Deck Action Sheet */}
       {selectedDeck && (
@@ -406,17 +408,26 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
   },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  fab: {
+    position: 'absolute',
+    right: s.lg,
+    bottom: s.xl,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  addButtonText: {
-    fontSize: 24,
-    fontWeight: '600',
+  fabIcon: {
+    fontSize: 32,
+    fontWeight: '300',
     color: '#000',
+    marginTop: -2,
   },
   searchContainer: {
     flexDirection: 'row',

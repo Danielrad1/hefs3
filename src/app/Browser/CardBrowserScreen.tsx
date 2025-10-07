@@ -2,9 +2,10 @@
  * CardBrowserScreen - Browse and filter cards Anki-style
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, FlatList, Alert } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FlashList } from '@shopify/flash-list';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
@@ -39,75 +40,105 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
   const [searchText, setSearchText] = useState('');
   const [filters, setFilters] = useState<FilterChip[]>([]);
   const [cards, setCards] = useState<AnkiCard[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const searchIndexRef = useRef<SearchIndex | null>(null);
+  const isIndexingRef = useRef(false);
 
   const cardService = useMemo(() => new CardService(db), []);
-  const [searchIndex, setSearchIndex] = useState<SearchIndex>(() => {
-    const index = new SearchIndex(db);
-    index.indexAll();
-    return index;
-  });
 
-  // Reindex on screen focus to pick up changes from editor
+  // Load cards immediately on focus - no reindexing blocking
   useFocusEffect(
     useCallback(() => {
-      if (__DEV__) {
-        console.log('[CardBrowser] Screen focused, reindexing...');
-      }
-      const index = new SearchIndex(db);
-      index.indexAll();
-      setSearchIndex(index);
       loadCards();
     }, [])
   );
 
-  // Load and filter cards
+  // Lazy index only when search is actually used
+  const ensureSearchIndex = useCallback(() => {
+    if (!searchIndexRef.current && !isIndexingRef.current) {
+      isIndexingRef.current = true;
+      // Build index in background
+      setTimeout(() => {
+        if (__DEV__) {
+          console.log('[CardBrowser] Building search index...');
+        }
+        searchIndexRef.current = new SearchIndex(db);
+        searchIndexRef.current.indexAll();
+        isIndexingRef.current = false;
+        // Re-run search if there's active search text
+        if (searchText.trim()) {
+          loadCards();
+        }
+      }, 100);
+    }
+  }, [searchText]);
+
+  // Trigger search index build when user starts typing
   useEffect(() => {
-    loadCards();
+    if (searchText.trim()) {
+      ensureSearchIndex();
+    }
+  }, [searchText, ensureSearchIndex]);
+
+  // Load and filter cards with debouncing for search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadCards();
+    }, searchText ? 300 : 0);
+    return () => clearTimeout(timer);
   }, [searchText, filters]);
 
-  const loadCards = () => {
-    let query: CardQuery = {};
+  const loadCards = useCallback(() => {
+    setIsLoading(true);
+    // Use setTimeout to avoid blocking UI
+    setTimeout(() => {
+      let query: CardQuery = {};
 
-    // If deckId provided, filter to that deck
-    if (deckId) {
-      const deck = db.getDeck(deckId);
-      if (deck) {
-        query.deck = deck.name;
+      // If deckId provided, filter to that deck
+      if (deckId) {
+        const deck = db.getDeck(deckId);
+        if (deck) {
+          query.deck = deck.name;
+        }
       }
-    }
 
-    // Apply filter chips
-    filters.forEach((filter) => {
-      switch (filter.type) {
-        case 'deck':
-          query.deck = filter.value;
-          break;
-        case 'tag':
-          query.tag = filter.value;
-          break;
-        case 'is':
-          query.is = filter.value as any;
-          break;
-        case 'flag':
-          query.flag = parseInt(filter.value);
-          break;
+      // Apply filter chips
+      filters.forEach((filter) => {
+        switch (filter.type) {
+          case 'deck':
+            query.deck = filter.value;
+            break;
+          case 'tag':
+            query.tag = filter.value;
+            break;
+          case 'is':
+            query.is = filter.value as any;
+            break;
+          case 'flag':
+            query.flag = parseInt(filter.value);
+            break;
+        }
+      });
+
+      // Get cards matching query
+      let filteredCards = cardService.findCards(query);
+
+      // Apply text search if present and index is ready
+      if (searchText.trim()) {
+        if (searchIndexRef.current) {
+          const noteIds = new Set(searchIndexRef.current.search(searchText, { limit: 500 }));
+          filteredCards = filteredCards.filter((card) => noteIds.has(card.nid));
+        }
+        // If index not ready, show loading message
       }
-    });
 
-    // Get cards matching query
-    let filteredCards = cardService.findCards(query);
+      // Sort by due date (most urgent first)
+      filteredCards.sort((a, b) => a.due - b.due);
 
-    // Apply text search if present
-    if (searchText.trim()) {
-      const noteIds = new Set(searchIndex.search(searchText, { limit: 500 }));
-      filteredCards = filteredCards.filter((card) => noteIds.has(card.nid));
-    }
-
-    // Sort by due date (most urgent first)
-    filteredCards.sort((a, b) => a.due - b.due);
-
-    setCards(filteredCards);
-  };
+      setCards(filteredCards);
+      setIsLoading(false);
+    }, 0);
+  }, [deckId, filters, searchText, cardService]);
 
   const addFilter = (filter: FilterChip) => {
     // Prevent duplicate filters of the same type and value
@@ -116,20 +147,18 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
       setFilters([...filters, filter]);
     }
   };
-
   const removeFilter = (filterId: string) => {
     setFilters(filters.filter((f) => f.id !== filterId));
   };
 
 
-  const renderCard = ({ item: card }: { item: AnkiCard }) => {
+  const renderCard = useCallback(({ item: card }: { item: AnkiCard }) => {
     const note = db.getNote(card.nid);
     const deck = db.getDeck(card.did);
 
     if (!note) return null;
-
     const fields = note.flds.split(FIELD_SEPARATOR);
-    const frontSnippet = fields[0] ? fields[0].substring(0, 100) : '';
+    const frontSnippet = fields[0] ? fields[0].replace(/<[^>]*>/g, '').substring(0, 100) : '';
 
     return (
       <Pressable
@@ -141,9 +170,8 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
           },
         ]}
         onPress={() => {
-          // Open note editor to edit this card's note
           if (navigation) {
-            navigation.navigate('NoteEditor', { noteId: card.nid });
+            navigation.navigate('NoteEditor', { noteId: card.nid, deckId: deckId });
           }
         }}
       >
@@ -168,7 +196,7 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
         )}
       </Pressable>
     );
-  };
+  }, [theme, navigation]);
 
   const getFlagColor = (flag: number): string => {
     switch (flag) {
@@ -203,7 +231,7 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
       )}
 
       {/* Cards list with header components */}
-      <FlatList
+      <FlashList
         data={cards}
         renderItem={renderCard}
         keyExtractor={(item) => item.id}
@@ -298,14 +326,41 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
           </>
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No cards found
-            </Text>
-          </View>
+          isLoading ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="large" color={theme.colors.accent} />
+              <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+                Loading cards...
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
+                No cards found
+              </Text>
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                {searchText || filters.length > 0
+                  ? 'Try adjusting your search or filters'
+                  : 'Import a deck to get started'}
+              </Text>
+            </View>
+          )
         }
       />
 
+      {/* Floating Action Button */}
+      {deckId && navigation && (
+        <Pressable
+          style={[styles.fab, { backgroundColor: theme.colors.success }]}
+          onPress={() => {
+            const models = db.getAllModels();
+            const modelId = models.length > 0 ? models[0].id : 1;
+            navigation.navigate('NoteEditor', { deckId, modelId });
+          }}
+        >
+          <Text style={styles.fabIcon}>+</Text>
+        </Pressable>
+      )}
     </SafeAreaView>
   );
 }
@@ -330,6 +385,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
     textAlign: 'center',
+  },
+  addButton: {
+    paddingHorizontal: s.md,
+    paddingVertical: s.sm,
+    borderRadius: r.md,
+  },
+  addButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
   },
   searchContainer: {
     padding: s.md,
@@ -429,11 +494,46 @@ const styles = StyleSheet.create({
     width: 4,
     borderRadius: 2,
   },
-  emptyState: {
-    padding: s.xl,
+  loadingState: {
+    padding: s['2xl'],
     alignItems: 'center',
+    gap: s.md,
+  },
+  loadingText: {
+    fontSize: 14,
+  },
+  emptyState: {
+    padding: s['2xl'],
+    alignItems: 'center',
+    gap: s.sm,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    right: s.lg,
+    bottom: s.xl,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabIcon: {
+    fontSize: 32,
+    fontWeight: '300',
+    color: '#000',
+    marginTop: -2,
   },
 });

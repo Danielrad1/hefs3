@@ -52,7 +52,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
   // Debounced save timer
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load current and next cards
+  // Load current and next cards (optimized - no deck stats recalculation)
   const loadCards = useCallback(() => {
     const currentAnkiCard = scheduler.getNext(currentDeckId || undefined);
     const nextAnkiCard = currentAnkiCard ? scheduler.peekNext(currentDeckId || undefined) : null;
@@ -71,26 +71,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     } else {
       setCurrent(null);
       setCardType(null);
-      
-      // No card due - find next card that will become due
-      const allCards = currentDeckId ? db.getCardsByDeck(currentDeckId) : db.getAllCards();
-      const learningCards = allCards.filter(c => c.type === 1 || c.type === 3); // Learning/relearning
-      
-      if (learningCards.length > 0) {
-        const now = Math.floor(Date.now() / 1000);
-        const nextDueTimes = learningCards
-          .map(c => c.due)
-          .filter(due => due > now)
-          .sort((a, b) => a - b);
-        
-        if (nextDueTimes.length > 0) {
-          setNextCardDueInSeconds(nextDueTimes[0] - now);
-        } else {
-          setNextCardDueInSeconds(null);
-        }
-      } else {
-        setNextCardDueInSeconds(null);
-      }
+      setNextCardDueInSeconds(null);
     }
 
     if (nextAnkiCard && nextAnkiCard.id !== currentAnkiCard?.id) {
@@ -104,17 +85,30 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
       setNext(null);
     }
 
-    // Update stats
+    // Update stats (much faster than deck list)
     setStats(db.getStats(currentDeckId || undefined));
-    
+  }, [scheduler, currentDeckId]);
+
+  // Separate function to update deck list (only called when needed)
+  const updateDeckList = useCallback(() => {
     // Update decks list with due counts (exclude Default deck)
     const allDecks = db.getAllDecks().filter(d => d.id !== '1');
+    const allCards = db.getAllCards();
+    
     setDecks(allDecks.map(d => {
-      const deckCards = db.getCardsByDeck(d.id);
+      // Get all cards for this deck AND its children (nested decks)
+      const deckCards = allCards.filter(card => {
+        const cardDeck = db.getDeck(card.did);
+        if (!cardDeck) return false;
+        // Match exact deck or any child deck (using :: separator)
+        return cardDeck.id === d.id || cardDeck.name.startsWith(d.name + '::');
+      });
+      
       const dueCards = deckCards.filter(c => {
         const col = db.getCol();
         return isDue(c.due, c.type, col);
       });
+      
       return {
         id: d.id,
         name: d.name,
@@ -122,7 +116,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
         dueCount: dueCards.length,
       };
     }));
-  }, [scheduler, currentDeckId]);
+  }, []);
 
   // Bootstrap with seed data
   const bootstrap = useCallback((cards: Card[]) => {
@@ -210,20 +204,27 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
 
   // Reload cards when deck changes
   useEffect(() => {
-    if (current || next) {
-      loadCards();
+    if (currentDeckId) {
+      // Use setTimeout to prevent blocking UI when switching decks
+      const timer = setTimeout(() => {
+        loadCards();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [currentDeckId]);
 
   // Reload function to refresh from database
   const reload = useCallback(() => {
     loadCards();
-  }, [loadCards]);
+    // Also update deck list when explicitly reloading
+    updateDeckList();
+  }, [loadCards, updateDeckList]);
 
-  // Load cards on mount and when deck changes
+  // Load cards on mount
   useEffect(() => {
     loadCards();
-  }, [loadCards, currentDeckId]);
+    updateDeckList();
+  }, []);
 
   // Cleanup save timer on unmount
   useEffect(() => {

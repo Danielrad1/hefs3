@@ -3,13 +3,15 @@
  * Uses react-native-pell-rich-editor for Word-like editing experience
  */
 
-import React, { useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useRef, useImperativeHandle, forwardRef, useMemo, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Platform, Text as RNText } from 'react-native';
 import { RichEditor, RichToolbar, actions } from 'react-native-pell-rich-editor';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../design/theme';
 import { s } from '../design/spacing';
 import { r } from '../design/radii';
+import { MEDIA_DIR } from '../services/anki/MediaService';
 
 interface WYSIWYGEditorProps {
   value: string;
@@ -43,23 +45,124 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
   ) => {
     const theme = useTheme();
     const richText = useRef<RichEditor>(null);
+    const lastValueRef = useRef(value);
+
+    // Process HTML to convert filenames to base64 for display
+    const [processedValue, setProcessedValue] = useState(value);
+    const [isProcessing, setIsProcessing] = useState(false);
+    
+    useEffect(() => {
+      if (!value) {
+        setProcessedValue(value);
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Already processed
+      if (value.includes('data:image')) {
+        setProcessedValue(value);
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Check if there are images to convert
+      const hasImages = /<img\s+([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi.test(value);
+      if (!hasImages) {
+        setProcessedValue(value);
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Convert image filenames to base64 asynchronously
+      setIsProcessing(true);
+      const convertImagesToBase64 = async () => {
+        let processed = value;
+        const imgRegex = /<img\s+([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi;
+        const matches = Array.from(value.matchAll(imgRegex));
+        
+        for (const match of matches) {
+          const [fullMatch, before, src, after] = match;
+          
+          // Skip if already a full path or base64
+          if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+            continue;
+          }
+          
+          try {
+            // Sanitize and encode filename like CardContentRendererV2 does
+            const sanitized = src.replace(/[^A-Za-z0-9._-]/g, '_');
+            const encodedFilename = encodeURIComponent(sanitized);
+            const fullPath = `${MEDIA_DIR}${encodedFilename}`;
+            
+            // Check if file exists and convert to base64
+            const fileInfo = await FileSystem.getInfoAsync(fullPath);
+            if (fileInfo.exists) {
+              const base64 = await FileSystem.readAsStringAsync(fullPath, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              
+              // Determine MIME type from extension
+              const ext = sanitized.split('.').pop()?.toLowerCase() || 'png';
+              const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 
+                              ext === 'png' ? 'image/png' : 
+                              ext === 'gif' ? 'image/gif' : 
+                              ext === 'svg' ? 'image/svg+xml' : 'image/png';
+              
+              const base64Src = `data:${mimeType};base64,${base64}`;
+              processed = processed.replace(fullMatch, `<img ${before}src="${base64Src}"${after}>`);
+            }
+          } catch (error) {
+            console.warn('[WYSIWYGEditor] Failed to convert image:', src, error);
+          }
+        }
+        
+        setProcessedValue(processed);
+        setIsProcessing(false);
+      };
+      
+      convertImagesToBase64();
+    }, [value]);
+
+    // Force content update when processed value changes
+    useEffect(() => {
+      if (!isProcessing && processedValue && richText.current) {
+        // Small delay to ensure WebView is ready
+        setTimeout(() => {
+          richText.current?.setContentHTML(processedValue);
+        }, 100);
+      }
+    }, [processedValue, isProcessing]);
 
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
-      insertImage: (filename: string) => {
-        console.log('[WYSIWYGEditor] insertImage called with:', filename);
-        richText.current?.insertHTML(`<img src="${filename}" style="max-width: 100%; height: auto;" />`);
+      insertImage: async (filename: string) => {
+        try {
+          // Convert image to base64 for WebView compatibility
+          const fullPath = `${MEDIA_DIR}${filename}`;
+          const base64 = await FileSystem.readAsStringAsync(fullPath, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          
+          // Determine image type from extension
+          const ext = filename.split('.').pop()?.toLowerCase();
+          let mimeType = 'image/jpeg';
+          if (ext === 'png') mimeType = 'image/png';
+          else if (ext === 'gif') mimeType = 'image/gif';
+          else if (ext === 'webp') mimeType = 'image/webp';
+          
+          const dataUri = `data:${mimeType};base64,${base64}`;
+          richText.current?.insertHTML(`<img src="${dataUri}" data-filename="${filename}" style="max-width:100%;height:auto;display:block;margin:8px auto;" />`);
+        } catch (error) {
+          console.error('[WYSIWYGEditor] Error converting image to base64:', error);
+        }
       },
       insertAudio: (filename: string) => {
-        console.log('[WYSIWYGEditor] insertAudio called with:', filename);
         richText.current?.insertHTML(`[sound:${filename}]`);
       },
       insertCloze: () => {
-        console.log('[WYSIWYGEditor] insertCloze called');
         richText.current?.insertHTML('{{c1::text}}');
       },
       insertHTML: (html: string) => {
-        console.log('[WYSIWYGEditor] insertHTML called with:', html);
         richText.current?.insertHTML(html);
       },
     }));
@@ -83,6 +186,8 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
       actions.setBold,
       actions.setItalic,
       actions.setUnderline,
+      actions.setSubscript,
+      actions.setSuperscript,
       actions.insertBulletsList,
       actions.insertOrderedList,
       actions.setStrikethrough,
@@ -116,6 +221,12 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
             [actions.setUnderline]: ({ tintColor }: any) => (
               <RNText style={{ fontSize: 18, textDecorationLine: 'underline', color: tintColor }}>U</RNText>
             ),
+            [actions.setSubscript]: ({ tintColor }: any) => (
+              <RNText style={{ fontSize: 16, color: tintColor }}>X₂</RNText>
+            ),
+            [actions.setSuperscript]: ({ tintColor }: any) => (
+              <RNText style={{ fontSize: 16, color: tintColor }}>X²</RNText>
+            ),
             [actions.insertBulletsList]: ({ tintColor }: any) => (
               <Ionicons name="list" size={20} color={tintColor} />
             ),
@@ -144,32 +255,61 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
           iconTint={theme.colors.textSecondary}
           disabledIconTint={theme.colors.border}
         />
-        <ScrollView 
-          style={[styles.editorContainer, { backgroundColor: theme.colors.bg }]}
-          keyboardDismissMode="none"
-          nestedScrollEnabled
-        >
+        {isProcessing ? (
+          <View style={[styles.editor, { backgroundColor: theme.colors.bg, justifyContent: 'center', alignItems: 'center' }]}>
+            <RNText style={{ color: theme.colors.textSecondary }}>Loading images...</RNText>
+          </View>
+        ) : (
           <RichEditor
             ref={richText}
-            initialContentHTML={value}
+            initialContentHTML={processedValue || ''}
             onChange={onChangeText}
             placeholder={placeholder}
-            style={[styles.editor, { backgroundColor: theme.colors.bg, minHeight: multiline ? 200 : 60 }]}
-            editorStyle={{
-              backgroundColor: theme.colors.bg,
-              color: theme.colors.textPrimary,
-              placeholderColor: theme.colors.textSecondary,
-              contentCSSText: `
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                font-size: 18px;
-                line-height: 1.6;
-                padding: 16px;
-                min-height: ${multiline ? '200px' : '60px'};
-              `,
-            }}
-            initialHeight={multiline ? 200 : 60}
-          />
-        </ScrollView>
+            style={[styles.editor, { backgroundColor: theme.colors.bg }]}
+          editorStyle={{
+            backgroundColor: theme.colors.bg,
+            color: theme.colors.textPrimary,
+            placeholderColor: theme.colors.textSecondary,
+            contentCSSText: `
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              font-size: 18px;
+              line-height: 1.6;
+              padding: 16px;
+              min-height: ${multiline ? '250px' : '80px'};
+            `,
+            cssText: `
+              * {
+                box-sizing: border-box !important;
+              }
+              img {
+                max-width: 100% !important;
+                width: auto !important;
+                height: auto !important;
+                display: block !important;
+                margin: 12px auto !important;
+                object-fit: contain !important;
+              }
+              p {
+                margin: 8px 0 !important;
+                min-height: 1.6em !important;
+              }
+              div {
+                min-height: auto !important;
+              }
+              body {
+                overflow-y: auto !important;
+                word-wrap: break-word !important;
+              }
+            `,
+          }}
+          initialHeight={multiline ? 250 : 80}
+          useContainer={true}
+          pasteAsPlainText={false}
+          allowFileAccess={true}
+          allowFileAccessFromFileURLs={true}
+          allowUniversalAccessFromFileURLs={true}
+        />
+        )}
       </View>
     );
   }
@@ -179,25 +319,14 @@ WYSIWYGEditor.displayName = 'WYSIWYGEditor';
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: r.lg,
     overflow: 'hidden',
   },
   toolbar: {
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: r.lg,
-    borderTopRightRadius: r.lg,
     minHeight: 50,
     paddingHorizontal: s.xs,
   },
-  editorContainer: {
-    borderWidth: 1,
-    borderBottomLeftRadius: r.lg,
-    borderBottomRightRadius: r.lg,
-    minHeight: 200,
-  },
   editor: {
-    flex: 1,
+    height: 250,
   },
 });
 

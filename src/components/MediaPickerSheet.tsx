@@ -83,6 +83,7 @@ export default function MediaPickerSheet({
         const filename = uri.split('/').pop() || `media-${Date.now()}`;
         console.log('[MediaPickerSheet] Calling onMediaSelected with:', { uri, filename });
         onMediaSelected(uri, filename);
+        // Note: Don't close here - let parent handle it after media is added
       } else {
         console.log('[MediaPickerSheet] User canceled or no asset selected');
         onClose();
