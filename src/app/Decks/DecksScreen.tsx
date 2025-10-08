@@ -17,6 +17,7 @@ import { useDeckImport } from './hooks/useDeckImport';
 import DeckCard from './components/DeckCard';
 import AddDeckModal from './components/AddDeckModal';
 import ImportProgressModal from './components/ImportProgressModal';
+import ImportOptionsModal from './components/ImportOptionsModal';
 import CreateDeckForm from './components/CreateDeckForm';
 import { buildDeckTree, filterDecks, DeckWithStats, DeckNode } from './utils/deckTreeUtils';
 
@@ -38,7 +39,17 @@ export default function DecksScreen() {
   const cardService = React.useMemo(() => new CardService(db), []);
   
   // Use import hook
-  const { importing, importProgress, handleImportDeck, cancelImport } = useDeckImport(reload, reload);
+  const { 
+    importing, 
+    importProgress, 
+    handleImportDeck, 
+    cancelImport,
+    showOptionsModal,
+    pendingImport,
+    onImportWithProgress,
+    onImportFresh,
+    onCancelOptions,
+  } = useDeckImport(reload, reload);
 
   // Removed excessive logging for performance
 
@@ -375,6 +386,17 @@ export default function DecksScreen() {
           handleImportDeck();
         }}
         onCancel={() => setAddDeckModalVisible(false)}
+      />
+
+      {/* Import Options Modal */}
+      <ImportOptionsModal
+        visible={showOptionsModal}
+        deckName={pendingImport?.fileName || ''}
+        hasProgress={pendingImport?.hasProgress || false}
+        progressStats={pendingImport?.progressStats}
+        onImportWithProgress={onImportWithProgress}
+        onImportFresh={onImportFresh}
+        onCancel={onCancelOptions}
       />
 
       {/* Import Progress Modal */}

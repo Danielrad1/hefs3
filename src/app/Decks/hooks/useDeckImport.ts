@@ -10,12 +10,16 @@ import { PersistenceService } from '../../../services/anki/PersistenceService';
 export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<string>('');
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{
+    fileUri: string;
+    fileName: string;
+    hasProgress: boolean;
+    progressStats?: { reviewedCards: number; totalCards: number };
+  } | null>(null);
   const cancelRef = useRef(false);
 
   const handleImportDeck = async () => {
-    // Snapshot for rollback on error or cancellation
-    let dbSnapshot: string | null = null;
-    
     try {
       // Small delay to let any modal close animation complete before opening picker
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -38,7 +42,51 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         return;
       }
 
-      // Now show progress modal after file is selected
+      // Quick parse to check for progress data
+      setImportProgress('Analyzing deck...');
+      const parser = new ApkgParser();
+      const parsed = await parser.parse(file.uri, {
+        enableStreaming: true,
+        onProgress: () => {}, // Silent for analysis
+      });
+
+      // Check if deck has progress
+      const hasProgress = parsed.revlog && parsed.revlog.length > 0;
+      const reviewedCards = hasProgress 
+        ? new Set(parsed.revlog.map(r => r.cid)).size 
+        : 0;
+
+      if (hasProgress) {
+        // Show options modal
+        setPendingImport({
+          fileUri: file.uri,
+          fileName: file.name,
+          hasProgress: true,
+          progressStats: {
+            reviewedCards,
+            totalCards: parsed.cards.length,
+          },
+        });
+        setShowOptionsModal(true);
+      } else {
+        // No progress, import directly
+        await performImport(file.uri, file.name, false);
+      }
+    } catch (error: any) {
+      console.error('[DeckImport] Import error:', error);
+      Alert.alert('Import Failed', error.message || 'Failed to import deck');
+    }
+  };
+
+  const performImport = async (fileUri: string, fileName: string, preserveProgress: boolean) => {
+    // Snapshot for rollback on error or cancellation
+    let dbSnapshot: string | null = null;
+    
+    try {
+      setShowOptionsModal(false);
+      setPendingImport(null);
+      
+      // Now show progress modal
       cancelRef.current = false;
       setImporting(true);
       setImportProgress('Reading file...');
@@ -50,7 +98,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       
       // Parse .apkg with streaming fallback for large files
       const parser = new ApkgParser();
-      const parsed = await parser.parse(file.uri, {
+      const parsed = await parser.parse(fileUri, {
         enableStreaming: true,
         onProgress: (msg) => {
           if (cancelRef.current) {
@@ -142,6 +190,14 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         });
         console.log('[DeckImport] Registered', filenames.length, 'media files');
       }
+
+      // Import review history if preserving progress
+      if (preserveProgress && parsed.revlog && parsed.revlog.length > 0) {
+        console.log('[DeckImport] Importing', parsed.revlog.length, 'review history entries');
+        updateProgress(`Importing progress… (${parsed.revlog.length} reviews)`);
+        parsed.revlog.forEach((entry) => db.addRevlog(entry));
+        console.log('[DeckImport] Progress imported successfully');
+      }
       
       // Verify what's in the database after import
       const allDecks = db.getAllDecks();
@@ -164,9 +220,13 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       setImporting(false);
       setImportProgress('');
       
+      const progressMsg = preserveProgress && parsed.revlog.length > 0
+        ? ` with ${parsed.revlog.length} reviews`
+        : '';
+      
       Alert.alert(
         'Import Successful',
-        `Imported ${parsed.cards.length} cards from ${parsed.decks.size} deck(s)`,
+        `Imported ${parsed.cards.length} cards from ${parsed.decks.size} deck(s)${progressMsg}`,
         [{ text: 'OK' }]
       );
 
@@ -252,5 +312,13 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
     importProgress,
     handleImportDeck,
     cancelImport,
+    showOptionsModal,
+    pendingImport,
+    onImportWithProgress: () => pendingImport && performImport(pendingImport.fileUri, pendingImport.fileName, true),
+    onImportFresh: () => pendingImport && performImport(pendingImport.fileUri, pendingImport.fileName, false),
+    onCancelOptions: () => {
+      setShowOptionsModal(false);
+      setPendingImport(null);
+    },
   };
 }

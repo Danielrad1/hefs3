@@ -6,7 +6,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 const JSZip = require('jszip');
 import * as SQLite from 'expo-sqlite';
-import { AnkiCard, AnkiNote, AnkiCol, Deck, DeckConfig } from './schema';
+import { AnkiCard, AnkiNote, AnkiCol, Deck, DeckConfig, AnkiRevlog } from './schema';
 
 export interface ApkgParseResult {
   col: AnkiCol;
@@ -15,6 +15,7 @@ export interface ApkgParseResult {
   decks: Map<string, Deck>;
   deckConfigs: Map<string, DeckConfig>;
   mediaFiles: Map<string, string>; // mediaId -> filename
+  revlog: AnkiRevlog[]; // Review history for progress preservation
 }
 
 export interface ApkgParseOptions {
@@ -379,7 +380,28 @@ export class ApkgParser {
         data: row.data || '',
       }));
 
-      return { col, cards, notes, decks, deckConfigs, mediaFiles: new Map() };
+      // Read revlog (review history)
+      let revlog: AnkiRevlog[] = [];
+      try {
+        const revlogRows = await db.getAllAsync<any>('SELECT * FROM revlog');
+        console.log('[ApkgParser] Found', revlogRows.length, 'review history entries');
+        revlog = revlogRows.map((row) => ({
+          id: row.id.toString(),
+          cid: row.cid.toString(),
+          usn: row.usn,
+          ease: row.ease,
+          ivl: row.ivl,
+          lastIvl: row.lastIvl,
+          factor: row.factor,
+          time: row.time,
+          type: row.type,
+        }));
+      } catch (error) {
+        console.log('[ApkgParser] No revlog table found or error reading it:', error);
+        // Some .apkg files might not have revlog, that's okay
+      }
+
+      return { col, cards, notes, decks, deckConfigs, mediaFiles: new Map(), revlog };
     } finally {
       await db.closeAsync();
     }
