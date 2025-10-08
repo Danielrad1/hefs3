@@ -66,6 +66,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const getIdToken = async (forceRefresh = false): Promise<string | null> => {
+    try {
+      const token = await auth().currentUser?.getIdToken(forceRefresh);
+      return token || null;
+    } catch (error) {
+      console.error('[Auth] Get token error:', error);
+      return null;
+    }
+  };
+
   const value: AuthContextType = {
     user,
     loading,
@@ -73,6 +83,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signUpWithEmail,
     signInAnonymously,
     signOut,
+    getIdToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

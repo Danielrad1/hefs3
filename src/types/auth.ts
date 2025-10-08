@@ -16,6 +16,7 @@ export interface AuthContextType {
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signInAnonymously: () => Promise<void>;
   signOut: () => Promise<void>;
+  getIdToken: (forceRefresh?: boolean) => Promise<string | null>;
 }
 
 export const mapFirebaseUser = (firebaseUser: FirebaseAuthTypes.User | null): User | null => {

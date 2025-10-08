@@ -9,13 +9,19 @@ const DB_FILE = `${FileSystem.documentDirectory}anki-db.json`;
 
 export class PersistenceService {
   /**
-   * Save database to file
+   * Get the database file path
+   */
+  static getDbPath(): string {
+    return DB_FILE;
+  }
+
+  /**
+   * Save database to disk
    */
   static async save(db: InMemoryDb): Promise<void> {
     try {
       const json = db.toJSON();
       await FileSystem.writeAsStringAsync(DB_FILE, json);
-      // Database saved successfully (removed log for performance)
     } catch (error) {
       console.error('[PersistenceService] Error saving database:', error);
       throw error;

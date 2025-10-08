@@ -1,188 +1,228 @@
-/**
- * DiscoverScreen - Browse curated flashcard decks
- */
-
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
-
-interface CuratedDeck {
-  id: string;
-  name: string;
-  description: string;
-  cardCount: number;
-  category: string;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-}
-
-const CURATED_DECKS: CuratedDeck[] = [
-  {
-    id: 'spanish-basic',
-    name: 'Spanish Basics',
-    description: 'Essential Spanish vocabulary and phrases for beginners',
-    cardCount: 500,
-    category: 'Languages',
-    difficulty: 'Beginner',
-    icon: 'language',
-    color: '#6EE7F2',
-  },
-  {
-    id: 'japanese-hiragana',
-    name: 'Japanese Hiragana',
-    description: 'Master all 46 Hiragana characters with examples',
-    cardCount: 92,
-    category: 'Languages',
-    difficulty: 'Beginner',
-    icon: 'book',
-    color: '#FF6B9D',
-  },
-  {
-    id: 'medical-terminology',
-    name: 'Medical Terminology',
-    description: 'Common medical terms, prefixes, and suffixes',
-    cardCount: 350,
-    category: 'Medicine',
-    difficulty: 'Advanced',
-    icon: 'medical',
-    color: '#4ECDC4',
-  },
-  {
-    id: 'javascript-basics',
-    name: 'JavaScript Fundamentals',
-    description: 'Core JavaScript concepts and syntax',
-    cardCount: 200,
-    category: 'Programming',
-    difficulty: 'Intermediate',
-    icon: 'code-slash',
-    color: '#F7B731',
-  },
-  {
-    id: 'anatomy-bones',
-    name: 'Human Anatomy: Bones',
-    description: 'All 206 bones in the human skeleton',
-    cardCount: 206,
-    category: 'Medicine',
-    difficulty: 'Advanced',
-    icon: 'body',
-    color: '#A55EEA',
-  },
-  {
-    id: 'french-verbs',
-    name: 'French Verb Conjugations',
-    description: 'Common French verbs and their conjugations',
-    cardCount: 150,
-    category: 'Languages',
-    difficulty: 'Intermediate',
-    icon: 'language',
-    color: '#45AAF2',
-  },
-  {
-    id: 'capitals-world',
-    name: 'World Capitals',
-    description: 'Capital cities of every country',
-    cardCount: 195,
-    category: 'Geography',
-    difficulty: 'Beginner',
-    icon: 'earth',
-    color: '#26DE81',
-  },
-  {
-    id: 'sat-vocabulary',
-    name: 'SAT Vocabulary',
-    description: 'High-frequency SAT words with definitions',
-    cardCount: 500,
-    category: 'Education',
-    difficulty: 'Intermediate',
-    icon: 'school',
-    color: '#FD79A8',
-  },
-];
+import { DiscoverService, DeckManifest } from '../../services/discover/DiscoverService';
+import { DeckDetailModal } from './DeckDetailModal';
+import { useScheduler } from '../../context/SchedulerProvider';
 
 export default function DiscoverScreen() {
   const theme = useTheme();
+  const { reload } = useScheduler(); // Get reload function to refresh Decks screen
+  const [decks, setDecks] = useState<DeckManifest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDeck, setSelectedDeck] = useState<DeckManifest | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState('');
 
-  const handleDeckPress = (deck: CuratedDeck) => {
-    Alert.alert(
-      'Download Unavailable',
-      `"${deck.name}" looks great!\n\nDeck downloads will be available in a future update when cloud storage is implemented.`,
-      [{ text: 'OK' }]
-    );
-  };
+  useEffect(() => {
+    loadDecks();
+  }, []);
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'Beginner':
-        return '#26DE81';
-      case 'Intermediate':
-        return '#F7B731';
-      case 'Advanced':
-        return '#FC5C65';
-      default:
-        return theme.colors.textSecondary;
+  const loadDecks = async () => {
+    try {
+      setLoading(true);
+      const catalog = await DiscoverService.getCatalog();
+      setDecks(catalog.decks);
+    } catch (error) {
+      console.error('Failed to load decks:', error);
+      Alert.alert('Error', 'Failed to load deck catalog. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
+  const importDeckFile = async (fileUri: string, deck: DeckManifest) => {
+    const ApkgParser = require('../../services/anki/ApkgParser').ApkgParser;
+    const { db } = require('../../services/anki/InMemoryDb');
+    const PersistenceService = require('../../services/anki/PersistenceService').PersistenceService;
+    
+    try {
+      setImporting(true);
+      setImportProgress('Parsing deck...');
+      
+      const parser = new ApkgParser();
+      const parsed = await parser.parse(fileUri, {
+        enableStreaming: true,
+        onProgress: (msg: string) => {
+          if (msg) setImportProgress(msg);
+        },
+      });
+      
+      // Import all data
+      setImportProgress('Importing models...');
+      if (parsed.col.models) {
+        const modelsObj = typeof parsed.col.models === 'string' 
+          ? JSON.parse(parsed.col.models) 
+          : parsed.col.models;
+        Object.values(modelsObj).forEach((model: any) => db.addModel(model));
+      }
+      
+      setImportProgress('Importing decks...');
+      Array.from(parsed.decks.values()).forEach((d: any) => db.addDeck(d));
+      setImportProgress(`Importing ${parsed.notes.length} notes...`);
+      parsed.notes.forEach((n: any) => db.addNote(n));
+      
+      setImportProgress(`Importing ${parsed.cards.length} cards...`);
+      parsed.cards.forEach((c: any) => db.addCard(c));
+      setImportProgress('Saving...');
+      await PersistenceService.save(db);
+      
+      // Reload the Decks screen so it shows immediately
+      reload();
+      
+      setImporting(false);
+      setImportProgress('');
+      setSelectedDeck(null); // Close modal
+      
+      Alert.alert(
+        'Success!',
+        `Imported ${parsed.cards.length} cards from "${deck.name}"`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      setImporting(false);
+      setImportProgress('');
+      throw error;
+    }
+  };
+  const getIconForDeck = (deck: DeckManifest): keyof typeof Ionicons.glyphMap => {
+    return (deck.thumbnail?.icon as keyof typeof Ionicons.glyphMap) || 'book';
+  };
+
+  const getIconColor = (deck: DeckManifest): string => {
+    return deck.thumbnail?.color || '#6366F1';
+  };
+
+  const handleDownload = async (deck: DeckManifest) => {
+    try {
+      setDownloadingId(deck.id);
+      setDownloadProgress(0);
+      
+      // Download the deck file with progress
+      const localUri = await DiscoverService.downloadDeck(deck, (progress) => {
+        setDownloadProgress(progress);
+      });
+      
+      // Import the downloaded file
+      await importDeckFile(localUri, deck);
+      
+    } catch (error: any) {
+      console.error('Download/Import failed:', error);
+      Alert.alert('Failed', error.message || 'Failed to download or import deck');
+    } finally {
+      setDownloadingId(null);
+      setDownloadProgress(0);
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Discover</Text>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={theme.colors.accent} />
+          <Text style={{ color: theme.colors.textSecondary, marginTop: 16 }}>
+            Loading decks...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Discover</Text>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          Explore curated flashcard decks
+          {decks.length} curated flashcard decks
         </Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.grid}>
-          {CURATED_DECKS.map((deck) => (
+      <ScrollView style={styles.content} contentContainerStyle={styles.grid}>
+        {decks.map((deck) => {
+          const isDownloading = downloadingId === deck.id;
+          const difficultyColor = deck.difficulty === 'beginner' ? '#10B981' : deck.difficulty === 'intermediate' ? '#F59E0B' : '#EF4444';
+          const icon = getIconForDeck(deck);
+          const iconColor = getIconColor(deck);
+          
+          return (
             <Pressable
               key={deck.id}
               style={[styles.card, { backgroundColor: theme.colors.surface }]}
-              onPress={() => handleDeckPress(deck)}
+              onPress={() => setSelectedDeck(deck)}
+              disabled={isDownloading || importing}
             >
-              <View style={[styles.iconContainer, { backgroundColor: deck.color + '20' }]}>
-                <Ionicons name={deck.icon} size={32} color={deck.color} />
+              <View style={[styles.iconContainer, { backgroundColor: iconColor + '20' }]}>
+                <Ionicons name={icon} size={32} color={iconColor} />
               </View>
-
+              
               <View style={styles.cardContent}>
-                <Text style={[styles.deckName, { color: theme.colors.textPrimary }]} numberOfLines={2}>
+                <Text style={[styles.deckName, { color: theme.colors.textPrimary }]}>
                   {deck.name}
                 </Text>
-                <Text style={[styles.deckDescription, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                <Text style={[styles.deckDescription, { color: theme.colors.textSecondary }]}>
                   {deck.description}
                 </Text>
-
+                
                 <View style={styles.cardFooter}>
                   <View style={styles.metaRow}>
-                    <Ionicons name="layers-outline" size={14} color={theme.colors.textTertiary} />
+                    <Ionicons name="layers" size={16} color={theme.colors.textTertiary} />
                     <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
                       {deck.cardCount} cards
                     </Text>
                   </View>
-
-                  <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(deck.difficulty) + '20' }]}>
-                    <Text style={[styles.difficultyText, { color: getDifficultyColor(deck.difficulty) }]}>
-                      {deck.difficulty}
-                    </Text>
-                  </View>
+                  
+                  {isDownloading ? (
+                    <View style={{ alignItems: 'center' }}>
+                      {downloadProgress > 0 && downloadProgress < 100 ? (
+                        <Text style={[styles.progressText, { color: theme.colors.accent }]}>
+                          {Math.round(downloadProgress)}%
+                        </Text>
+                      ) : importing ? (
+                        <Text style={[styles.progressText, { color: theme.colors.accent }]}>
+                          {importProgress || 'Importing...'}
+                        </Text>
+                      ) : (
+                        <ActivityIndicator size="small" color={theme.colors.accent} />
+                      )}
+                    </View>
+                  ) : (
+                    <View style={[styles.difficultyBadge, { backgroundColor: difficultyColor + '20' }]}>
+                      <Text style={[styles.difficultyText, { color: difficultyColor }]}>
+                        {deck.difficulty}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
             </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.footer}>
-          <Ionicons name="information-circle-outline" size={20} color={theme.colors.textTertiary} />
-          <Text style={[styles.footerText, { color: theme.colors.textTertiary }]}>
-            Downloads coming soon
-          </Text>
-        </View>
+          );
+        })}
       </ScrollView>
+
+      {/* Deck Detail Modal */}
+      {selectedDeck && (
+        <DeckDetailModal
+          deck={selectedDeck}
+          visible={!!selectedDeck}
+          onClose={() => setSelectedDeck(null)}
+          onDownload={handleDownload}
+          downloading={downloadingId === selectedDeck.id}
+          downloadProgress={downloadProgress}
+          importing={importing}
+          importProgress={importProgress}
+          icon={getIconForDeck(selectedDeck)}
+          iconColor={getIconColor(selectedDeck)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -196,7 +236,6 @@ const styles = StyleSheet.create({
     paddingTop: s.md,
     paddingBottom: s.lg,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E1E20',
   },
   title: {
     fontSize: 28,
@@ -211,7 +250,6 @@ const styles = StyleSheet.create({
   },
   grid: {
     padding: s.md,
-    gap: s.md,
   },
   card: {
     borderRadius: r.lg,
@@ -261,14 +299,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: s.sm,
-    paddingVertical: s.xl,
-  },
-  footerText: {
-    fontSize: 14,
+  progressText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

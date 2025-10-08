@@ -11,6 +11,7 @@ import { PersistenceService } from '../../services/anki/PersistenceService';
 import { useScheduler } from '../../context/SchedulerProvider';
 import { AccountSection } from './components/AccountSection';
 import { BackupSection } from './components/BackupSection';
+import { DeveloperSection } from './components/DeveloperSection';
 
 interface SettingItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -216,6 +217,9 @@ export default function SettingsScreen() {
             iconBg="#FDCB6E"
           />
         </View>
+
+        <SectionHeader title="DEVELOPER TOOLS" />
+        <DeveloperSection />
 
         <SectionHeader title="DATA & STORAGE" />
         <View style={styles.section}>
