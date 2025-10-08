@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.memorize-app",
+      "bundleIdentifier": "com.anonymous.memorizeapp",
       "deploymentTarget": "17.0",
       "infoPlist": {
         "NSDocumentsFolderUsageDescription": "This app needs access to documents to import Anki decks",

@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { useTheme } from '../design';
-import Tabs from './Tabs';
+import AuthNavigator from './AuthNavigator';
 
 export default function RootNav() {
   const theme = useTheme();
@@ -30,7 +30,7 @@ export default function RootNav() {
 
   return (
     <NavigationContainer theme={navTheme}>
-      <Tabs />
+      <AuthNavigator />
     </NavigationContainer>
   );
 }

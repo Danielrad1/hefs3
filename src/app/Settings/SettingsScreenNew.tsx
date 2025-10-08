@@ -9,6 +9,8 @@ import { r } from '../../design/radii';
 import { db } from '../../services/anki/InMemoryDb';
 import { PersistenceService } from '../../services/anki/PersistenceService';
 import { useScheduler } from '../../context/SchedulerProvider';
+import { AccountSection } from './components/AccountSection';
+import { BackupSection } from './components/BackupSection';
 
 interface SettingItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -143,6 +145,11 @@ export default function SettingsScreen() {
           />
         </View>
 
+        <SectionHeader title="ACCOUNT" />
+        <View style={styles.section}>
+          <AccountSection SettingItem={SettingItem} />
+        </View>
+
         <SectionHeader title="STUDY" />
         <View style={styles.section}>
           <SettingItem
@@ -212,14 +219,7 @@ export default function SettingsScreen() {
 
         <SectionHeader title="DATA & STORAGE" />
         <View style={styles.section}>
-          <SettingItem
-            icon="cloud-upload"
-            title="Backup & Sync"
-            subtitle="Cloud backup and sync across devices"
-            onPress={() => Alert.alert('Pro Feature', 'Cloud sync is available in Memorize Pro')}
-            iconColor="#FFFFFF"
-            iconBg="#0984E3"
-          />
+          <BackupSection SettingItem={SettingItem} />
 
           <SettingItem
             icon="download"

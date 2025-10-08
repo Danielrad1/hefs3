@@ -1,9 +1,13 @@
+// Load Firebase app module early to ensure proper initialization order
+import '@react-native-firebase/app';
+
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import RootNav from './navigation';
 import { SchedulerProvider } from './context/SchedulerProvider';
+import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './design/theme';
 import { PersistenceService } from './services/anki/PersistenceService';
 import { db } from './services/anki/InMemoryDb';
@@ -45,10 +49,12 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <SchedulerProvider>
-          <RootNav />
-          <StatusBar style="auto" />
-        </SchedulerProvider>
+        <AuthProvider>
+          <SchedulerProvider>
+            <RootNav />
+            <StatusBar style="auto" />
+          </SchedulerProvider>
+        </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );
