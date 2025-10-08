@@ -38,39 +38,6 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         return;
       }
 
-      // Check file size and warn about large files
-      const fileInfo = await FileSystem.getInfoAsync(file.uri);
-      const fileSizeMB = (fileInfo.exists && !fileInfo.isDirectory && (fileInfo as any).size) 
-        ? (fileInfo as any).size / (1024 * 1024) 
-        : 0;
-      
-      // Warn about very large files
-      if (fileSizeMB > 200) {
-        const proceed = await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'Very Large Deck',
-            `This deck is ${fileSizeMB.toFixed(0)}MB. Import may take 10-15 minutes and use significant memory.\n\nFor faster imports, consider splitting this deck into smaller decks in Anki desktop (recommended: <100MB each).\n\nContinue anyway?`,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Import Anyway', onPress: () => resolve(true) }
-            ]
-          );
-        });
-        if (!proceed) return;
-      } else if (fileSizeMB > 100) {
-        const proceed = await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'Large Deck',
-            `This deck is ${fileSizeMB.toFixed(0)}MB. Import may take several minutes.\n\nContinue?`,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Continue', onPress: () => resolve(true) }
-            ]
-          );
-        });
-        if (!proceed) return;
-      }
-
       // Now show progress modal after file is selected
       cancelRef.current = false;
       setImporting(true);
@@ -80,12 +47,6 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       console.log('[DeckImport] Creating database snapshot before import...');
       dbSnapshot = db.toJSON();
       console.log('[DeckImport] Snapshot created successfully');
-      
-      if (fileSizeMB > 100) {
-        setImportProgress(`Reading large file (${fileSizeMB.toFixed(1)}MB)...`);
-      } else if (fileSizeMB > 50) {
-        setImportProgress(`Reading file (${fileSizeMB.toFixed(1)}MB)...`);
-      }
       
       // Parse .apkg with streaming fallback for large files
       const parser = new ApkgParser();
@@ -169,30 +130,17 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         await new Promise((r) => setTimeout(r, 0));
       }
 
-      // Register media files in database
+      // Register media files in database (batch processing for performance)
       console.log('[DeckImport] Registering', parsed.mediaFiles.size, 'media files in DB...');
       const mediaService = new MediaService(db);
-      const mediaEntries = Array.from(parsed.mediaFiles.entries());
-      for (let i = 0; i < mediaEntries.length; i++) {
-        if (cancelRef.current) throw new Error('Import cancelled by user');
-        
-        const [mediaId, filename] = mediaEntries[i];
-        try {
-          const media = await mediaService.registerExistingMedia(filename);
-          if (media && __DEV__) {
-            console.log('[DeckImport] - Registered media:', filename);
-          } else if (!media) {
-            console.warn('[DeckImport] - Could not register media:', filename);
-          }
-        } catch (error) {
-          console.error('[DeckImport] Error registering media:', filename, error);
-        }
-        
-        // Update progress every 10 files
-        if (i % 10 === 0 || i === mediaEntries.length - 1) {
-          updateProgress(`Registering media… (${i + 1}/${mediaEntries.length})`);
-          await new Promise((r) => setTimeout(r, 0));
-        }
+      const filenames = Array.from(parsed.mediaFiles.values());
+      
+      if (filenames.length > 0) {
+        await mediaService.batchRegisterExistingMedia(filenames, (current, total) => {
+          if (cancelRef.current) throw new Error('Import cancelled by user');
+          updateProgress(`Registering media… (${current}/${total})`);
+        });
+        console.log('[DeckImport] Registered', filenames.length, 'media files');
       }
       
       // Verify what's in the database after import

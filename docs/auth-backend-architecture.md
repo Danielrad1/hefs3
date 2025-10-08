@@ -318,7 +318,647 @@ The build now succeeds because we removed the problematic Firebase Storage and F
 
 ---
 
-## 10. Summary
+## 10. Detailed Implementation Guide
+
+This section provides comprehensive step-by-step instructions for implementing the entire backend architecture.
+
+### 10.1 Backend Project Setup
+
+**Directory Structure:**
+```
+memorize-app/
+├── firebase/                    # New backend directory
+│   ├── functions/
+│   │   ├── src/
+│   │   │   ├── index.ts
+│   │   │   ├── config/
+│   │   │   ├── middleware/
+│   │   │   ├── services/
+│   │   │   ├── handlers/
+│   │   │   └── types/
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   ├── firebase.json
+│   └── hosting/
+└── src/                        # Existing mobile app
+```
+
+**Initialize Firebase:**
+```bash
+cd memorize-app && mkdir firebase && cd firebase
+firebase login
+firebase init functions
+# Select: TypeScript, ESLint, install dependencies
+```
+
+**Install Dependencies:**
+```bash
+cd functions
+npm install firebase-admin firebase-functions openai anthropic cors zod
+npm install -D @types/cors
+```
+
+---
+
+### 10.2 Client-Side Implementation
+
+#### Step 1: Create app.config.js
+
+Convert `app.json` to `app.config.js` for environment variables:
+
+```javascript
+// memorize-app/app.config.js
+export default ({ config }) => ({
+  ...config,
+  expo: {
+    ...require('./app.json').expo,
+    extra: {
+      apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:5001',
+      enableCloudBackup: process.env.ENABLE_CLOUD_BACKUP !== 'false',
+      enableAiFeatures: process.env.ENABLE_AI_FEATURES === 'true',
+      environment: process.env.APP_ENV || 'development',
+    },
+  },
+});
+```
+
+#### Step 2: Create ApiService Base
+
+```typescript
+// src/services/cloud/ApiService.ts
+import Constants from 'expo-constants';
+import { auth } from '../../config/firebase';
+
+const API_BASE = Constants.expoConfig?.extra?.apiBaseUrl;
+
+export interface ApiError {
+  code: string;
+  message: string;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: ApiError;
+}
+
+export class ApiService {
+  private static async getAuthHeaders(): Promise<HeadersInit> {
+    const token = await auth().currentUser?.getIdToken(true);
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  static async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const url = `${API_BASE}${endpoint}`;
+
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...headers,
+          ...options.headers,
+        },
+      });
+
+      const data: ApiResponse<T> = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error?.message || 'API request failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.error(`[ApiService] ${endpoint} failed:`, error);
+      throw error;
+    }
+  }
+
+  static async get<T>(endpoint: string): Promise<T> {
+    const response = await this.request<T>(endpoint, { method: 'GET' });
+    return response.data!;
+  }
+
+  static async post<T>(endpoint: string, body?: any): Promise<T> {
+    const response = await this.request<T>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return response.data!;
+  }
+}
+```
+
+#### Step 3: Create CloudBackupService
+
+```typescript
+// src/services/cloud/CloudBackupService.ts
+import * as FileSystem from 'expo-file-system';
+import { ApiService } from './ApiService';
+import { DB_FILE_PATH } from '../anki/PersistenceService';
+
+interface SignedUrlResponse {
+  url: string;
+  expiresAt: number;
+}
+
+interface BackupMetadata {
+  timestamp: number;
+  appVersion: string;
+  platform: string;
+  cardCount: number;
+}
+
+export class CloudBackupService {
+  /**
+   * Upload database backup to cloud storage
+   */
+  static async uploadBackup(): Promise<void> {
+    try {
+      // 1. Read local database file
+      const dbContent = await FileSystem.readAsStringAsync(DB_FILE_PATH);
+      
+      // 2. Get signed URL for upload
+      const { url } = await ApiService.post<SignedUrlResponse>('/backup/url', {
+        op: 'put',
+        filename: 'latest.db',
+      });
+
+      // 3. Upload to signed URL
+      const uploadResponse = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: dbContent,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.status}`);
+      }
+
+      console.log('[CloudBackup] Upload successful');
+    } catch (error) {
+      console.error('[CloudBackup] Upload failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Download backup from cloud and restore
+   */
+  static async downloadBackup(): Promise<void> {
+    try {
+      // 1. Get signed URL for download
+      const { url } = await ApiService.post<SignedUrlResponse>('/backup/url', {
+        op: 'get',
+        filename: 'latest.db',
+      });
+
+      // 2. Download from signed URL
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+
+      const dbContent = await response.text();
+
+      // 3. Write to local database (creates backup first)
+      const backupPath = `${DB_FILE_PATH}.backup`;
+      await FileSystem.copyAsync({
+        from: DB_FILE_PATH,
+        to: backupPath,
+      });
+
+      await FileSystem.writeAsStringAsync(DB_FILE_PATH, dbContent);
+
+      console.log('[CloudBackup] Restore successful');
+    } catch (error) {
+      console.error('[CloudBackup] Download failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if cloud backup exists
+   */
+  static async hasCloudBackup(): Promise<boolean> {
+    try {
+      const metadata = await ApiService.get<any>('/backup/metadata');
+      return metadata.exists;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get cloud backup metadata
+   */
+  static async getBackupMetadata(): Promise<BackupMetadata | null> {
+    try {
+      return await ApiService.get<BackupMetadata>('/backup/metadata');
+    } catch (error) {
+      return null;
+    }
+  }
+}
+```
+
+#### Step 4: Create AiService
+
+```typescript
+// src/services/cloud/AiService.ts
+import { ApiService } from './ApiService';
+
+export interface AiGenerateRequest {
+  prompt: string;
+  deckId?: string;
+  provider?: 'openai' | 'anthropic';
+  context?: {
+    cardId?: string;
+    fields?: Record<string, any>;
+  };
+}
+
+export interface AiGenerateResponse {
+  result: string;
+  tokensUsed: number;
+  provider: string;
+}
+
+export interface QuotaInfo {
+  used: number;
+  limit: number;
+  resetAt: number;
+}
+
+export class AiService {
+  /**
+   * Generate card content using AI
+   */
+  static async generateCard(request: AiGenerateRequest): Promise<string> {
+    try {
+      const response = await ApiService.post<AiGenerateResponse>(
+        '/ai/generate',
+        request
+      );
+      return response.result;
+    } catch (error) {
+      console.error('[AiService] Generate failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current AI usage quota
+   */
+  static async getQuota(): Promise<QuotaInfo> {
+    try {
+      return await ApiService.get<QuotaInfo>('/ai/quota');
+    } catch (error) {
+      console.error('[AiService] Failed to get quota:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate cloze deletions from text
+   */
+  static async generateCloze(text: string): Promise<string> {
+    const prompt = `Convert this text into a cloze deletion flashcard. Identify the most important terms and wrap them in {{c1::term}} syntax:\n\n${text}`;
+    return this.generateCard({ prompt });
+  }
+
+  /**
+   * Generate multiple choice options
+   */
+  static async generateChoices(question: string, answer: string): Promise<string[]> {
+    const prompt = `Given this Q&A, generate 3 plausible but incorrect multiple choice options:\nQ: ${question}\nA: ${answer}\n\nReturn only the 3 incorrect options, one per line.`;
+    const result = await this.generateCard({ prompt });
+    return result.split('\n').filter(line => line.trim());
+  }
+}
+```
+
+#### Step 5: Create DiscoverService
+
+```typescript
+// src/services/cloud/DiscoverService.ts
+import Constants from 'expo-constants';
+
+const HOSTING_BASE = process.env.FIREBASE_HOSTING_URL || 'https://memorize-app.web.app';
+
+export interface DeckManifest {
+  id: string;
+  name: string;
+  description: string;
+  cardCount: number;
+  downloadUrl: string;
+  thumbnail?: string;
+  tags: string[];
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  language: string;
+  size: number;
+}
+
+export interface DiscoverCatalog {
+  decks: DeckManifest[];
+  categories: string[];
+  lastUpdated: number;
+}
+
+export class DiscoverService {
+  private static cache: { data: DiscoverCatalog | null; timestamp: number } = {
+    data: null,
+    timestamp: 0,
+  };
+  private static CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+  /**
+   * Fetch available decks from hosting
+   */
+  static async getCatalog(): Promise<DiscoverCatalog> {
+    const now = Date.now();
+    
+    // Return cached if still valid
+    if (this.cache.data && now - this.cache.timestamp < this.CACHE_TTL) {
+      return this.cache.data;
+    }
+
+    try {
+      const response = await fetch(`${HOSTING_BASE}/decks/decks.json`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch catalog: ${response.status}`);
+      }
+
+      const data: DiscoverCatalog = await response.json();
+      this.cache = { data, timestamp: now };
+      
+      return data;
+    } catch (error) {
+      console.error('[DiscoverService] Failed to fetch catalog:', error);
+      // Return cached data even if expired, or throw
+      if (this.cache.data) {
+        return this.cache.data;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Download deck file
+   */
+  static async downloadDeck(deck: DeckManifest): Promise<Blob> {
+    try {
+      const response = await fetch(deck.downloadUrl);
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      return await response.blob();
+    } catch (error) {
+      console.error('[DiscoverService] Deck download failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear cache
+   */
+  static clearCache(): void {
+    this.cache = { data: null, timestamp: 0 };
+  }
+}
+```
+
+---
+
+### 10.3 Backend Core Implementation
+
+Complete Firebase Functions code is extensive. Key files are shown below:
+
+#### Main Entry Point
+
+```typescript
+// firebase/functions/src/index.ts
+import { initializeApp } from 'firebase-admin/app';
+import { onRequest } from 'firebase-functions/v2/https';
+import { aiHandler } from './handlers/ai';
+import { backupHandler } from './handlers/backup';
+import { authenticate } from './middleware/auth';
+import { errorHandler } from './middleware/errorHandler';
+import express from 'express';
+import cors from 'cors';
+
+initializeApp();
+
+const app = express();
+app.use(cors({ origin: true }));
+app.use(express.json());
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+// Protected routes
+app.use(authenticate);
+app.post('/ai/generate', aiHandler.generate);
+app.get('/ai/quota', aiHandler.getQuota);
+app.post('/backup/url', backupHandler.getSignedUrl);
+app.get('/backup/metadata', backupHandler.getMetadata);
+
+app.use(errorHandler);
+
+export const api = onRequest({ timeoutSeconds: 120, memory: '512MiB' }, app);
+```
+
+#### AI Handler
+
+```typescript
+// firebase/functions/src/handlers/ai.ts
+import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth';
+import { AiGenerateRequestSchema } from '../types';
+import { QuotaService } from '../services/quota/QuotaService';
+import { OpenAIProvider } from '../services/ai/OpenAIProvider';
+import { logger } from 'firebase-functions/v2';
+
+const quotaService = new QuotaService();
+const aiProvider = new OpenAIProvider();
+
+export const aiHandler = {
+  async generate(req: Request, res: Response): Promise<void> {
+    try {
+      const user = (req as AuthenticatedRequest).user;
+      const body = AiGenerateRequestSchema.parse(req.body);
+
+      // Check quota
+      const quota = await quotaService.checkAndIncrementQuota(
+        user.uid,
+        user.premium || false
+      );
+
+      logger.info('AI generation request', { uid: user.uid, quota });
+
+      // Generate content
+      const result = await aiProvider.generate(body.prompt, {
+        maxTokens: 500,
+        temperature: 0.7,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          result: result.content,
+          tokensUsed: result.tokensUsed,
+          provider: 'openai',
+          quota,
+        },
+      });
+    } catch (error: any) {
+      if (error.message === 'Daily quota exceeded') {
+        res.status(429).json({
+          success: false,
+          error: {
+            code: 'quota_exceeded',
+            message: 'Daily AI generation limit reached',
+          },
+        });
+        return;
+      }
+      throw error;
+    }
+  },
+
+  async getQuota(req: Request, res: Response): Promise<void> {
+    const user = (req as AuthenticatedRequest).user;
+    const quota = await quotaService.getQuotaInfo(user.uid, user.premium || false);
+    
+    res.json({
+      success: true,
+      data: quota,
+    });
+  },
+};
+```
+
+#### Backup Handler
+
+```typescript
+// firebase/functions/src/handlers/backup.ts
+import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth';
+import { BackupUrlRequestSchema } from '../types';
+import { StorageService } from '../services/storage/signedUrls';
+import { logger } from 'firebase-functions/v2';
+
+const storageService = new StorageService();
+
+export const backupHandler = {
+  async getSignedUrl(req: Request, res: Response): Promise<void> {
+    try {
+      const user = (req as AuthenticatedRequest).user;
+      const { op, filename } = BackupUrlRequestSchema.parse(req.body);
+
+      const operation = op === 'put' ? 'write' : 'read';
+      const result = await storageService.generateSignedUrl(
+        user.uid,
+        operation,
+        filename
+      );
+
+      logger.info('Generated signed URL', { uid: user.uid, op, filename });
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      logger.error('Signed URL generation failed', error);
+      throw error;
+    }
+  },
+
+  async getMetadata(req: Request, res: Response): Promise<void> {
+    const user = (req as AuthenticatedRequest).user;
+    const metadata = await storageService.getBackupMetadata(user.uid);
+    
+    res.json({
+      success: true,
+      data: metadata,
+    });
+  },
+};
+```
+
+---
+
+### 10.4 Deployment
+
+#### Deploy Backend
+
+```bash
+cd firebase
+firebase deploy --only functions,storage,hosting
+```
+
+#### Environment Variables
+
+```bash
+# Set production secrets
+firebase functions:config:set \
+  ai.openai_key="sk-..." \
+  ai.anthropic_key="sk-ant-..." \
+  storage.bucket="your-project.appspot.com"
+
+# View config
+firebase functions:config:get
+```
+
+#### Client Environment
+
+Create `.env.production`:
+```
+API_BASE_URL=https://us-central1-your-project.cloudfunctions.net/api
+ENABLE_CLOUD_BACKUP=true
+ENABLE_AI_FEATURES=true
+APP_ENV=production
+```
+
+---
+
+### 10.5 Testing
+
+**Local Development:**
+```bash
+# Terminal 1: Start emulators
+cd firebase
+firebase emulators:start
+
+# Terminal 2: Run Expo with local API
+cd ..
+API_BASE_URL=http://localhost:5001/your-project/us-central1/api npm start
+```
+
+**Test Endpoints:**
+```bash
+# Get auth token from app logs, then:
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:5001/your-project/us-central1/api/health
+```
+
+---
+
+## 11. Summary
 
 - Keep **Firebase Auth** on-device; it’s stable and covers identity.
 - Build a **Firebase Cloud Functions** backend that:
@@ -331,3 +971,323 @@ The build now succeeds because we removed the problematic Firebase Storage and F
 - Result: One provider (Firebase) covers auth, backend logic, storage, and hosting while avoiding the native build issues that blocked previous attempts.
 
 This architecture supports today’s features, unlocks AI enhancements, and leaves room for cloud backup and curated content—all without reintroducing brittle native dependencies.
+
+
+# Implementation Plan & Expected Outcomes
+
+## What You're Building
+
+Yes, you're creating a **complete Firebase backend** that your React Native app will communicate with via HTTPS. No more native SDK issues - everything goes through REST APIs.
+
+---
+
+## 📋 Implementation Plan (Phased Approach)
+
+### **Phase 1: Foundation Setup** (2-3 hours)
+**What you'll do:**
+
+1. **Create Firebase Backend Project**
+   ```bash
+   cd /Users/danielrad/Desktop/repos/hefs2/memorize-app
+   mkdir firebase && cd firebase
+   firebase init functions
+   ```
+
+2. **Install Dependencies & Configure**
+   - Set up TypeScript, Express, Firebase Admin SDK
+   - Configure `firebase.json` with emulators
+   - Create basic project structure
+
+3. **Deploy "Hello World" Function**
+   ```bash
+   firebase deploy --only functions
+   ```
+
+**What you'll see:**
+- ✅ New `/firebase` directory in your project
+- ✅ Function deployed at: `https://us-central1-[project].cloudfunctions.net/api`
+- ✅ Can test with: `curl https://[url]/health` → `{"status": "ok"}`
+
+---
+
+### **Phase 2: Client Foundation** (1-2 hours)
+**What you'll do:**
+
+1. **Convert app.json → app.config.js**
+   - Add environment variables support
+   - Configure API_BASE_URL
+
+2. **Create ApiService**
+   - Build base HTTP client with token injection
+   - Add error handling
+
+3. **Test Authentication Flow**
+   - Sign in to app
+   - ApiService automatically attaches Firebase token
+   - Backend verifies token
+
+**What you'll see:**
+- ✅ Environment-based configuration working
+- ✅ Can make authenticated API calls from app
+- ✅ Console logs showing token verification success
+
+---
+
+### **Phase 3: Cloud Backup** (3-4 hours)
+**What you'll do:**
+
+1. **Backend: Implement `/backup/url` endpoint**
+   - Generate signed URLs for Firebase Storage
+   - Add metadata tracking
+
+2. **Client: Build CloudBackupService**
+   - Upload SQLite database to cloud
+   - Download and restore from cloud
+
+3. **UI: Add to Settings Screen**
+   - "Backup to Cloud" button
+   - "Restore from Cloud" button
+   - Show last backup timestamp
+
+**What you'll physically see & do:**
+
+✅ **In Settings Screen:**
+```
+Cloud Backup
+├── Last backup: 2 hours ago
+├── [Backup Now] button
+└── [Restore from Cloud] button
+```
+
+✅ **User Flow:**
+1. Tap "Backup Now" → Shows loading spinner
+2. Database uploads to Firebase Storage
+3. Success message: "Backup complete!"
+4. Can see backup file in Firebase Console → Storage
+
+✅ **Restore Flow:**
+1. Tap "Restore from Cloud"
+2. Confirmation dialog: "This will replace your local data"
+3. Downloads backup → Replaces SQLite file
+4. App refreshes with restored data
+
+✅ **What's Happening Behind the Scenes:**
+- App requests signed URL from backend
+- Backend verifies your identity
+- Returns temporary upload/download URL
+- App uploads directly to Storage (no backend bottleneck)
+- Your 2,973 cards are safely backed up
+
+---
+
+### **Phase 4: Discover Content** (2-3 hours)
+**What you'll do:**
+
+1. **Create Static Deck Catalog**
+   - Upload `decks.json` to Firebase Hosting
+   - Add sample deck files (.apkg)
+
+2. **Update DiscoverService**
+   - Fetch catalog from hosting
+   - Download decks via HTTP
+
+3. **Update DiscoverScreen UI**
+   - Replace mock data with real catalog
+   - Add download functionality
+
+**What you'll physically see & do:**
+
+✅ **In Discover Tab:**
+```
+Discover New Decks
+├── Spanish Basics (500 cards)
+│   └── [Download] button
+├── Japanese N5 (1000 cards)
+│   └── [Download] button
+└── Medical Terminology (750 cards)
+    └── [Download] button
+```
+
+✅ **User Flow:**
+1. Open Discover tab → Fetches real deck catalog
+2. Browse curated decks with descriptions
+3. Tap "Download" → Progress indicator
+4. Deck imports automatically
+5. Navigate to Decks tab → New deck appears
+6. Start studying immediately
+
+✅ **Content Management:**
+- Upload new decks to Firebase Hosting
+- Update `decks.json` manifest
+- Users get new content without app update
+
+---
+
+### **Phase 5: AI Features** (4-6 hours)
+**What you'll do:**
+
+1. **Backend: Implement AI Endpoint**
+   - Integrate OpenAI API
+   - Add quota system (10 free/day, 100 premium/day)
+   - Implement rate limiting
+
+2. **Client: Build AiService**
+   - Card generation
+   - Cloze deletion creation
+   - Hint generation
+
+3. **UI: Add AI Features**
+   - "Generate with AI" button in card editor
+   - Quota indicator
+   - Premium upsell when limit reached
+
+**What you'll physically see & do:**
+
+✅ **In Card Editor:**
+```
+Create New Card
+├── Front: [text input]
+├── Back: [text input]
+└── [✨ Generate with AI] button
+```
+
+✅ **User Flow:**
+1. Creating a new card about "photosynthesis"
+2. Tap "Generate with AI"
+3. Enter prompt: "Create a flashcard about photosynthesis for biology students"
+4. Loading indicator (2-3 seconds)
+5. AI generates:
+   - Front: "What is the process by which plants convert light energy into chemical energy?"
+   - Back: "Photosynthesis - using chlorophyll to convert CO₂ and H₂O into glucose and O₂"
+6. Edit if needed, save card
+
+✅ **Quota System:**
+```
+AI Usage Today: 7/10
+[Generate] ← Works
+```
+
+After 10 uses:
+```
+AI Usage Today: 10/10
+[Upgrade to Premium] ← Shows paywall
+```
+
+✅ **Other AI Features:**
+- Select text → "Convert to Cloze" → Auto-generates {{c1::deletions}}
+- Existing card → "Generate Hints" → AI adds memory aids
+- Batch generate cards from notes/PDFs
+
+---
+
+## 🎯 Final State: What You'll Have
+
+### **For Users:**
+
+1. **Seamless Cloud Backup**
+   - One-tap backup/restore
+   - Never lose progress
+   - Switch devices easily
+
+2. **Curated Content Library**
+   - Download pre-made decks
+   - No need to create everything from scratch
+   - Community-contributed content
+
+3. **AI-Powered Learning**
+   - Generate cards instantly
+   - Smart cloze deletions
+   - Personalized hints
+
+4. **Premium Features**
+   - Gated by subscription
+   - Enforced server-side (secure)
+   - RevenueCat integration ready
+
+### **For You (Developer):**
+
+1. **Scalable Architecture**
+   - Handles thousands of users
+   - No native SDK headaches
+   - Easy to maintain
+
+2. **Flexible Backend**
+   - Add new features without app updates
+   - A/B test on server-side
+   - Analytics and monitoring
+
+3. **Cost-Effective**
+   - Free tier covers development
+   - ~$15-60/month at scale
+   - AI is main cost (controllable via quotas)
+
+4. **Security Built-In**
+   - Token verification on every request
+   - API keys never in client
+   - User data isolated by UID
+
+---
+
+## 📱 Visual Before/After
+
+### **BEFORE (Current State):**
+```
+Settings
+├── Export Database (manual file)
+├── Import Database (manual file)
+└── [No cloud features]
+
+Discover
+└── [Mock data only]
+
+Card Editor
+└── [Manual entry only]
+```
+
+### **AFTER (With Backend):**
+```
+Settings
+├── ☁️ Cloud Backup
+│   ├── Last backup: 2 hours ago
+│   ├── [Backup Now]
+│   └── [Restore from Cloud]
+├── Export Database (still available)
+└── Import Database (still available)
+
+Discover
+├── 🌍 Browse 50+ Decks
+├── Spanish Basics [Download]
+├── Japanese N5 [Download]
+└── Medical Terms [Download]
+
+Card Editor
+├── ✨ AI Generate
+├── 🎯 Auto-Cloze
+└── 💡 Generate Hints
+```
+
+---
+
+## ⏱️ Total Time Estimate
+
+- **Phase 1 (Foundation):** 2-3 hours
+- **Phase 2 (Client Setup):** 1-2 hours  
+- **Phase 3 (Backup):** 3-4 hours
+- **Phase 4 (Discover):** 2-3 hours
+- **Phase 5 (AI):** 4-6 hours
+
+**Total: 12-18 hours** spread over 3-5 days
+
+---
+
+## 🚀 Ready to Start?
+
+I can help you implement this step-by-step. We should start with:
+
+1. **Phase 1: Foundation** - Get the Firebase backend scaffolded
+2. **Phase 2: Client Setup** - Create app.config.js and ApiService
+3. **Test the connection** - Ensure auth flow works end-to-end
+
+Then we can tackle backup, discover, and AI features incrementally.
+
+**Want me to start with Phase 1 (Firebase backend setup)?** I'll create all the necessary files and configuration.

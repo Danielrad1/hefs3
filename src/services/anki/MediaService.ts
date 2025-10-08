@@ -131,11 +131,9 @@ export class MediaService {
       return existing;
     }
 
-    // Calculate SHA1 hash
-    const sha1 = await this.calculateSha1(localUri);
-
-    // Get file size
+    // Calculate SHA1 hash using existing fileInfo to avoid duplicate filesystem call
     const size = 'size' in fileInfo ? fileInfo.size : 0;
+    const sha1 = this.calculateSha1FromSize(size);
 
     // Determine MIME type
     const mime = this.getMimeType(filename);
@@ -153,6 +151,74 @@ export class MediaService {
 
     this.db.addMedia(media);
     return media;
+  }
+
+  /**
+   * Batch register existing media files (optimized for bulk imports)
+   * Processes files in parallel batches for better performance
+   */
+  async batchRegisterExistingMedia(filenames: string[], onProgress?: (current: number, total: number) => void): Promise<Map<string, Media | null>> {
+    await this.ensureMediaDir();
+    
+    const results = new Map<string, Media | null>();
+    const BATCH_SIZE = 50; // Process 50 files at a time
+    
+    for (let i = 0; i < filenames.length; i += BATCH_SIZE) {
+      const batch = filenames.slice(i, i + BATCH_SIZE);
+      
+      // Process batch in parallel
+      const batchResults = await Promise.all(
+        batch.map(async (filename) => {
+          try {
+            // Check if already registered first (no filesystem call)
+            const existing = this.db.getMediaByFilename(filename);
+            if (existing) {
+              return { filename, media: existing };
+            }
+
+            const localUri = MEDIA_DIR + filename;
+            const fileInfo = await FileSystem.getInfoAsync(localUri);
+            
+            if (!fileInfo.exists) {
+              console.warn('[MediaService] File does not exist:', localUri);
+              return { filename, media: null };
+            }
+
+            // Create media record with optimized hash calculation
+            const size = 'size' in fileInfo ? fileInfo.size : 0;
+            const sha1 = this.calculateSha1FromSize(size);
+            const mime = this.getMimeType(filename);
+
+            const media: Media = {
+              id: generateId(),
+              filename,
+              mime,
+              sha1,
+              size,
+              localUri,
+              created: nowSeconds(),
+            };
+
+            this.db.addMedia(media);
+            return { filename, media };
+          } catch (error) {
+            console.error('[MediaService] Error registering media:', filename, error);
+            return { filename, media: null };
+          }
+        })
+      );
+      
+      // Add batch results to map
+      batchResults.forEach(({ filename, media }) => {
+        results.set(filename, media);
+      });
+      
+      // Report progress
+      const processed = Math.min(i + BATCH_SIZE, filenames.length);
+      onProgress?.(processed, filenames.length);
+    }
+    
+    return results;
   }
 
   /**
@@ -305,13 +371,20 @@ export class MediaService {
       // Simple hash based on file size and timestamp
       const fileInfo = await FileSystem.getInfoAsync(uri);
       const size = fileInfo.exists && 'size' in fileInfo ? fileInfo.size : 0;
-      const timestamp = Date.now();
-      const random = Math.random().toString(36).substring(2, 15);
-      return `sha1-${size}-${timestamp}-${random}`;
+      return this.calculateSha1FromSize(size);
     } catch (error) {
       console.error('[MediaService] Error calculating hash:', error);
       return `fallback-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     }
+  }
+
+  /**
+   * Calculate SHA1 hash from file size (avoids duplicate filesystem calls)
+   */
+  private calculateSha1FromSize(size: number): string {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 15);
+    return `sha1-${size}-${timestamp}-${random}`;
   }
 
   /**
