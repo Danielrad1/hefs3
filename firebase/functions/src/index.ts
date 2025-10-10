@@ -3,6 +3,8 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { healthCheck } from './handlers/health';
 import { getCurrentUser } from './handlers/user';
 import { backupHandler } from './handlers/backup';
+import { aiHandler } from './handlers/ai';
+import { parseHandler } from './handlers/parse';
 import { authenticate } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import express from 'express';
@@ -29,14 +31,21 @@ app.post('/backup/url', authenticate, backupHandler.getSignedUrl);
 app.get('/backup/metadata', authenticate, backupHandler.getMetadata);
 app.delete('/backup', authenticate, backupHandler.deleteBackup);
 
+// AI routes
+app.post('/ai/deck/generate', authenticate, aiHandler.generateDeck);
+app.get('/ai/models', authenticate, aiHandler.getModels);
+
+// Parse routes
+app.post('/parse/file', authenticate, parseHandler.parseFile);
+
 // Error handler (must be last)
 app.use(errorHandler);
 
 // Export as Cloud Function
 export const api = onRequest(
   {
-    timeoutSeconds: 60,
-    memory: '256MiB',
+    timeoutSeconds: 600, // 10 minutes for AI generation
+    memory: '512MiB',
     region: 'us-central1',
   },
   app

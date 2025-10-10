@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { useScheduler } from '../../context/SchedulerProvider';
@@ -51,7 +51,13 @@ export default function DecksScreen() {
     onCancelOptions,
   } = useDeckImport(reload, reload);
 
-  // Removed excessive logging for performance
+  // Reload decks when screen comes into focus (e.g., after creating AI deck)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[DecksScreen] Screen focused, reloading decks');
+      reload();
+    }, [reload])
+  );
 
   const handleDeckPress = (deckId: string) => {
     // Navigate to Deck Detail screen
@@ -380,6 +386,10 @@ export default function DecksScreen() {
         onCreateNew={() => {
           setAddDeckModalVisible(false);
           setIsCreatingDeck(true);
+        }}
+        onCreateWithAI={() => {
+          setAddDeckModalVisible(false);
+          navigation.navigate('AIDeckCreator' as never);
         }}
         onImport={() => {
           setAddDeckModalVisible(false);

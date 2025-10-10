@@ -8,6 +8,7 @@ import { r } from '../../../design/radii';
 interface AddDeckModalProps {
   visible: boolean;
   onCreateNew: () => void;
+  onCreateWithAI: () => void;
   onImport: () => void;
   onCancel: () => void;
 }
@@ -15,6 +16,7 @@ interface AddDeckModalProps {
 export default function AddDeckModal({
   visible,
   onCreateNew,
+  onCreateWithAI,
   onImport,
   onCancel,
 }: AddDeckModalProps) {
@@ -81,6 +83,24 @@ export default function AddDeckModal({
               </Text>
               <Text style={[styles.sheetOptionDesc, { color: theme.colors.textSecondary }]}>
                 Start with an empty deck
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+          </Pressable>
+
+          <Pressable
+            style={[styles.sheetOption, { borderBottomColor: theme.colors.border }]}
+            onPress={onCreateWithAI}
+          >
+            <View style={[styles.iconCircle, { backgroundColor: theme.colors.accent + '15' }]}>
+              <Ionicons name="sparkles" size={24} color={theme.colors.accent} />
+            </View>
+            <View style={styles.sheetOptionText}>
+              <Text style={[styles.sheetOptionTitle, { color: theme.colors.textPrimary }]}>
+                Create with AI
+              </Text>
+              <Text style={[styles.sheetOptionDesc, { color: theme.colors.textSecondary }]}>
+                Generate from prompt or notes
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />

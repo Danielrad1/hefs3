@@ -125,10 +125,19 @@ export function isDue(
 }
 
 /**
+ * Counter to ensure unique IDs even within the same millisecond
+ */
+let idCounter = 0;
+
+/**
  * Generate a unique ID based on current timestamp (milliseconds)
+ * Includes a counter to prevent collisions within the same millisecond
  */
 export function generateId(): string {
-  return nowMillis().toString();
+  const timestamp = nowMillis();
+  const id = `${timestamp}${idCounter}`;
+  idCounter = (idCounter + 1) % 1000; // Reset after 999 to keep IDs reasonable length
+  return id;
 }
 
 /**
