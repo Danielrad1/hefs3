@@ -130,10 +130,14 @@ export function buildUserPrompt(params: {
 
   let userPrompt = '';
 
+  // STRONG enforcement of card count at the very beginning
+  userPrompt = `REQUIRED CARD COUNT: ${itemLimit}\n`;
+  userPrompt += `You MUST generate EXACTLY ${itemLimit} flashcards. Not ${itemLimit - 1}, not ${itemLimit + 1}, but EXACTLY ${itemLimit}.\n\n`;
+
   if (sourceType === 'prompt') {
-    userPrompt = `Create EXACTLY ${itemLimit} flashcards about: ${prompt}`;
+    userPrompt += `Topic: ${prompt}`;
   } else {
-    userPrompt = `Convert these notes into EXACTLY ${itemLimit} flashcards. Identify the key concepts and create effective cards:\n\n${notesText}`;
+    userPrompt += `Convert these notes into flashcards. Identify the key concepts:\n\n${notesText}`;
   }
 
   userPrompt += `\n\nModel: ${noteModel === 'basic' ? 'Basic (front/back Q&A)' : 'Cloze (fill-in-the-blank)'}`;
@@ -151,8 +155,12 @@ export function buildUserPrompt(params: {
     userPrompt += `\nFormat: ${formatDesc}`;
   }
 
-  userPrompt += `\n\nCRITICAL: You MUST create EXACTLY ${itemLimit} cards. No more, no less. This is a strict requirement.`;
-  userPrompt += `\n\nOutput JSON only. No additional text.`;
+  // Triple enforcement with different phrasings
+  userPrompt += `\n\n⚠️ CRITICAL REQUIREMENT ⚠️`;
+  userPrompt += `\nThe "notes" array in your JSON response MUST contain EXACTLY ${itemLimit} items.`;
+  userPrompt += `\nCount carefully: 1, 2, 3... up to ${itemLimit}.`;
+  userPrompt += `\nIf you generate ${itemLimit - 1} or ${itemLimit + 1} cards, your response will be rejected.`;
+  userPrompt += `\n\nOutput valid JSON only. No additional text before or after the JSON.`;
 
   return userPrompt;
 }

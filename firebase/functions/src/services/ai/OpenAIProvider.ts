@@ -121,11 +121,25 @@ export class OpenAIProvider implements AIProvider {
       console.log('[OpenAIProvider] ========== END AI RESPONSE PAYLOAD ==========');
       
       const parsed = JSON.parse(content);
+      const actualCount = parsed.notes?.length || 0;
+      const requestedCount = request.itemLimit;
+      
       console.log('[OpenAIProvider] Parsed response:', {
         hasDeckName: !!parsed.deckName,
         deckName: parsed.deckName,
-        notesCount: parsed.notes?.length || 0,
+        notesCount: actualCount,
+        requestedCount: requestedCount,
       });
+      
+      // Validate card count matches request
+      if (actualCount !== requestedCount) {
+        console.warn(`[OpenAIProvider] ⚠️ Card count mismatch! Requested: ${requestedCount}, Got: ${actualCount}`);
+        throw new Error(
+          `AI generated ${actualCount} cards but you requested ${requestedCount}. ` +
+          `This usually happens with very large or very small requests. ` +
+          `Try adjusting your card count or simplifying your input.`
+        );
+      }
       
       // Log first 3 notes as samples
       if (parsed.notes && parsed.notes.length > 0) {
