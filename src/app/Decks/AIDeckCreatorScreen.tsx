@@ -22,67 +22,12 @@ export default function AIDeckCreatorScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('prompt');
   const [prompt, setPrompt] = useState('');
   const [notesText, setNotesText] = useState('');
-  const [importedFileName, setImportedFileName] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [showPasteInput, setShowPasteInput] = useState(false);
+  const [importedFileName, setImportedFileName] = useState<string | null>(null);
   const [deckName, setDeckName] = useState('');
   const [noteModel, setNoteModel] = useState<NoteModel>('basic');
   const [itemLimit, setItemLimit] = useState('50');
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  // Magical loading animation
-  const sparkleAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (isGenerating) {
-      // Sparkle pulse animation
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(sparkleAnim, {
-            toValue: 1,
-            duration: 1000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(sparkleAnim, {
-            toValue: 0,
-            duration: 1000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-
-      // Rotation animation
-      Animated.loop(
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      ).start();
-    } else {
-      sparkleAnim.setValue(0);
-      rotateAnim.setValue(0);
-    }
-  }, [isGenerating]);
-
-  const sparkleScale = sparkleAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.3],
-  });
-
-  const sparkleOpacity = sparkleAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.5, 1, 0.5],
-  });
-
-  const rotation = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
 
   const handleImportFile = async () => {
     try {
@@ -226,7 +171,8 @@ export default function AIDeckCreatorScreen() {
       return;
     }
 
-    setIsGenerating(true);
+    // Navigate to loading screen immediately
+    navigation.navigate('AIGenerating' as any);
 
     try {
       const response = await AiService.generateDeck({
@@ -247,12 +193,12 @@ export default function AIDeckCreatorScreen() {
       });
     } catch (error) {
       console.error('AI generation error:', error);
+      // Go back from loading screen
+      navigation.goBack();
       Alert.alert(
         'Generation Failed',
         error instanceof Error ? error.message : 'Failed to generate deck. Please try again.'
       );
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -569,12 +515,8 @@ export default function AIDeckCreatorScreen() {
         {/* Generate Button with Magic */}
         <View style={[styles.footer, { backgroundColor: theme.colors.bg, borderTopColor: theme.colors.border }]}>
           <Pressable
-            style={[
-              styles.generateButton,
-              isGenerating && { opacity: 0.9 },
-            ]}
+            style={styles.generateButton}
             onPress={handleGenerate}
-            disabled={isGenerating}
           >
             <LinearGradient
               colors={['#8B5CF6', '#EC4899']}
@@ -582,21 +524,10 @@ export default function AIDeckCreatorScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.gradientButton}
             >
-              {isGenerating ? (
-                <View style={styles.loadingContainer}>
-                  <Animated.View style={{ transform: [{ rotate: rotation }] }}>
-                    <Ionicons name="sparkles" size={24} color="#FFF" />
-                  </Animated.View>
-                  <Animated.View style={{ opacity: sparkleOpacity, transform: [{ scale: sparkleScale }] }}>
-                    <Text style={styles.generateButtonTextWhite}>Creating deck...</Text>
-                  </Animated.View>
-                </View>
-              ) : (
-                <View style={styles.buttonContent}>
-                  <Ionicons name="sparkles" size={20} color="#FFF" />
-                  <Text style={styles.generateButtonTextWhite}>Generate Deck</Text>
-                </View>
-              )}
+              <View style={styles.buttonContent}>
+                <Ionicons name="sparkles" size={20} color="#FFF" />
+                <Text style={styles.generateButtonTextWhite}>Generate Deck</Text>
+              </View>
             </LinearGradient>
           </Pressable>
         </View>

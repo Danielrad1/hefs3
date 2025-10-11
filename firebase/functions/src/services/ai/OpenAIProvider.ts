@@ -131,14 +131,10 @@ export class OpenAIProvider implements AIProvider {
         requestedCount: requestedCount,
       });
       
-      // Validate card count matches request
+      // Log card count mismatch but don't reject
       if (actualCount !== requestedCount) {
         console.warn(`[OpenAIProvider] ⚠️ Card count mismatch! Requested: ${requestedCount}, Got: ${actualCount}`);
-        throw new Error(
-          `AI generated ${actualCount} cards but you requested ${requestedCount}. ` +
-          `This usually happens with very large or very small requests. ` +
-          `Try adjusting your card count or simplifying your input.`
-        );
+        console.warn(`[OpenAIProvider] Accepting response anyway (validation disabled)`);
       }
       
       // Log first 3 notes as samples
