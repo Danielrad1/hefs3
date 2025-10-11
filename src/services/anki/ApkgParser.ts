@@ -474,11 +474,12 @@ export class ApkgParser {
       index++;
       const file = zip.file(id);
       if (file) {
-        // Use original filename - React Native FileSystem handles special characters fine
+        // Encode filename for URI path (# and other special chars need encoding in file:// URIs)
         const blob = await file.async('uint8array');
-        const destPath = `${this.mediaDir}${filename}`;
+        const encodedFilename = encodeURIComponent(filename);
+        const destPath = `${this.mediaDir}${encodedFilename}`;
         
-        console.log(`[ApkgParser] Writing media file: ${filename} to ${destPath}`);
+        console.log(`[ApkgParser] Writing media file: ${filename} → ${encodedFilename}`);
         await FileSystem.writeAsStringAsync(
           destPath,
           this.uint8ArrayToBase64(blob),
@@ -534,11 +535,12 @@ export class ApkgParser {
         continue;
       }
 
-      // Use original filename - React Native FileSystem handles special characters fine
-      const destPath = `${this.mediaDir}${filename}`;
+      // Encode filename for URI path (# and other special chars need encoding in file:// URIs)
+      const encodedFilename = encodeURIComponent(filename);
+      const destPath = `${this.mediaDir}${encodedFilename}`;
       
       // Log the specific file being processed
-      console.log(`[ApkgParser] Processing media ${index}/${entries.length}: ${filename}`);
+      console.log(`[ApkgParser] Processing media ${index}/${entries.length}: ${filename} → ${encodedFilename}`);
       
       try {
         // Prefer move to avoid doubling storage usage

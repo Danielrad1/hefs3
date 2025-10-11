@@ -46,12 +46,20 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
     const theme = useTheme();
     const richText = useRef<RichEditor>(null);
     const lastValueRef = useRef(value);
+    const isUserTypingRef = useRef(false);
 
     // Process HTML to convert filenames to base64 for display
     const [processedValue, setProcessedValue] = useState(value);
     const [isProcessing, setIsProcessing] = useState(false);
     
     useEffect(() => {
+      // Only process if value changed externally (not from user typing)
+      if (lastValueRef.current === value) {
+        return;
+      }
+      
+      lastValueRef.current = value;
+      
       if (!value) {
         setProcessedValue(value);
         setIsProcessing(false);
@@ -89,9 +97,8 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
           }
           
           try {
-            // Sanitize and encode filename like CardContentRendererV2 does
-            const sanitized = src.replace(/[^A-Za-z0-9._-]/g, '_');
-            const encodedFilename = encodeURIComponent(sanitized);
+            // Encode filename for URI (files are saved with encoded names)
+            const encodedFilename = encodeURIComponent(src);
             const fullPath = `${MEDIA_DIR}${encodedFilename}`;
             
             // Check if file exists and convert to base64
@@ -102,7 +109,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
               });
               
               // Determine MIME type from extension
-              const ext = sanitized.split('.').pop()?.toLowerCase() || 'png';
+              const ext = src.split('.').pop()?.toLowerCase() || 'png';
               const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 
                               ext === 'png' ? 'image/png' : 
                               ext === 'gif' ? 'image/gif' : 
@@ -123,9 +130,9 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
       convertImagesToBase64();
     }, [value]);
 
-    // Force content update when processed value changes
+    // Only force content update when value changes externally (not from user typing)
     useEffect(() => {
-      if (!isProcessing && processedValue && richText.current) {
+      if (!isProcessing && processedValue && richText.current && !isUserTypingRef.current) {
         // Small delay to ensure WebView is ready
         setTimeout(() => {
           richText.current?.setContentHTML(processedValue);
@@ -263,7 +270,14 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
           <RichEditor
             ref={richText}
             initialContentHTML={processedValue || ''}
-            onChange={onChangeText}
+            onChange={(html) => {
+              isUserTypingRef.current = true;
+              onChangeText(html);
+              // Reset flag after a short delay
+              setTimeout(() => {
+                isUserTypingRef.current = false;
+              }, 300);
+            }}
             placeholder={placeholder}
             style={[styles.editor, { backgroundColor: theme.colors.bg }]}
           editorStyle={{

@@ -75,7 +75,7 @@ const CardContentRendererV2 = React.memo(function CardContentRendererV2({
     processed = processed.replace(
       /<img([^>]+)src="([^"]+)"([^>]*)>/gi,
       (match, before, src, after) => {
-        // Use original filename - files are saved with their original names from .apkg
+        // Encode filename for URI (files are saved with encoded names)
         const encodedFilename = encodeURIComponent(src);
         const mediaPath = `${FileSystem.documentDirectory}media/${encodedFilename}`;
         return `<img${before}src="${mediaPath}"${after}>`;
@@ -347,7 +347,7 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
           shouldDuckAndroid: true,
         });
 
-        // Use original filename - encode for URL path
+        // Encode filename for URI (# becomes %23 in URI, but file on disk has #)
         const encodedFilename = encodeURIComponent(filename);
         const mediaPath = `${FileSystem.documentDirectory}media/${encodedFilename}`;
         
