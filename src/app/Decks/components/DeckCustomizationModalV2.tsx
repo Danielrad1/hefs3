@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, ScrollView, TextInput, Dimensions } from 'react-native';
+import { View, Text, Modal, StyleSheet, Pressable, ScrollView, TextInput, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import EmojiPicker from 'rn-emoji-keyboard';
+import TriangleColorPicker from 'react-native-wheel-color-picker';
 import { useTheme } from '../../../design/theme';
 import { s } from '../../../design/spacing';
 import { r } from '../../../design/radii';
@@ -21,23 +22,23 @@ interface DeckCustomizationModalProps {
 const ICON_CATEGORIES = {
   Education: [
     'book', 'book-outline', 'library', 'library-outline', 'school', 'school-outline',
-    'calculator', 'calculator-outline', 'pencil', 'pencil-outline', 'create', 'create-outline',
+    'calculator-outline', 'pencil', 'pencil-outline', 'create', 'create-outline',
     'document-text', 'document-text-outline', 'document', 'document-outline',
     'newspaper', 'newspaper-outline', 'reader', 'reader-outline', 'documents', 'documents-outline',
-    'clipboard', 'clipboard-outline', 'journal', 'journals', 'bookmark', 'bookmark-outline',
+    'clipboard', 'clipboard-outline', 'journal', 'bookmark', 'bookmark-outline',
     'bookmarks', 'bookmarks-outline', 'albums', 'albums-outline'
   ],
   Science: [
     'flask', 'flask-outline', 'beaker', 'beaker-outline', 'medical', 'medical-outline',
-    'fitness', 'fitness-outline', 'pulse', 'pulse-outline', 'heart', 'heart-outline',
-    'water', 'water-outline', 'leaf', 'leaf-outline', 'nutrition', 'nutrition-outline',
+    'pulse', 'pulse-outline', 'heart', 'heart-outline',
+    'nutrition', 'nutrition-outline',
     'eyedrop', 'eyedrop-outline', 'magnet', 'magnet-outline', 'thermometer', 'thermometer-outline',
     'telescope', 'battery-full', 'battery-half', 'bandage', 'bandage-outline'
   ],
   Languages: [
     'language', 'globe', 'globe-outline', 'earth', 'earth-outline',
-    'map', 'map-outline', 'flag', 'flag-outline', 'location', 'location-outline',
-    'navigate', 'navigate-outline', 'compass', 'compass-outline', 'pin', 'pin-outline',
+    'flag', 'flag-outline', 'location', 'location-outline',
+    'compass', 'compass-outline', 'pin', 'pin-outline',
     'chatbubble', 'chatbubble-outline', 'chatbubbles', 'chatbubbles-outline',
     'text', 'text-outline', 'megaphone', 'megaphone-outline'
   ],
@@ -55,7 +56,7 @@ const ICON_CATEGORIES = {
     'trending-up', 'trending-up-outline', 'trending-down', 'trending-down-outline',
     'stats-chart', 'stats-chart-outline', 'pie-chart', 'pie-chart-outline',
     'analytics', 'analytics-outline', 'bar-chart', 'bar-chart-outline',
-    'calculator', 'receipt', 'receipt-outline', 'pricetag', 'pricetag-outline'
+    'receipt', 'receipt-outline', 'pricetag', 'pricetag-outline'
   ],
   Music: [
     'musical-notes', 'musical-notes-outline', 'musical-note', 'musical-note-outline',
@@ -66,19 +67,17 @@ const ICON_CATEGORIES = {
     'image', 'image-outline', 'play', 'play-outline', 'pause', 'pause-outline'
   ],
   Sports: [
-    'barbell', 'barbell-outline', 'dumbbell', 'fitness', 'fitness-outline',
-    'basketball', 'basketball-outline', 'football', 'football-outline',
-    'tennis-ball', 'tennis-ball-outline', 'baseball', 'baseball-outline',
-    'bicycle', 'bicycle-outline', 'walk', 'walk-outline', 'body', 'body-outline',
+    'barbell', 'barbell-outline', 'basketball', 'basketball-outline', 
+    'football', 'football-outline', 'baseball', 'baseball-outline',
+    'walk', 'walk-outline', 'body', 'body-outline',
     'trophy', 'trophy-outline', 'medal', 'medal-outline', 'ribbon', 'ribbon-outline',
     'disc', 'american-football', 'golf', 'golf-outline'
   ],
   Transport: [
     'car', 'car-outline', 'car-sport', 'car-sport-outline', 'bus', 'bus-outline',
     'train', 'train-outline', 'subway', 'airplane', 'airplane-outline',
-    'boat', 'boat-outline', 'bicycle', 'bicycle-outline',
-    'rocket', 'rocket-outline', 'navigate', 'navigate-outline',
-    'speedometer', 'speedometer-outline', 'map', 'map-outline'
+    'boat', 'boat-outline', 'bike', 'rocket', 'rocket-outline',
+    'speedometer', 'speedometer-outline'
   ],
   Home: [
     'home', 'home-outline', 'bed', 'bed-outline', 'bulb', 'bulb-outline',
@@ -90,40 +89,18 @@ const ICON_CATEGORIES = {
   Nature: [
     'sunny', 'sunny-outline', 'moon', 'moon-outline', 'cloudy', 'cloudy-outline',
     'rainy', 'rainy-outline', 'snow', 'snow-outline', 'thunderstorm', 'thunderstorm-outline',
-    'flower', 'flower-outline', 'rose', 'rose-outline', 'leaf', 'leaf-outline',
-    'water', 'water-outline', 'flame', 'flame-outline', 'flash', 'flash-outline',
+    'flower', 'flower-outline', 'rose', 'rose-outline',
+    'flash', 'flash-outline',
     'umbrella', 'umbrella-outline', 'planet', 'planet-outline'
   ],
   Fun: [
     'game-controller', 'game-controller-outline', 'dice', 'dice-outline',
-    'trophy', 'trophy-outline', 'medal', 'medal-outline', 'ribbon', 'ribbon-outline',
     'star', 'star-outline', 'star-half', 'star-half-outline',
-    'flame', 'flame-outline', 'diamond', 'diamond-outline',
+    'diamond', 'diamond-outline',
     'shield', 'shield-outline', 'skull', 'skull-outline',
-    'happy', 'happy-outline', 'heart', 'heart-outline', 'sparkles', 'sparkles-outline'
+    'happy', 'happy-outline', 'sparkles', 'sparkles-outline'
   ],
 };
-
-const COLORS = [
-  // Reds
-  '#EF4444', '#DC2626', '#B91C1C', '#F87171',
-  // Oranges
-  '#F97316', '#EA580C', '#C2410C', '#FB923C',
-  // Yellows
-  '#EAB308', '#CA8A04', '#A16207', '#FACC15',
-  // Greens
-  '#22C55E', '#16A34A', '#15803D', '#4ADE80',
-  // Teals
-  '#14B8A6', '#0D9488', '#0F766E', '#2DD4BF',
-  // Blues
-  '#3B82F6', '#2563EB', '#1D4ED8', '#60A5FA',
-  // Purples
-  '#8B5CF6', '#7C3AED', '#6D28D9', '#A78BFA',
-  // Pinks
-  '#EC4899', '#DB2777', '#BE185D', '#F472B6',
-  // Neutrals
-  '#64748B', '#475569', '#334155', '#94A3B8',
-];
 
 export default function DeckCustomizationModalV2({
   visible,
@@ -135,26 +112,32 @@ export default function DeckCustomizationModalV2({
   const theme = useTheme();
   const [selectedIcon, setSelectedIcon] = useState<string | undefined>(currentMetadata?.icon);
   const [selectedColor, setSelectedColor] = useState<string | undefined>(currentMetadata?.color);
-  const [useEmoji, setUseEmoji] = useState(false);
-  const [emojiInput, setEmojiInput] = useState('');
-  const [activeCategory, setActiveCategory] = useState('Education');
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
+  const [iconSearchQuery, setIconSearchQuery] = useState('');
 
   useEffect(() => {
     if (visible) {
       setSelectedIcon(currentMetadata?.icon);
       setSelectedColor(currentMetadata?.color);
-      const isEmoji = currentMetadata?.icon && currentMetadata.icon.length <= 2 && !/^[a-z-]+$/.test(currentMetadata.icon);
-      setUseEmoji(isEmoji || false);
-      setEmojiInput(isEmoji && currentMetadata?.icon ? currentMetadata.icon : '');
-      setActiveCategory('Education');
+      setIconSearchQuery('');
     }
   }, [visible, currentMetadata]);
 
-  const categoryIcons = ICON_CATEGORIES[activeCategory as keyof typeof ICON_CATEGORIES] || [];
+  // Flatten all icons for picker
+  const allIcons = useMemo(() => {
+    return Object.values(ICON_CATEGORIES).flat();
+  }, []);
+
+  const filteredIcons = useMemo(() => {
+    if (!iconSearchQuery) return allIcons;
+    return allIcons.filter(icon => icon.toLowerCase().includes(iconSearchQuery.toLowerCase()));
+  }, [allIcons, iconSearchQuery]);
 
   const handleSave = () => {
     onSave({
-      icon: useEmoji && emojiInput ? emojiInput : selectedIcon,
+      icon: selectedIcon,
       color: selectedColor,
     });
     onClose();
@@ -165,8 +148,7 @@ export default function DeckCustomizationModalV2({
     onClose();
   };
 
-  const displayIcon = useEmoji && emojiInput ? emojiInput : selectedIcon;
-  const isEmojiDisplay = displayIcon && displayIcon.length <= 2 && !/^[a-z-]+$/.test(displayIcon);
+  const isEmoji = selectedIcon && selectedIcon.length <= 2 && !/^[a-z-]+$/.test(selectedIcon);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -178,7 +160,7 @@ export default function DeckCustomizationModalV2({
               <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
                 Customize
               </Text>
-              <Pressable onPress={onClose} style={styles.closeButton}>
+              <Pressable onPress={onClose} hitSlop={8}>
                 <Ionicons name="close" size={28} color={theme.colors.textSecondary} />
               </Pressable>
             </View>
@@ -191,11 +173,11 @@ export default function DeckCustomizationModalV2({
                 borderColor: selectedColor || theme.colors.border,
               }
             ]}>
-              {displayIcon && (
-                isEmojiDisplay ? (
-                  <Text style={styles.previewEmoji}>{displayIcon}</Text>
+              {selectedIcon && (
+                isEmoji ? (
+                  <Text style={styles.previewEmoji}>{selectedIcon}</Text>
                 ) : (
-                  <Ionicons name={displayIcon as any} size={32} color={selectedColor || theme.colors.accent} />
+                  <Ionicons name={selectedIcon as any} size={32} color={selectedColor || theme.colors.accent} />
                 )
               )}
               <View style={{ flex: 1 }}>
@@ -203,169 +185,87 @@ export default function DeckCustomizationModalV2({
                   {deckName}
                 </Text>
                 <Text style={[styles.previewHint, { color: theme.colors.textSecondary }]}>
-                  {displayIcon || selectedColor ? 'Preview' : 'Select icon & color below'}
+                  {selectedIcon || selectedColor ? 'Preview' : 'Select icon & color below'}
                 </Text>
               </View>
             </View>
           </View>
 
-          {/* Scrollable Content */}
+          {/* Scrollable Content - Clean Picker Cards */}
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Icon/Emoji Toggle */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Icon</Text>
-              <View style={styles.segmentControl}>
-                <Pressable
-                  style={[
-                    styles.segment,
-                    !useEmoji && { backgroundColor: theme.colors.accent },
-                  ]}
-                  onPress={() => setUseEmoji(false)}
-                >
-                  <Text style={[
-                    styles.segmentText,
-                    { color: !useEmoji ? '#FFF' : theme.colors.textSecondary }
-                  ]}>
-                    Icons
+            {/* Icon or Emoji Picker Card */}
+            <Pressable
+              style={[
+                styles.pickerCard,
+                {
+                  backgroundColor: theme.colors.bg,
+                  borderColor: theme.colors.border,
+                }
+              ]}
+              onPress={() => setIsIconPickerOpen(true)}
+            >
+              <View style={styles.pickerLeft}>
+                <Ionicons name="apps" size={24} color={theme.colors.accent} />
+                <View>
+                  <Text style={[styles.pickerLabel, { color: theme.colors.textPrimary }]}>
+                    Icon or Emoji
                   </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.segment,
-                    useEmoji && { backgroundColor: theme.colors.accent },
-                  ]}
-                  onPress={() => setUseEmoji(true)}
-                >
-                  <Text style={[
-                    styles.segmentText,
-                    { color: useEmoji ? '#FFF' : theme.colors.textSecondary }
-                  ]}>
-                    Emoji
+                  <Text style={[styles.pickerHint, { color: theme.colors.textSecondary }]}>
+                    Choose one
                   </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {useEmoji ? (
-              /* Emoji Input */
-              <View style={styles.section}>
-                <TextInput
-                  style={[
-                    styles.emojiInput,
-                    { 
-                      backgroundColor: theme.colors.bg,
-                      color: theme.colors.textPrimary,
-                      borderColor: theme.colors.border,
-                    }
-                  ]}
-                  placeholder="Type or paste emoji (e.g., 📚)"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={emojiInput}
-                  onChangeText={(text) => {
-                    if (text.length <= 2) setEmojiInput(text);
-                  }}
-                  maxLength={2}
-                  autoFocus
-                />
-              </View>
-            ) : (
-              /* Icon Categories */
-              <>
-                {/* Category Tabs */}
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.categoryScroll}
-                  contentContainerStyle={styles.categoryContent}
-                >
-                  {Object.keys(ICON_CATEGORIES).map((category) => (
-                    <Pressable
-                      key={category}
-                      style={[
-                        styles.categoryTab,
-                        { 
-                          backgroundColor: activeCategory === category 
-                            ? theme.colors.accent + '20' 
-                            : 'transparent',
-                          borderColor: activeCategory === category 
-                            ? theme.colors.accent 
-                            : theme.colors.border,
-                        }
-                      ]}
-                      onPress={() => setActiveCategory(category)}
-                    >
-                      <Text style={[
-                        styles.categoryText,
-                        { color: activeCategory === category ? theme.colors.accent : theme.colors.textSecondary }
-                      ]}>
-                        {category}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-
-                {/* Icon Grid */}
-                <View style={styles.iconGrid}>
-                  {categoryIcons.map((icon) => (
-                    <Pressable
-                      key={icon}
-                      style={[
-                        styles.iconButton,
-                        {
-                          backgroundColor: selectedIcon === icon 
-                            ? theme.colors.accent + '20'
-                            : theme.colors.bg,
-                          borderColor: selectedIcon === icon
-                            ? theme.colors.accent
-                            : theme.colors.border,
-                        }
-                      ]}
-                      onPress={() => setSelectedIcon(selectedIcon === icon ? undefined : icon)}
-                    >
-                      <Ionicons 
-                        name={icon as any} 
-                        size={22} 
-                        color={selectedIcon === icon ? theme.colors.accent : theme.colors.textPrimary} 
-                      />
-                    </Pressable>
-                  ))}
                 </View>
-              </>
-            )}
-
-            {/* Color Section */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Color</Text>
-              <View style={styles.colorRow}>
-                {COLORS.map((color) => (
-                  <Pressable
-                    key={color}
-                    style={[
-                      styles.colorButton,
-                      { backgroundColor: color },
-                      selectedColor === color && styles.colorSelected,
-                    ]}
-                    onPress={() => setSelectedColor(selectedColor === color ? undefined : color)}
-                  >
-                    {selectedColor === color && (
-                      <Ionicons name="checkmark" size={18} color="#FFF" />
-                    )}
-                  </Pressable>
-                ))}
               </View>
-            </View>
+              {selectedIcon ? (
+                isEmoji ? (
+                  <Text style={styles.pickerEmoji}>{selectedIcon}</Text>
+                ) : (
+                  <Ionicons name={selectedIcon as any} size={28} color={theme.colors.accent} />
+                )
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+              )}
+            </Pressable>
 
-            <View style={{ height: 200 }} />
+            {/* Color Picker Card */}
+            <Pressable
+              style={[
+                styles.pickerCard,
+                {
+                  backgroundColor: theme.colors.bg,
+                  borderColor: theme.colors.border,
+                }
+              ]}
+              onPress={() => setIsColorPickerOpen(true)}
+            >
+              <View style={styles.pickerLeft}>
+                <Ionicons name="color-palette" size={24} color={theme.colors.accent} />
+                <Text style={[styles.pickerLabel, { color: theme.colors.textPrimary }]}>
+                  Color
+                </Text>
+              </View>
+              {selectedColor ? (
+                <View style={styles.pickerColorPreview}>
+                  <View style={[styles.pickerColorCircle, { backgroundColor: selectedColor }]} />
+                  <Text style={[styles.pickerColorText, { color: theme.colors.textSecondary }]}>
+                    {selectedColor.toUpperCase()}
+                  </Text>
+                </View>
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+              )}
+            </Pressable>
+
+            <View style={{ height: 120 }} />
           </ScrollView>
 
           {/* Sticky Footer */}
           <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
             <Pressable
-              style={[styles.button, { backgroundColor: theme.colors.bg }]}
+              style={[styles.button, { backgroundColor: theme.colors.bg, borderWidth: 1, borderColor: theme.colors.border }]}
               onPress={handleClear}
             >
               <Text style={[styles.buttonText, { color: theme.colors.textSecondary }]}>
-                Clear All
+                Clear
               </Text>
             </Pressable>
             <Pressable
@@ -379,6 +279,180 @@ export default function DeckCustomizationModalV2({
           </View>
         </View>
       </View>
+
+      {/* Emoji Picker */}
+      <EmojiPicker
+        onEmojiSelected={(emoji) => {
+          setSelectedIcon(emoji.emoji);
+          setIsEmojiPickerOpen(false);
+        }}
+        open={isEmojiPickerOpen}
+        onClose={() => setIsEmojiPickerOpen(false)}
+        theme={{
+          backdrop: theme.colors.bg + 'CC',
+          knob: theme.colors.textSecondary,
+          container: theme.colors.surface,
+          header: theme.colors.textPrimary,
+          skinTonesContainer: theme.colors.bg,
+          category: {
+            icon: theme.colors.textSecondary,
+            iconActive: theme.colors.accent,
+            container: theme.colors.bg,
+            containerActive: theme.colors.accent + '20',
+          },
+        }}
+      />
+
+      {/* Icon Picker Modal - Combined Icons & Emoji */}
+      <Modal
+        visible={isIconPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsIconPickerOpen(false)}
+      >
+        <View style={[styles.colorPickerOverlay, { backgroundColor: theme.colors.bg + 'EE' }]}>
+          <View style={[styles.iconPickerModal, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.iconPickerHeader}>
+              <Text style={[styles.iconPickerTitle, { color: theme.colors.textPrimary }]}>
+                Pick Icon or Emoji
+              </Text>
+              <Pressable onPress={() => setIsIconPickerOpen(false)} hitSlop={8}>
+                <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            {/* Tabs */}
+            <View style={styles.iconPickerTabs}>
+              <Pressable
+                style={[
+                  styles.iconPickerTab,
+                  {
+                    backgroundColor: !isEmojiPickerOpen ? theme.colors.accent : 'transparent',
+                    borderColor: !isEmojiPickerOpen ? theme.colors.accent : theme.colors.border,
+                  }
+                ]}
+                onPress={() => setIsEmojiPickerOpen(false)}
+              >
+                <Text style={[
+                  styles.iconPickerTabText,
+                  { color: !isEmojiPickerOpen ? '#FFF' : theme.colors.textSecondary }
+                ]}>
+                  Icons
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.iconPickerTab,
+                  {
+                    backgroundColor: isEmojiPickerOpen ? theme.colors.accent : 'transparent',
+                    borderColor: isEmojiPickerOpen ? theme.colors.accent : theme.colors.border,
+                  }
+                ]}
+                onPress={() => {
+                  setIsEmojiPickerOpen(true);
+                  setIsIconPickerOpen(false);
+                }}
+              >
+                <Text style={[
+                  styles.iconPickerTabText,
+                  { color: isEmojiPickerOpen ? '#FFF' : theme.colors.textSecondary }
+                ]}>
+                  Emoji
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Search */}
+            <TextInput
+              style={[
+                styles.iconSearch,
+                {
+                  backgroundColor: theme.colors.bg,
+                  color: theme.colors.textPrimary,
+                  borderColor: theme.colors.border,
+                }
+              ]}
+              placeholder="Search icons..."
+              placeholderTextColor={theme.colors.textSecondary}
+              value={iconSearchQuery}
+              onChangeText={setIconSearchQuery}
+            />
+
+            {/* Icon Grid */}
+            <ScrollView style={styles.iconPickerContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.iconPickerGrid}>
+                {filteredIcons.map((icon) => (
+                  <Pressable
+                    key={icon}
+                    style={[
+                      styles.iconPickerButton,
+                      {
+                        backgroundColor: selectedIcon === icon 
+                          ? theme.colors.accent + '20'
+                          : theme.colors.bg,
+                        borderColor: selectedIcon === icon
+                          ? theme.colors.accent
+                          : theme.colors.border,
+                      }
+                    ]}
+                    onPress={() => {
+                      setSelectedIcon(icon);
+                      setIsIconPickerOpen(false);
+                      setIconSearchQuery('');
+                    }}
+                  >
+                    <Ionicons 
+                      name={icon as any} 
+                      size={24} 
+                      color={selectedIcon === icon ? theme.colors.accent : theme.colors.textPrimary} 
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Color Picker Modal */}
+      <Modal
+        visible={isColorPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsColorPickerOpen(false)}
+      >
+        <View style={[styles.colorPickerOverlay, { backgroundColor: theme.colors.bg + 'EE' }]}>
+          <View style={[styles.colorPickerModal, { backgroundColor: theme.colors.surface }]}>
+            <Text style={[styles.colorPickerTitle, { color: theme.colors.textPrimary }]}>
+              Pick a Color
+            </Text>
+            <View style={styles.colorPickerWrapper}>
+              <TriangleColorPicker
+                color={selectedColor || '#3B82F6'}
+                onColorChange={(color: string) => setSelectedColor(color)}
+              />
+            </View>
+            <View style={styles.colorPickerButtons}>
+              <Pressable
+                style={[styles.colorPickerBtn, { backgroundColor: theme.colors.bg, borderWidth: 1, borderColor: theme.colors.border }]}
+                onPress={() => setIsColorPickerOpen(false)}
+              >
+                <Text style={[styles.colorPickerBtnText, { color: theme.colors.textSecondary }]}>
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.colorPickerBtn, { backgroundColor: theme.colors.accent }]}
+                onPress={() => setIsColorPickerOpen(false)}
+              >
+                <Text style={[styles.colorPickerBtnText, { color: '#FFF' }]}>
+                  Done
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -391,8 +465,8 @@ const styles = StyleSheet.create({
   modal: {
     borderTopLeftRadius: r.xl,
     borderTopRightRadius: r.xl,
-    maxHeight: '92%',
-    height: '92%',
+    maxHeight: '70%',
+    height: '70%',
   },
   header: {
     paddingHorizontal: s.lg,
@@ -404,170 +478,187 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: s.md,
+    marginBottom: s.lg,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
   },
-  closeButton: {
-    padding: s.xs,
-  },
   previewCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: s.md,
+    gap: s.md,
+    padding: s.lg,
     borderRadius: r.lg,
     borderWidth: 2,
-    gap: s.md,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: r.md,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   previewEmoji: {
-    fontSize: 28,
+    fontSize: 32,
   },
   previewName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   previewHint: {
-    fontSize: 12,
+    fontSize: 13,
     marginTop: 2,
   },
   content: {
     flex: 1,
     paddingHorizontal: s.lg,
+    paddingTop: s.lg,
   },
-  section: {
-    marginTop: s.lg,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: s.sm,
-  },
-  segmentControl: {
+  pickerCard: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: r.md,
-    padding: 2,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: s.sm,
-    borderRadius: r.sm,
     alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: s.lg,
+    borderRadius: r.lg,
+    borderWidth: 1,
+    marginBottom: s.md,
   },
-  segmentText: {
-    fontSize: 14,
+  pickerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.md,
+  },
+  pickerLabel: {
+    fontSize: 17,
     fontWeight: '600',
   },
-  emojiInput: {
-    fontSize: 24,
-    textAlign: 'center',
-    padding: s.md,
-    borderRadius: r.md,
-    borderWidth: 1,
-    height: 56,
-  },
-  searchInput: {
-    fontSize: 15,
-    padding: s.md,
-    borderRadius: r.md,
-    borderWidth: 1,
-  },
-  categoryScroll: {
-    marginTop: s.md,
-  },
-  categoryContent: {
-    gap: s.sm,
-    paddingRight: s.lg,
-  },
-  categoryTab: {
-    paddingHorizontal: s.md,
-    paddingVertical: s.sm,
-    borderRadius: r.full,
-    borderWidth: 1,
-  },
-  categoryText: {
+  pickerHint: {
     fontSize: 13,
-    fontWeight: '600',
+    marginTop: 2,
   },
-  iconGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: s.sm,
-    marginTop: s.md,
+  pickerEmoji: {
+    fontSize: 32,
   },
-  iconButton: {
-    width: (width - s.lg * 2 - s.sm * 5) / 6,
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: r.md,
-    borderWidth: 1.5,
-  },
-  colorRow: {
-    flexDirection: 'row',
-    gap: s.sm,
-    flexWrap: 'wrap',
-  },
-  colorButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colorSelected: {
-    borderWidth: 3,
-    borderColor: '#FFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  customColor: {
+  pickerColorPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: s.md,
     gap: s.sm,
   },
-  hexInput: {
-    flex: 1,
-    fontSize: 14,
-    padding: s.sm,
-    paddingHorizontal: s.md,
-    borderRadius: r.md,
-    borderWidth: 1,
-    fontFamily: 'monospace',
-  },
-  colorPreview: {
-    width: 36,
-    height: 36,
-    borderRadius: r.sm,
+  pickerColorCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 2,
     borderColor: '#FFF',
   },
+  pickerColorText: {
+    fontSize: 13,
+    fontFamily: 'monospace',
+  },
   footer: {
     flexDirection: 'row',
-    padding: s.lg,
+    paddingHorizontal: s.lg,
+    paddingVertical: s.md,
     gap: s.md,
     borderTopWidth: 1,
   },
   button: {
     flex: 1,
     paddingVertical: s.md,
-    borderRadius: r.md,
+    borderRadius: r.lg,
     alignItems: 'center',
   },
   buttonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Icon Picker
+  iconPickerModal: {
+    width: '100%',
+    maxWidth: 500,
+    height: '80%',
+    borderRadius: r.xl,
+    padding: s.xl,
+  },
+  iconPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: s.lg,
+  },
+  iconPickerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  iconPickerTabs: {
+    flexDirection: 'row',
+    gap: s.sm,
+    marginBottom: s.md,
+  },
+  iconPickerTab: {
+    flex: 1,
+    paddingVertical: s.sm,
+    borderRadius: r.md,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  iconPickerTabText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  iconSearch: {
+    fontSize: 16,
+    padding: s.md,
+    borderRadius: r.lg,
+    borderWidth: 1,
+    marginBottom: s.lg,
+  },
+  iconPickerContent: {
+    flex: 1,
+  },
+  iconPickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: s.sm,
+  },
+  iconPickerButton: {
+    width: (width - s.xl * 2 - s.sm * 7) / 8,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: r.md,
+    borderWidth: 1,
+  },
+  // Color Picker
+  colorPickerOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: s.xl,
+  },
+  colorPickerModal: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: r.xl,
+    padding: s.xl,
+    alignItems: 'center',
+  },
+  colorPickerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: s.xl,
+  },
+  colorPickerWrapper: {
+    width: 280,
+    height: 280,
+    marginBottom: s.xl,
+  },
+  colorPickerButtons: {
+    flexDirection: 'row',
+    gap: s.md,
+    width: '100%',
+  },
+  colorPickerBtn: {
+    flex: 1,
+    paddingVertical: s.md,
+    borderRadius: r.lg,
+    alignItems: 'center',
+  },
+  colorPickerBtnText: {
     fontSize: 16,
     fontWeight: '600',
   },
