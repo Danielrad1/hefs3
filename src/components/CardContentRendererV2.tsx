@@ -60,7 +60,10 @@ const CardContentRendererV2 = React.memo(function CardContentRendererV2({
     const audioRegex = /\[sound:([^\]]+)\]/gi;
     let audioMatch;
     while ((audioMatch = audioRegex.exec(html)) !== null) {
-      extractedAudio.push(audioMatch[1]);
+      // Sanitize filename the same way images are sanitized (matching ApkgParser logic)
+      const originalFilename = audioMatch[1];
+      const sanitizedFilename = originalFilename.replace(/[^A-Za-z0-9._-]/g, '_');
+      extractedAudio.push(sanitizedFilename);
     }
     return extractedAudio;
   }, [html]);
@@ -345,7 +348,11 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
           shouldDuckAndroid: true,
         });
 
+        // Filename is already sanitized when extracted from HTML
         const mediaPath = `${FileSystem.documentDirectory}media/${filename}`;
+        
+        console.log('[AudioPlayer] Loading audio:', filename, '→', mediaPath);
+        
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: mediaPath },
           { shouldPlay: false },
@@ -364,8 +371,9 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
         );
 
         setSound(newSound);
+        console.log('[AudioPlayer] Audio loaded successfully:', filename);
       } catch (error) {
-        console.error('[AudioPlayer] Error loading audio:', error);
+        console.error('[AudioPlayer] Error loading audio:', filename, error);
       }
     };
 

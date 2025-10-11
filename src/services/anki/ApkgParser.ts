@@ -89,6 +89,10 @@ export class ApkgParser {
         const mediaMap = await this.extractMediaFromFs(extractedDir, options);
         result.mediaFiles = mediaMap;
 
+        // Update note fields to use sanitized filenames
+        console.log('[ApkgParser] Updating note fields with sanitized filenames...');
+        this.updateNoteFieldsWithSanitizedFilenames(result, mediaMap);
+
         // Best-effort cleanup of extracted dir
         try { await FileSystem.deleteAsync(extractedDir, { idempotent: true }); } catch {}
 
@@ -552,7 +556,8 @@ export class ApkgParser {
       const size = writtenInfo.exists && !writtenInfo.isDirectory ? (writtenInfo as any).size : 0;
       console.log(`[ApkgParser] Media file placed: ${sanitizedFilename}, exists: ${writtenInfo.exists}, size: ${size}`);
 
-      mediaMap.set(id, sanitizedFilename);
+      // Store original filename → sanitized filename mapping for note updates
+      mediaMap.set(filename, sanitizedFilename);
       if (index % 25 === 0) {
         options.onProgress?.(`Placing media… (${index}/${entries.length})`);
       }
@@ -788,6 +793,66 @@ export class ApkgParser {
         throw new Error(`Failed to process large file: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
+  }
+
+  /**
+   * Update note fields to use sanitized filenames
+   * Replaces media references in note HTML with sanitized versions
+   */
+  private updateNoteFieldsWithSanitizedFilenames(result: ApkgParseResult, mediaMap: Map<string, string>): void {
+    if (!result.notes || result.notes.length === 0 || !mediaMap || mediaMap.size === 0) {
+      return;
+    }
+
+    // mediaMap is: id (original filename from media JSON) -> sanitized filename
+    // We need to replace references in notes
+    const originalToSanitized = new Map<string, string>();
+    
+    mediaMap.forEach((sanitizedName, originalId) => {
+      // originalId is the filename from the .apkg's media mapping
+      if (originalId !== sanitizedName) {
+        originalToSanitized.set(originalId, sanitizedName);
+        console.log(`[ApkgParser] Will replace "${originalId}" with "${sanitizedName}" in notes`);
+      }
+    });
+
+    if (originalToSanitized.size === 0) {
+      console.log('[ApkgParser] No filename sanitization needed');
+      return;
+    }
+
+    // Update each note's fields
+    let updatedCount = 0;
+    result.notes.forEach(note => {
+      let originalFields = note.flds;
+      let updatedFields = originalFields;
+
+      // Replace all media references
+      originalToSanitized.forEach((sanitized, original) => {
+        // Match [sound:filename] and <img src="filename">
+        const soundRegex = new RegExp(`\\[sound:${this.escapeRegex(original)}\\]`, 'gi');
+        const imgRegex = new RegExp(`src="${this.escapeRegex(original)}"`, 'gi');
+        
+        updatedFields = updatedFields.replace(soundRegex, `[sound:${sanitized}]`);
+        updatedFields = updatedFields.replace(imgRegex, `src="${sanitized}"`);
+      });
+
+      if (updatedFields !== originalFields) {
+        note.flds = updatedFields;
+        updatedCount++;
+      }
+    });
+
+    if (updatedCount > 0) {
+      console.log(`[ApkgParser] Updated ${updatedCount} notes with sanitized filenames`);
+    }
+  }
+
+  /**
+   * Escape special regex characters
+   */
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   /**
