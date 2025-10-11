@@ -266,7 +266,7 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
           style: 'destructive',
           onPress: async () => {
             try {
-              deckService.deleteDeck(deckId, { deleteCards: true });
+              await deckService.deleteDeck(deckId, { deleteCards: true });
               await PersistenceService.save(db);
               reload();
               navigation.goBack();

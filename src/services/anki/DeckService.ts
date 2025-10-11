@@ -5,9 +5,14 @@
 import { InMemoryDb } from './InMemoryDb';
 import { Deck, DEFAULT_DECK_ID } from './schema';
 import { nowSeconds, generateId } from './time';
+import { MediaService } from './MediaService';
 
 export class DeckService {
-  constructor(private db: InMemoryDb) {}
+  private mediaService: MediaService;
+
+  constructor(private db: InMemoryDb) {
+    this.mediaService = new MediaService(db);
+  }
 
   /**
    * List all decks
@@ -77,7 +82,7 @@ export class DeckService {
   /**
    * Delete a deck and optionally move cards to another deck
    */
-  deleteDeck(id: string, options?: { moveCardsTo?: string; deleteCards?: boolean }): void {
+  async deleteDeck(id: string, options?: { moveCardsTo?: string; deleteCards?: boolean }): Promise<void> {
     if (id === DEFAULT_DECK_ID) {
       throw new Error('Cannot delete default deck');
     }
@@ -154,6 +159,13 @@ export class DeckService {
 
     // Delete the deck itself
     this.db.deleteDeck(id);
+    
+    // Clean up orphaned media files
+    if (options?.deleteCards) {
+      console.log('[DeckService] Cleaning up orphaned media files...');
+      const deletedCount = await this.mediaService.gcUnused();
+      console.log(`[DeckService] Deleted ${deletedCount} orphaned media files`);
+    }
   }
 
   /**

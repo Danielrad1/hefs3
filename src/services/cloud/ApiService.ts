@@ -37,7 +37,8 @@ export class ApiService {
    */
   static async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    timeoutMs: number = 120000 // 2 minutes default
   ): Promise<ApiResponse<T>> {
     try {
       const headers = await this.getAuthHeaders();
@@ -45,13 +46,20 @@ export class ApiService {
 
       console.log(`[ApiService] ${options.method || 'GET'} ${endpoint}`);
 
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
       const response = await fetch(url, {
         ...options,
         headers: {
           ...headers,
           ...options.headers,
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data: ApiResponse<T> = await response.json();
 
@@ -63,6 +71,11 @@ export class ApiService {
       console.log(`[ApiService] Success:`, endpoint);
       return data;
     } catch (error) {
+      // Provide better error message for timeouts
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error(`[ApiService] ${endpoint} timed out after ${timeoutMs}ms`);
+        throw new Error(`Request timed out. The file may be too large or the server is busy. Please try again.`);
+      }
       console.error(`[ApiService] ${endpoint} failed:`, error);
       throw error;
     }
@@ -79,11 +92,20 @@ export class ApiService {
   /**
    * POST request
    */
-  static async post<T>(endpoint: string, body?: any): Promise<T> {
-    const response = await this.request<T>(endpoint, {
-      method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  static async post<T>(endpoint: string, body?: any, timeoutMs?: number): Promise<T> {
+    // Use longer timeout for file parsing and AI generation
+    const defaultTimeout = endpoint.includes('/parse/') || endpoint.includes('/ai/') 
+      ? 300000 // 5 minutes for file parsing and AI
+      : 120000; // 2 minutes for other requests
+    
+    const response = await this.request<T>(
+      endpoint, 
+      {
+        method: 'POST',
+        body: body ? JSON.stringify(body) : undefined,
+      },
+      timeoutMs || defaultTimeout
+    );
     return response.data!;
   }
 

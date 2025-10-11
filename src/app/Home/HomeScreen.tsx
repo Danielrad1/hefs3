@@ -17,6 +17,7 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const { bootstrap } = useScheduler();
   const [homeStats, setHomeStats] = useState<HomeStats | null>(null);
+  const isCalculatingRef = React.useRef(false);
 
   // Bootstrap sample data ONLY on first launch (empty database)
   useEffect(() => {
@@ -29,24 +30,56 @@ export default function HomeScreen() {
     }
   }, [bootstrap]);
 
-  // Calculate real statistics whenever screen is focused
+  // Function to refresh stats
+  const refreshStats = React.useCallback(() => {
+    if (isCalculatingRef.current) {
+      console.log('[HomeScreen] Already calculating, skipping...');
+      return;
+    }
+    
+    console.log('[HomeScreen] Starting stats calculation...');
+    isCalculatingRef.current = true;
+    
+    setTimeout(() => {
+      console.log('[HomeScreen] Calculating stats from database...');
+      const statsService = new StatsService(db);
+      const stats = statsService.getHomeStats();
+      console.log('[HomeScreen] Stats calculated:', {
+        dueCount: stats.dueCount,
+        totalCards: stats.totalCardsCount,
+        todayReviews: stats.todayReviewCount,
+      });
+      setHomeStats(stats);
+      isCalculatingRef.current = false;
+      console.log('[HomeScreen] Stats set, rendering complete');
+    }, 0);
+  }, []);
+
+  // Calculate statistics only when screen is focused (handles both first load and returns)
   useFocusEffect(
     React.useCallback(() => {
-      const statsService = new StatsService(db);
-      setHomeStats(statsService.getHomeStats());
-    }, [])
+      console.log('[HomeScreen] useFocusEffect triggered, homeStats:', !!homeStats, 'isCalculating:', isCalculatingRef.current);
+      // Only refresh if stats are missing and not already calculating
+      if (!homeStats && !isCalculatingRef.current) {
+        console.log('[HomeScreen] Calling refreshStats from useFocusEffect');
+        refreshStats();
+      }
+    }, [homeStats, refreshStats])
   );
 
   // Show loading state while stats are being calculated
   if (!homeStats) {
+    console.log('[HomeScreen] Rendering loading state, isCalculating:', isCalculatingRef.current);
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
         <View style={[styles.content, { justifyContent: 'center', alignItems: 'center' }]}>
-          <Text style={{ color: theme.colors.textSecondary }}>Loading...</Text>
+          <Text style={{ color: theme.colors.textSecondary }}>Loading statistics...</Text>
         </View>
       </SafeAreaView>
     );
   }
+  
+  console.log('[HomeScreen] Rendering home screen with stats');
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>

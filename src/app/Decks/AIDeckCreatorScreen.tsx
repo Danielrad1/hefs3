@@ -120,20 +120,25 @@ export default function AIDeckCreatorScreen() {
           setIsParsing(true);
           
           try {
+            const readStart = Date.now();
             const base64 = await FileSystem.readAsStringAsync(file.uri, {
               encoding: FileSystem.EncodingType.Base64,
             });
+            console.log(`[Import] Read file as base64 in ${Date.now() - readStart}ms (${Math.round(base64.length / 1024)} KB)`);
 
             // Determine file type
             const fileType = file.name.endsWith('.docx') ? 'docx' : 'doc';
 
             // Send to backend for parsing
+            const parseStart = Date.now();
             const response = await ApiService.post<{ text: string }>('/parse/file', {
               fileData: base64,
               fileType,
               fileName: file.name,
             });
 
+            console.log(`[Import] Backend parsing took ${Date.now() - parseStart}ms`);
+            
             if (response.text) {
               setNotesText(response.text);
               setShowPasteInput(false);
@@ -156,17 +161,22 @@ export default function AIDeckCreatorScreen() {
           setIsParsing(true);
           
           try {
+            const readStart = Date.now();
             const base64 = await FileSystem.readAsStringAsync(file.uri, {
               encoding: FileSystem.EncodingType.Base64,
             });
+            console.log(`[Import] Read PDF as base64 in ${Date.now() - readStart}ms (${Math.round(base64.length / 1024)} KB)`);
 
             // Send to backend for parsing
+            const parseStart = Date.now();
             const response = await ApiService.post<{ text: string }>('/parse/file', {
               fileData: base64,
               fileType: 'pdf',
               fileName: file.name,
             });
 
+            console.log(`[Import] Backend PDF parsing took ${Date.now() - parseStart}ms`);
+            
             if (response.text) {
               setNotesText(response.text);
               setShowPasteInput(false);

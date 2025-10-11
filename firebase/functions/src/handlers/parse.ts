@@ -23,29 +23,39 @@ async function parseFile(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    console.log(`[Parse] Processing ${fileType} file: ${fileName || 'unnamed'}`);
+    const startTime = Date.now();
+    const fileSizeKB = Math.round(fileData.length / 1024);
+    console.log(`[Parse] Processing ${fileType} file: ${fileName || 'unnamed'} (${fileSizeKB} KB base64)`);
 
     // Convert base64 to buffer
+    const decodeStart = Date.now();
     const buffer = Buffer.from(fileData, 'base64');
+    const bufferSizeMB = (buffer.length / (1024 * 1024)).toFixed(2);
+    console.log(`[Parse] Decoded base64 in ${Date.now() - decodeStart}ms (${bufferSizeMB} MB)`);
 
     let extractedText = '';
 
     if (fileType === 'docx' || fileType === 'doc') {
       // Parse Word document
+      const parseStart = Date.now();
       console.log('[Parse] Parsing Word document...');
       const result = await mammoth.extractRawText({ buffer });
       extractedText = result.value;
-      console.log(`[Parse] Extracted ${extractedText.length} characters from Word`);
+      console.log(`[Parse] Extracted ${extractedText.length} characters from Word in ${Date.now() - parseStart}ms`);
     } else if (fileType === 'pdf') {
       // Parse PDF
+      const parseStart = Date.now();
       console.log('[Parse] Parsing PDF...');
       const pdfExtract = new PDFExtract();
       const data = await pdfExtract.extractBuffer(buffer);
+      console.log(`[Parse] PDF parsed in ${Date.now() - parseStart}ms (${data.pages.length} pages)`);
       
       // Extract text from all pages
+      const textStart = Date.now();
       extractedText = data.pages
         .map(page => page.content.map(item => item.str).join(' '))
         .join('\n');
+      console.log(`[Parse] Text extraction took ${Date.now() - textStart}ms`);
       
       console.log(`[Parse] Extracted ${extractedText.length} characters from PDF`);
     } else {
@@ -70,6 +80,13 @@ async function parseFile(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const totalTime = Date.now() - startTime;
+    console.log(`[Parse] ========== PARSING COMPLETE ==========`);
+    console.log(`[Parse] Total time: ${totalTime}ms`);
+    console.log(`[Parse] File size: ${bufferSizeMB} MB`);
+    console.log(`[Parse] Output: ${extractedText.length} characters`);
+    console.log(`[Parse] ==========================================`);
+    
     res.json({
       success: true,
       data: {

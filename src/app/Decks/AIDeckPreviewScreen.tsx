@@ -53,11 +53,10 @@ export default function AIDeckPreviewScreen() {
       
       if (deckId && !isSaved) {
         console.log('[AIDeckPreview] Cleaning up unsaved deck:', deckId);
-        try {
-          deckService.deleteDeck(deckId, { deleteCards: true });
-        } catch (error) {
+        // Fire and forget - cleanup happens in background
+        deckService.deleteDeck(deckId, { deleteCards: true }).catch((error) => {
           console.error('[AIDeckPreview] Cleanup error:', error);
-        }
+        });
       } else if (deckId && isSaved) {
         console.log('[AIDeckPreview] Deck was saved, skipping cleanup');
       }

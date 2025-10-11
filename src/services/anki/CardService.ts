@@ -5,6 +5,7 @@
 import { InMemoryDb } from './InMemoryDb';
 import { AnkiCard, CardQueue } from './schema';
 import { isDue } from './time';
+import { MediaService } from './MediaService';
 
 export interface CardQuery {
   deck?: string;
@@ -18,7 +19,11 @@ export interface CardQuery {
 }
 
 export class CardService {
-  constructor(private db: InMemoryDb) {}
+  private mediaService: MediaService;
+
+  constructor(private db: InMemoryDb) {
+    this.mediaService = new MediaService(db);
+  }
 
   /**
    * Find cards matching query
@@ -219,7 +224,7 @@ export class CardService {
   /**
    * Delete cards (and orphaned notes)
    */
-  deleteCards(cardIds: string[]): void {
+  async deleteCards(cardIds: string[]): Promise<void> {
     const noteIds = new Set<string>();
 
     // Collect note IDs and delete cards
@@ -238,5 +243,10 @@ export class CardService {
         this.db.deleteNote(noteId);
       }
     });
+    
+    // Clean up orphaned media files
+    console.log('[CardService] Cleaning up orphaned media files...');
+    const deletedCount = await this.mediaService.gcUnused();
+    console.log(`[CardService] Deleted ${deletedCount} orphaned media files`);
   }
 }

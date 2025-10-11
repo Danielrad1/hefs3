@@ -7,6 +7,7 @@ import { AnkiNote, AnkiCard, CardType, CardQueue, FIELD_SEPARATOR, DEFAULT_EASE_
 import { nowSeconds, generateId } from './time';
 import { generateGuid } from './guid';
 import { calculateChecksum } from './checksum';
+import { MediaService } from './MediaService';
 
 export interface CreateNoteParams {
   modelId: string | number;  // Accept both for flexibility
@@ -21,7 +22,11 @@ export interface UpdateNoteParams {
 }
 
 export class NoteService {
-  constructor(private db: InMemoryDb) {}
+  private mediaService: MediaService;
+
+  constructor(private db: InMemoryDb) {
+    this.mediaService = new MediaService(db);
+  }
 
   /**
    * Create a new note and generate cards
@@ -118,7 +123,7 @@ export class NoteService {
   /**
    * Delete a note and all its cards
    */
-  deleteNote(noteId: string): void {
+  async deleteNote(noteId: string): Promise<void> {
     const note = this.db.getNote(noteId);
     if (!note) {
       throw new Error(`Note ${noteId} not found`);
@@ -130,6 +135,11 @@ export class NoteService {
 
     // Delete the note
     this.db.deleteNote(noteId);
+    
+    // Clean up orphaned media files
+    console.log('[NoteService] Cleaning up orphaned media files...');
+    const deletedCount = await this.mediaService.gcUnused();
+    console.log(`[NoteService] Deleted ${deletedCount} orphaned media files`);
   }
 
   /**

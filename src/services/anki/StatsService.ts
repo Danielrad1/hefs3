@@ -52,39 +52,92 @@ export class StatsService {
   constructor(private db: InMemoryDb) {}
 
   /**
-   * Get all statistics for home screen
+   * Get all statistics for home screen (optimized)
    */
   getHomeStats(): HomeStats {
-    const revlog = this.db.getAllRevlog();
-    const dailyStats = this.calculateDailyStats(revlog);
-    const today = this.getTodayString();
-    const todayStats = dailyStats.find(s => s.date === today);
+    const startTime = Date.now();
+    console.log('[StatsService] getHomeStats START');
     
-    const weeklyActivity = this.getWeeklyActivity(dailyStats);
-    const { currentStreak, longestStreak } = this.calculateStreaks(dailyStats);
-    
-    // Get card stats
+    // Get card stats first (fast - already cached in db)
+    const t1 = Date.now();
     const dbStats = this.db.getStats();
-    const allDecks = this.db.getAllDecks().filter(d => d.id !== '1'); // Exclude Default deck
+    const allDecks = this.db.getAllDecks();
+    const deckCount = allDecks.filter(d => d.id !== '1').length; // Exclude Default deck
+    console.log(`[StatsService] Got deck stats in ${Date.now() - t1}ms`);
     
-    // Calculate due count
+    // Calculate due count (optimized - single pass)
+    const t2 = Date.now();
     const col = this.db.getCol();
     const now = Math.floor(Date.now() / 1000);
+    const dayStart = Math.floor(col.crt / 86400);
+    const currentDay = Math.floor(now / 86400) - dayStart;
+    
     const allCards = this.db.getAllCards();
-    const dueCards = allCards.filter(c => {
-      if (c.type === 0) return true; // New cards are "due"
-      if (c.type === 1 || c.type === 3) {
-        // Learning/relearning - due is timestamp
-        return c.due <= now;
+    console.log(`[StatsService] Got ${allCards.length} cards in ${Date.now() - t2}ms`);
+    
+    const t3 = Date.now();
+    let dueCount = 0;
+    
+    // Single pass through cards
+    for (const c of allCards) {
+      if (c.type === 0) { // New
+        dueCount++;
+      } else if (c.type === 1 || c.type === 3) { // Learning/relearning
+        if (c.due <= now) dueCount++;
+      } else if (c.type === 2) { // Review
+        if (c.due <= currentDay) dueCount++;
       }
-      if (c.type === 2) {
-        // Review - due is day number
-        const dayStart = Math.floor(col.crt / 86400);
-        const currentDay = Math.floor(now / 86400) - dayStart;
-        return c.due <= currentDay;
-      }
-      return false;
-    });
+    }
+    console.log(`[StatsService] Calculated due count (${dueCount}) in ${Date.now() - t3}ms`);
+    
+    // Get revlog stats (only process if needed for display)
+    const t4 = Date.now();
+    const revlog = this.db.getAllRevlog();
+    console.log(`[StatsService] Got ${revlog.length} revlog entries in ${Date.now() - t4}ms`);
+    
+    const today = this.getTodayString();
+    
+    // Quick check: if no reviews today, skip expensive calculations
+    const t5 = Date.now();
+    const hasReviewsToday = revlog.some(r => this.timestampToDateString(parseInt(r.id, 10)) === today);
+    console.log(`[StatsService] Checked for today's reviews in ${Date.now() - t5}ms, hasReviewsToday: ${hasReviewsToday}`);
+    
+    let dailyStats: DailyStats[];
+    let todayStats: DailyStats | undefined;
+    let weeklyActivity;
+    let currentStreak = 0;
+    let longestStreak = 0;
+    
+    const t6 = Date.now();
+    if (hasReviewsToday || revlog.length > 0) {
+      console.log('[StatsService] Processing revlog...');
+      
+      const t6a = Date.now();
+      dailyStats = this.calculateDailyStats(revlog);
+      console.log(`[StatsService] calculateDailyStats took ${Date.now() - t6a}ms`);
+      
+      const t6b = Date.now();
+      todayStats = dailyStats.find(s => s.date === today);
+      console.log(`[StatsService] find todayStats took ${Date.now() - t6b}ms`);
+      
+      const t6c = Date.now();
+      weeklyActivity = this.getWeeklyActivity(dailyStats);
+      console.log(`[StatsService] getWeeklyActivity took ${Date.now() - t6c}ms`);
+      
+      const t6d = Date.now();
+      const streaks = this.calculateStreaks(dailyStats);
+      currentStreak = streaks.currentStreak;
+      longestStreak = streaks.longestStreak;
+      console.log(`[StatsService] calculateStreaks took ${Date.now() - t6d}ms`);
+      
+      console.log(`[StatsService] Processed revlog in ${Date.now() - t6}ms`);
+    } else {
+      // No reviews at all - return empty stats quickly
+      weeklyActivity = this.getWeeklyActivity([]);
+      console.log(`[StatsService] No reviews, skipped processing in ${Date.now() - t6}ms`);
+    }
+    
+    console.log(`[StatsService] getHomeStats COMPLETE in ${Date.now() - startTime}ms`);
     
     return {
       todayReviewCount: todayStats?.reviewCount || 0,
@@ -102,8 +155,8 @@ export class StatsService {
       weeklyActivity,
       totalReviewsAllTime: revlog.length,
       totalCardsCount: dbStats.totalCards,
-      totalDecksCount: allDecks.length,
-      dueCount: dueCards.length,
+      totalDecksCount: deckCount,
+      dueCount,
       newCount: dbStats.newCount,
       learningCount: dbStats.learningCount,
       reviewCount: dbStats.reviewCount,
@@ -111,7 +164,7 @@ export class StatsService {
   }
 
   /**
-   * Calculate daily statistics from revlog
+   * Calculate daily statistics from revlog (optimized - no Date objects)
    */
   private calculateDailyStats(revlog: AnkiRevlog[]): DailyStats[] {
     const dailyMap = new Map<string, {
@@ -120,9 +173,14 @@ export class StatsService {
       totalTime: number;
     }>();
     
+    // Optimize: Group by day using simple math (no Date objects)
     revlog.forEach(entry => {
-      const date = this.timestampToDateString(parseInt(entry.id, 10));
-      const existing = dailyMap.get(date) || { reviews: 0, correct: 0, totalTime: 0 };
+      const timestampMs = parseInt(entry.id, 10);
+      // Convert to days since epoch
+      const daysSinceEpoch = Math.floor(timestampMs / 86400000); // 86400000ms = 1 day
+      const dateStr = daysSinceEpoch.toString(); // Use day number as key
+      
+      const existing = dailyMap.get(dateStr) || { reviews: 0, correct: 0, totalTime: 0 };
       
       existing.reviews++;
       if (entry.ease >= 2) { // Good or better
@@ -130,17 +188,24 @@ export class StatsService {
       }
       existing.totalTime += entry.time;
       
-      dailyMap.set(date, existing);
+      dailyMap.set(dateStr, existing);
     });
     
+    // Convert day numbers back to date strings for display
     return Array.from(dailyMap.entries())
-      .map(([date, stats]) => ({
-        date,
-        reviewCount: stats.reviews,
-        correctCount: stats.correct,
-        totalTimeMs: stats.totalTime,
-        avgTimeMs: stats.totalTime / stats.reviews,
-      }))
+      .map(([dayStr, stats]) => {
+        const daysSinceEpoch = parseInt(dayStr, 10);
+        const date = new Date(daysSinceEpoch * 86400000);
+        const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        
+        return {
+          date: dateString,
+          reviewCount: stats.reviews,
+          correctCount: stats.correct,
+          totalTimeMs: stats.totalTime,
+          avgTimeMs: stats.totalTime / stats.reviews,
+        };
+      })
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
@@ -177,47 +242,61 @@ export class StatsService {
   }
 
   /**
-   * Calculate current and longest streak
+   * Calculate current and longest streak (optimized - fixed logic)
    */
   private calculateStreaks(dailyStats: DailyStats[]): { currentStreak: number; longestStreak: number } {
     if (dailyStats.length === 0) {
       return { currentStreak: 0, longestStreak: 0 };
     }
     
-    // Sort by date descending
-    const sorted = [...dailyStats].sort((a, b) => b.date.localeCompare(a.date));
+    // Create a map of dates with reviews for fast lookup
+    const datesWithReviews = new Set(
+      dailyStats.filter(s => s.reviewCount > 0).map(s => s.date)
+    );
     
-    let currentStreak = 0;
-    let longestStreak = 0;
-    let tempStreak = 0;
+    if (datesWithReviews.size === 0) {
+      return { currentStreak: 0, longestStreak: 0 };
+    }
     
     const today = this.getTodayString();
-    let checkDate = today;
     
-    // Calculate current streak (consecutive days up to today)
-    for (let i = 0; i < sorted.length; i++) {
-      if (sorted[i].date === checkDate && sorted[i].reviewCount > 0) {
+    // Calculate current streak (consecutive days ending today or yesterday)
+    let currentStreak = 0;
+    const todayMs = new Date(today).getTime();
+    
+    // Check from today backwards
+    for (let i = 0; i < 365; i++) { // Max 1 year lookback
+      const checkDate = new Date(todayMs - i * 86400000);
+      const dateStr = this.dateToString(checkDate);
+      
+      if (datesWithReviews.has(dateStr)) {
         currentStreak++;
-        // Move to previous day
-        const date = new Date(checkDate);
-        date.setDate(date.getDate() - 1);
-        checkDate = this.dateToString(date);
+      } else if (i === 0) {
+        // No review today, check if yesterday has reviews (grace period)
+        continue;
       } else {
+        // Gap found, stop
         break;
       }
     }
     
     // Calculate longest streak
-    const allDates = this.generateDateRange(sorted[sorted.length - 1].date, sorted[0].date);
-    const statsMap = new Map(sorted.map(s => [s.date, s]));
+    const sortedDates = Array.from(datesWithReviews).sort();
+    let longestStreak = 1;
+    let tempStreak = 1;
     
-    for (const date of allDates) {
-      const stats = statsMap.get(date);
-      if (stats && stats.reviewCount > 0) {
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prevDate = new Date(sortedDates[i - 1]);
+      const currDate = new Date(sortedDates[i]);
+      const dayDiff = Math.floor((currDate.getTime() - prevDate.getTime()) / 86400000);
+      
+      if (dayDiff === 1) {
+        // Consecutive day
         tempStreak++;
         longestStreak = Math.max(longestStreak, tempStreak);
       } else {
-        tempStreak = 0;
+        // Gap found, reset
+        tempStreak = 1;
       }
     }
     

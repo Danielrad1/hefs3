@@ -43,6 +43,24 @@ export class OpenAIProvider implements AIProvider {
     console.log('[OpenAIProvider] System prompt length:', systemPrompt.length);
     console.log('[OpenAIProvider] User prompt length:', userPrompt.length);
     
+    // Estimate token count (rough approximation: 1 token ≈ 4 characters)
+    const estimatedTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+    const modelConfig = AI_CONFIG.models.find(m => m.id === this.model);
+    const maxTokens = modelConfig?.capabilities.maxTokens || 128000;
+    
+    console.log('[OpenAIProvider] Estimated input tokens:', estimatedTokens.toLocaleString());
+    console.log('[OpenAIProvider] Model max tokens:', maxTokens.toLocaleString());
+    
+    // Check if input is too large (leaving room for output)
+    const maxInputTokens = maxTokens * 0.75; // Reserve 25% for output
+    if (estimatedTokens > maxInputTokens) {
+      throw new Error(
+        `Input is too large. Estimated ${estimatedTokens.toLocaleString()} tokens, ` +
+        `but model limit is ${maxTokens.toLocaleString()} tokens. ` +
+        `Try reducing the amount of text or splitting it into multiple decks.`
+      );
+    }
+    
     // Log full prompts for debugging
     console.log('[OpenAIProvider] ========== SYSTEM PROMPT ==========');
     console.log(systemPrompt);
@@ -127,7 +145,41 @@ export class OpenAIProvider implements AIProvider {
       return response;
     } catch (error) {
       console.error('[OpenAIProvider] Generation failed:', error);
-      throw new Error(`AI generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Handle specific OpenAI errors
+      if (error instanceof Error) {
+        const errorMessage = error.message.toLowerCase();
+        
+        // Token limit errors
+        if (errorMessage.includes('maximum context length') || 
+            errorMessage.includes('token limit') ||
+            errorMessage.includes('context_length_exceeded')) {
+          const modelConfig = AI_CONFIG.models.find(m => m.id === this.model);
+          const maxTokens = modelConfig?.capabilities.maxTokens || 'unknown';
+          throw new Error(
+            `Input is too large. Your text exceeds the model's token limit of ${maxTokens.toLocaleString()} tokens. ` +
+            `Try reducing the amount of text or splitting it into multiple decks.`
+          );
+        }
+        
+        // Rate limit errors
+        if (errorMessage.includes('rate limit') || errorMessage.includes('quota')) {
+          throw new Error(
+            'API rate limit exceeded. Please wait a moment and try again.'
+          );
+        }
+        
+        // Invalid API key
+        if (errorMessage.includes('api key') || errorMessage.includes('unauthorized')) {
+          throw new Error(
+            'Invalid API key. Please check your OpenAI API key configuration.'
+          );
+        }
+        
+        throw new Error(`AI generation failed: ${error.message}`);
+      }
+      
+      throw new Error('AI generation failed: Unknown error');
     }
   }
 
