@@ -52,11 +52,11 @@ export class OpenAIProvider implements AIProvider {
     console.log('[OpenAIProvider] Model max tokens:', maxTokens.toLocaleString());
     
     // Check if input is too large (leaving room for output)
-    const maxInputTokens = maxTokens * 0.75; // Reserve 25% for output
+    const maxInputTokens = maxTokens * 0.90; // Reserve 10% for output (~40k tokens for GPT-5)
     if (estimatedTokens > maxInputTokens) {
       throw new Error(
         `Input is too large. Estimated ${estimatedTokens.toLocaleString()} tokens, ` +
-        `but model limit is ${maxTokens.toLocaleString()} tokens. ` +
+        `but model limit is ${maxTokens.toLocaleString()} tokens (allowing ${maxInputTokens.toLocaleString()} for input). ` +
         `Try reducing the amount of text or splitting it into multiple decks.`
       );
     }

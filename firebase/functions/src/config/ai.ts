@@ -5,7 +5,7 @@
 
 export const AI_CONFIG = {
   // Default model to use for deck generation
-  defaultModel: 'gpt-4o-mini',
+  defaultModel: 'gpt-5-nano-2025-08-07', // 400k tokens, $0.05/1M input
   
   // Available models with their capabilities
   models: [
