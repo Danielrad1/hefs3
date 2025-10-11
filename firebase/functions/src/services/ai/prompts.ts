@@ -16,10 +16,13 @@ const BASIC_CARD_PROMPT = `${BASE_PROMPT}
 
 For BASIC cards, each note object must have:
 {
+  "cardNumber": number (1, 2, 3... up to the requested count),
   "front": "string (question/prompt - keep SHORT and clear)",
   "back": "string (answer - concise but complete)",
   "tags": ["array", "of", "tags"] (optional)
 }
+
+IMPORTANT: Include cardNumber starting from 1 and incrementing by 1 for each card.
 
 CRITICAL FORMATTING RULES:
 1. Use HTML for formatting:
@@ -62,9 +65,12 @@ const CLOZE_CARD_PROMPT = `${BASE_PROMPT}
 
 For CLOZE cards, each note object must have:
 {
+  "cardNumber": number (1, 2, 3... up to the requested count),
   "cloze": "string with {{c1::term}} syntax",
   "tags": ["array", "of", "tags"] (optional)
 }
+
+IMPORTANT: Include cardNumber starting from 1 and incrementing by 1 for each card.
 
 CRITICAL CLOZE SYNTAX:
 - Use {{c1::answer}} for first cloze deletion
@@ -132,7 +138,8 @@ export function buildUserPrompt(params: {
 
   // STRONG enforcement of card count at the very beginning
   userPrompt = `REQUIRED CARD COUNT: ${itemLimit}\n`;
-  userPrompt += `You MUST generate EXACTLY ${itemLimit} flashcards. Not ${itemLimit - 1}, not ${itemLimit + 1}, but EXACTLY ${itemLimit}.\n\n`;
+  userPrompt += `You MUST generate EXACTLY ${itemLimit} flashcards. Not ${itemLimit - 1}, not ${itemLimit + 1}, but EXACTLY ${itemLimit}.\n`;
+  userPrompt += `Number each card from 1 to ${itemLimit} using the "cardNumber" field.\n\n`;
 
   if (sourceType === 'prompt') {
     userPrompt += `Topic: ${prompt}`;
@@ -158,8 +165,11 @@ export function buildUserPrompt(params: {
   // Triple enforcement with different phrasings
   userPrompt += `\n\n⚠️ CRITICAL REQUIREMENT ⚠️`;
   userPrompt += `\nThe "notes" array in your JSON response MUST contain EXACTLY ${itemLimit} items.`;
-  userPrompt += `\nCount carefully: 1, 2, 3... up to ${itemLimit}.`;
-  userPrompt += `\nIf you generate ${itemLimit - 1} or ${itemLimit + 1} cards, your response will be rejected.`;
+  userPrompt += `\nNumber each card: cardNumber 1, 2, 3... up to ${itemLimit}.`;
+  userPrompt += `\nDO NOT STOP until you reach cardNumber ${itemLimit}.`;
+  userPrompt += `\nThe last card MUST have "cardNumber": ${itemLimit}.`;
+  userPrompt += `\nIf you stop early at card ${itemLimit - 1} or generate ${itemLimit + 1} cards, your response will be rejected.`;
+  userPrompt += `\nKeep generating cards until you reach the target count.`;
   userPrompt += `\n\nOutput valid JSON only. No additional text before or after the JSON.`;
 
   return userPrompt;

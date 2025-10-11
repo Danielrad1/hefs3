@@ -164,7 +164,7 @@ export class StatsService {
   }
 
   /**
-   * Calculate daily statistics from revlog (optimized - no Date objects)
+   * Calculate daily statistics from revlog - FIXED to use local timezone
    */
   private calculateDailyStats(revlog: AnkiRevlog[]): DailyStats[] {
     const dailyMap = new Map<string, {
@@ -173,12 +173,11 @@ export class StatsService {
       totalTime: number;
     }>();
     
-    // Optimize: Group by day using simple math (no Date objects)
+    // Group by date string (using local timezone consistently)
     revlog.forEach(entry => {
       const timestampMs = parseInt(entry.id, 10);
-      // Convert to days since epoch
-      const daysSinceEpoch = Math.floor(timestampMs / 86400000); // 86400000ms = 1 day
-      const dateStr = daysSinceEpoch.toString(); // Use day number as key
+      const date = new Date(timestampMs);
+      const dateStr = this.dateToString(date); // Use local timezone
       
       const existing = dailyMap.get(dateStr) || { reviews: 0, correct: 0, totalTime: 0 };
       
@@ -191,21 +190,15 @@ export class StatsService {
       dailyMap.set(dateStr, existing);
     });
     
-    // Convert day numbers back to date strings for display
+    // Convert to array and sort
     return Array.from(dailyMap.entries())
-      .map(([dayStr, stats]) => {
-        const daysSinceEpoch = parseInt(dayStr, 10);
-        const date = new Date(daysSinceEpoch * 86400000);
-        const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        
-        return {
-          date: dateString,
-          reviewCount: stats.reviews,
-          correctCount: stats.correct,
-          totalTimeMs: stats.totalTime,
-          avgTimeMs: stats.totalTime / stats.reviews,
-        };
-      })
+      .map(([dateStr, stats]) => ({
+        date: dateStr,
+        reviewCount: stats.reviews,
+        correctCount: stats.correct,
+        totalTimeMs: stats.totalTime,
+        avgTimeMs: stats.totalTime / stats.reviews,
+      }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
@@ -260,24 +253,47 @@ export class StatsService {
     
     const today = this.getTodayString();
     
-    // Calculate current streak (consecutive days ending today or yesterday)
+    // Calculate current streak (consecutive days with reviews)
+    // Streak logic: consecutive days you've studied, including today if you studied today
     let currentStreak = 0;
     const todayMs = new Date(today).getTime();
     
-    // Check from today backwards
-    for (let i = 0; i < 365; i++) { // Max 1 year lookback
-      const checkDate = new Date(todayMs - i * 86400000);
-      const dateStr = this.dateToString(checkDate);
+    // Check if user studied today or yesterday (grace period)
+    const hasStudiedToday = datesWithReviews.has(today);
+    const yesterday = new Date(todayMs - 86400000);
+    const yesterdayStr = this.dateToString(yesterday);
+    const hasStudiedYesterday = datesWithReviews.has(yesterdayStr);
+    
+    console.log('[StatsService] Streak calculation:', {
+      today,
+      hasStudiedToday,
+      yesterdayStr,
+      hasStudiedYesterday,
+      datesWithReviews: Array.from(datesWithReviews).slice(0, 10), // First 10 dates
+      totalDatesWithReviews: datesWithReviews.size,
+    });
+    
+    // If no activity today or yesterday, streak is broken
+    if (!hasStudiedToday && !hasStudiedYesterday) {
+      currentStreak = 0;
+      console.log('[StatsService] Streak broken - no activity today or yesterday');
+    } else {
+      // Count backwards from today to find consecutive days
+      let startDay = hasStudiedToday ? 0 : 1; // Start from today if studied today, else yesterday
       
-      if (datesWithReviews.has(dateStr)) {
-        currentStreak++;
-      } else if (i === 0) {
-        // No review today, check if yesterday has reviews (grace period)
-        continue;
-      } else {
-        // Gap found, stop
-        break;
+      for (let i = startDay; i < 365; i++) { // Max 1 year lookback
+        const checkDate = new Date(todayMs - i * 86400000);
+        const dateStr = this.dateToString(checkDate);
+        
+        if (datesWithReviews.has(dateStr)) {
+          currentStreak++;
+        } else {
+          // Gap found, stop counting
+          console.log('[StatsService] Streak stopped at day', i, 'date:', dateStr);
+          break;
+        }
       }
+      console.log('[StatsService] Final current streak:', currentStreak);
     }
     
     // Calculate longest streak

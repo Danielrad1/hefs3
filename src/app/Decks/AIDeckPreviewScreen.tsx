@@ -215,8 +215,10 @@ export default function AIDeckPreviewScreen() {
           {
             text: 'View Deck',
             onPress: () => {
-              console.log('[AIDeckPreview] Navigating to deck detail:', deck.id);
-              // Go back to creator screen first, then navigate
+              console.log('[AIDeckPreview] Navigating to deck detail');
+              deckSavedRef.current = true;
+              // Navigate back through: Preview -> AIGenerating -> AIDeckCreator -> DecksList
+              navigation.goBack(); // Back to AIGenerating
               navigation.goBack(); // Back to AIDeckCreator
               navigation.goBack(); // Back to DecksList
               // Then navigate to detail
@@ -230,6 +232,8 @@ export default function AIDeckPreviewScreen() {
             style: 'cancel',
             onPress: () => {
               console.log('[AIDeckPreview] User dismissed, going back to decks');
+              // Navigate back through: Preview -> AIGenerating -> AIDeckCreator -> DecksList
+              navigation.goBack(); // Back to AIGenerating
               navigation.goBack(); // Back to AIDeckCreator
               navigation.goBack(); // Back to DecksList
             },

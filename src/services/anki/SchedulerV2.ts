@@ -202,9 +202,9 @@ export class SchedulerV2 {
     // Update card in database
     this.db.updateCard(cardId, newCard);
 
-    // Add revlog entry
+    // Add revlog entry (ID must be timestamp in milliseconds for stats calculation)
     const revlogEntry: AnkiRevlog = {
-      id: generateId(),
+      id: Date.now().toString(), // Use timestamp directly, not generateId()
       cid: cardId,
       usn: -1,
       ease,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
@@ -17,6 +17,7 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const { bootstrap } = useScheduler();
   const [homeStats, setHomeStats] = useState<HomeStats | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const isCalculatingRef = React.useRef(false);
 
   // Bootstrap sample data ONLY on first launch (empty database)
@@ -31,14 +32,17 @@ export default function HomeScreen() {
   }, [bootstrap]);
 
   // Function to refresh stats
-  const refreshStats = React.useCallback(() => {
-    if (isCalculatingRef.current) {
+  const refreshStats = React.useCallback((forceRefresh = false) => {
+    if (isCalculatingRef.current && !forceRefresh) {
       console.log('[HomeScreen] Already calculating, skipping...');
       return;
     }
     
-    console.log('[HomeScreen] Starting stats calculation...');
+    console.log('[HomeScreen] Starting stats calculation...', forceRefresh ? '(forced)' : '');
     isCalculatingRef.current = true;
+    if (forceRefresh) {
+      setIsRefreshing(true);
+    }
     
     setTimeout(() => {
       console.log('[HomeScreen] Calculating stats from database...');
@@ -48,23 +52,27 @@ export default function HomeScreen() {
         dueCount: stats.dueCount,
         totalCards: stats.totalCardsCount,
         todayReviews: stats.todayReviewCount,
+        currentStreak: stats.currentStreak,
       });
       setHomeStats(stats);
       isCalculatingRef.current = false;
+      setIsRefreshing(false);
       console.log('[HomeScreen] Stats set, rendering complete');
     }, 0);
   }, []);
 
-  // Calculate statistics only when screen is focused (handles both first load and returns)
+  // Pull-to-refresh handler
+  const onRefresh = React.useCallback(() => {
+    console.log('[HomeScreen] Pull-to-refresh triggered');
+    refreshStats(true);
+  }, [refreshStats]);
+
+  // Calculate statistics when screen is focused
   useFocusEffect(
     React.useCallback(() => {
-      console.log('[HomeScreen] useFocusEffect triggered, homeStats:', !!homeStats, 'isCalculating:', isCalculatingRef.current);
-      // Only refresh if stats are missing and not already calculating
-      if (!homeStats && !isCalculatingRef.current) {
-        console.log('[HomeScreen] Calling refreshStats from useFocusEffect');
-        refreshStats();
-      }
-    }, [homeStats, refreshStats])
+      console.log('[HomeScreen] useFocusEffect triggered, refreshing stats');
+      refreshStats();
+    }, [refreshStats])
   );
 
   // Show loading state while stats are being calculated
@@ -83,7 +91,18 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.accent}
+            colors={[theme.colors.accent]}
+          />
+        }
+      >
         {/* Streak Badge */}
         {homeStats.currentStreak > 0 && (
           <View style={styles.streakContainer}>

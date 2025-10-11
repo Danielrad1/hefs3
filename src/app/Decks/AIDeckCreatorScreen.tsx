@@ -166,8 +166,8 @@ export default function AIDeckCreatorScreen() {
     }
 
     const limit = parseInt(itemLimit) || 50;
-    if (limit < 1 || limit > 1000) {
-      Alert.alert('Error', 'Item limit must be between 1 and 1000');
+    if (limit < 1 || limit > 150) {
+      Alert.alert('Error', 'Item limit must be between 1 and 150');
       return;
     }
 
@@ -507,7 +507,7 @@ export default function AIDeckCreatorScreen() {
             keyboardType="number-pad"
           />
           <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
-            Maximum: 1000 cards
+            Maximum: 150 cards
           </Text>
         </View>
         </ScrollView>

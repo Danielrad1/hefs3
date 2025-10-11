@@ -2,8 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme/theme';
-import { s } from '../../theme/spacing';
+import { useTheme } from '../../design/theme';
+import { s } from '../../design/spacing';
 
 export default function AIGeneratingScreen() {
   const theme = useTheme();
@@ -203,7 +203,7 @@ export default function AIGeneratingScreen() {
         <View style={styles.tipContainer}>
           <Ionicons name="bulb-outline" size={20} color="#8B5CF6" />
           <Text style={[styles.tip, { color: theme.colors.textSecondary }]}>
-            This may take 30-60 seconds for large documents
+            This may take a couple minutes for very large documents
           </Text>
         </View>
       </View>
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     padding: s.xl,
   },
   mainSparkle: {
-    marginBottom: s.xxl * 2,
+    marginBottom: s['2xl'] * 2,
   },
   orbitingSparkle: {
     position: 'absolute',
@@ -231,13 +231,13 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     textAlign: 'center',
-    marginTop: s.xxl,
+    marginTop: s['2xl'],
     marginBottom: s.md,
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: s.xxl,
+    marginBottom: s['2xl'],
     paddingHorizontal: s.xl,
   },
   tipContainer: {
