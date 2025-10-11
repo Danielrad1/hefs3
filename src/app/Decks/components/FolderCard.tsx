@@ -5,51 +5,36 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../design/theme';
 import { s } from '../../../design/spacing';
 import { r } from '../../../design/radii';
-import { DeckMetadata } from '../../../services/anki/DeckMetadataService';
+import { FolderMetadata } from '../../../services/anki/DeckMetadataService';
 
-interface DeckWithStats {
-  id: string;
-  name: string;
-  cardCount: number;
-  dueCount: number;
-}
-
-interface DeckCardProps {
-  deck: DeckWithStats;
-  level: number;
-  hasChildren: boolean;
+interface FolderCardProps {
+  folderName: string;
+  metadata?: FolderMetadata | null;
+  deckCount: number;
+  totalCards: number;
+  dueCards: number;
   isExpanded: boolean;
-  isCurrentDeck: boolean;
-  metadata?: DeckMetadata | null;
   onPress: () => void;
   onLongPress: () => void;
   onMorePress: () => void;
 }
 
-export default function DeckCard({
-  deck,
-  level,
-  hasChildren,
-  isExpanded,
-  isCurrentDeck,
+export default function FolderCard({
+  folderName,
   metadata,
+  deckCount,
+  totalCards,
+  dueCards,
+  isExpanded,
   onPress,
   onLongPress,
   onMorePress,
-}: DeckCardProps) {
+}: FolderCardProps) {
   const theme = useTheme();
-  const parts = deck.name.split('::');
-  const leafName = parts[parts.length - 1];
-  const indent = level * 20;
 
   const customColor = metadata?.color;
   const customIcon = metadata?.icon;
   const isEmoji = customIcon && (customIcon.length <= 2 && !/^[a-z-]+$/.test(customIcon));
-
-  // Log for debugging
-  if (metadata) {
-    console.log('[DeckCard] Rendering with metadata:', { deckId: deck.id, customColor, customIcon });
-  }
 
   // Generate gradient colors
   const gradientColors = customColor 
@@ -58,51 +43,58 @@ export default function DeckCard({
 
   const cardContent = (
     <>
-      <View style={styles.deckHeader}>
-        <View style={styles.deckTitleRow}>
-          {/* Chevron for hierarchical decks - ALWAYS show if hasChildren */}
-          {hasChildren && (
-            <Ionicons 
-              name={isExpanded ? 'chevron-down' : 'chevron-forward'} 
-              size={16} 
-              color={theme.colors.textSecondary}
-              style={styles.expandIcon}
-            />
+      <View style={styles.folderHeader}>
+        <View style={styles.folderTitleRow}>
+          {/* Chevron on the left */}
+          <Ionicons 
+            name={isExpanded ? 'chevron-down' : 'chevron-forward'} 
+            size={16} 
+            color={theme.colors.textSecondary}
+            style={styles.expandIcon}
+          />
+          
+          {/* Folder Icon - with badge only if has custom color */}
+          {!customIcon && (
+            customColor ? (
+              <View style={[styles.folderBadge, { backgroundColor: customColor + '20' }]}>
+                <Ionicons 
+                  name={isExpanded ? 'folder-open' : 'folder'} 
+                  size={16} 
+                  color={customColor}
+                />
+              </View>
+            ) : (
+              <Ionicons 
+                name={isExpanded ? 'folder-open' : 'folder'} 
+                size={24} 
+                color={theme.colors.accent}
+              />
+            )
           )}
           
-          {/* Tree Badge for Anki hierarchical decks */}
-          {hasChildren && !customIcon && (
-            <View style={[styles.treeBadge, { backgroundColor: theme.colors.accent + '20' }]}>
-              <Ionicons name="git-network" size={16} color={theme.colors.accent} />
-            </View>
-          )}
-          
-          {/* Custom Icon (separate from chevron and tree badge) */}
+          {/* Custom Icon */}
           {customIcon && (
             isEmoji ? (
               <Text style={styles.emoji}>{customIcon}</Text>
             ) : (
-              <Ionicons name={customIcon as any} size={28} color={customColor || theme.colors.accent} />
+              <Ionicons name={customIcon as any} size={24} color={customColor || theme.colors.accent} />
             )
           )}
           
           <View style={{ flex: 1 }}>
-            {metadata?.folder && (
-              <Text style={[styles.folderPath, { color: theme.colors.textSecondary }]}>
-                {metadata.folder}
-              </Text>
-            )}
             <Text 
               style={[
-                styles.deckName, 
+                styles.folderName, 
                 { color: theme.colors.textPrimary }
               ]}
               numberOfLines={1}
             >
-              {leafName}
+              {folderName}
             </Text>
           </View>
         </View>
+
+        {/* 3-dot menu button */}
         <Pressable
           style={styles.moreButton}
           onPress={onMorePress}
@@ -110,14 +102,18 @@ export default function DeckCard({
           <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.textSecondary} />
         </Pressable>
       </View>
-      
-      <View style={styles.deckStats}>
+
+      <View style={styles.folderStats}>
         <Text style={[styles.statText, { color: theme.colors.accent }]}>
-          {deck.dueCount} due
+          {dueCards} due
         </Text>
         <Text style={[styles.statDivider, { color: theme.colors.textSecondary }]}>•</Text>
         <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
-          {deck.cardCount} cards
+          {totalCards} cards
+        </Text>
+        <Text style={[styles.statDivider, { color: theme.colors.textSecondary }]}>•</Text>
+        <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
+          {deckCount} {deckCount === 1 ? 'deck' : 'decks'}
         </Text>
       </View>
     </>
@@ -126,7 +122,7 @@ export default function DeckCard({
   if (customColor && gradientColors) {
     return (
       <Pressable
-        style={[styles.deckCard, { marginLeft: indent, overflow: 'hidden' }]}
+        style={[styles.folderCard, { overflow: 'hidden' }]}
         onPress={onPress}
         onLongPress={onLongPress}
       >
@@ -144,12 +140,11 @@ export default function DeckCard({
   return (
     <Pressable
       style={[
-        styles.deckCard,
+        styles.folderCard,
         {
           backgroundColor: theme.colors.surface,
-          marginLeft: indent,
-          borderLeftWidth: isCurrentDeck ? 4 : 0,
-          borderLeftColor: theme.colors.accent,
+          borderWidth: 1,
+          borderColor: theme.colors.border,
         },
       ]}
       onPress={onPress}
@@ -161,49 +156,44 @@ export default function DeckCard({
 }
 
 const styles = StyleSheet.create({
-  deckCard: {
+  folderCard: {
     padding: s.lg,
     borderRadius: r.lg,
     marginBottom: s.md,
   },
-  deckHeader: {
+  folderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: s.md,
   },
-  deckTitleRow: {
+  folderTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: s.sm,
     flex: 1,
   },
-  emoji: {
-    fontSize: 28,
-  },
   expandIcon: {
     marginRight: 4,
   },
-  treeBadge: {
+  folderBadge: {
     width: 32,
     height: 32,
     borderRadius: r.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  folderPath: {
-    fontSize: 11,
-    marginBottom: 2,
-    opacity: 0.7,
+  emoji: {
+    fontSize: 24,
   },
-  deckName: {
+  folderName: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   moreButton: {
     padding: s.xs,
   },
-  deckStats: {
+  folderStats: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: s.sm,

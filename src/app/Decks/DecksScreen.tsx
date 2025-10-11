@@ -15,11 +15,16 @@ import { db } from '../../services/anki/InMemoryDb';
 import { PersistenceService } from '../../services/anki/PersistenceService';
 import { useDeckImport } from './hooks/useDeckImport';
 import DeckCard from './components/DeckCard';
+import FolderCard from './components/FolderCard';
 import AddDeckModal from './components/AddDeckModal';
 import ImportProgressModal from './components/ImportProgressModal';
 import ImportOptionsModal from './components/ImportOptionsModal';
 import CreateDeckForm from './components/CreateDeckForm';
+import DeckCustomizationModal from './components/DeckCustomizationModalV2';
+import FolderCustomizationModal from './components/FolderCustomizationModalV2';
+import FolderManagementModal from './components/FolderManagementModalV2';
 import { buildDeckTree, filterDecks, DeckWithStats, DeckNode } from './utils/deckTreeUtils';
+import { deckMetadataService, DeckMetadata, FolderMetadata } from '../../services/anki/DeckMetadataService';
 
 export default function DecksScreen() {
   const theme = useTheme();
@@ -34,6 +39,16 @@ export default function DecksScreen() {
   const [deckToRename, setDeckToRename] = useState<DeckWithStats | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [addDeckModalVisible, setAddDeckModalVisible] = useState(false);
+  const [customizationModalVisible, setCustomizationModalVisible] = useState(false);
+  const [deckToCustomize, setDeckToCustomize] = useState<DeckWithStats | null>(null);
+  const [deckMetadata, setDeckMetadata] = useState<Map<string, DeckMetadata>>(new Map());
+  const [folderMetadata, setFolderMetadata] = useState<Map<string, FolderMetadata>>(new Map());
+  const [folderModalVisible, setFolderModalVisible] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [folderCustomizationModalVisible, setFolderCustomizationModalVisible] = useState(false);
+  const [folderToCustomize, setFolderToCustomize] = useState<string | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [folderActionSheetVisible, setFolderActionSheetVisible] = useState(false);
 
   const deckService = React.useMemo(() => new DeckService(db), []);
   const cardService = React.useMemo(() => new CardService(db), []);
@@ -51,12 +66,25 @@ export default function DecksScreen() {
     onCancelOptions,
   } = useDeckImport(reload, reload);
 
-  // Reload decks when screen comes into focus (e.g., after creating AI deck)
+  // Load metadata on mount and when screen focuses
+  const loadMetadata = React.useCallback(async () => {
+    const metadata = await deckMetadataService.getAllMetadata();
+    const folderMeta = await deckMetadataService.getAllFolderMetadata();
+    console.log('[DecksScreen] Loaded metadata:', metadata.size, 'decks', folderMeta.size, 'folders');
+    metadata.forEach((meta, deckId) => {
+      console.log('[DecksScreen] Deck', deckId, ':', meta);
+    });
+    setDeckMetadata(metadata);
+    setFolderMetadata(folderMeta);
+  }, []);
+
+  // Reload decks and metadata when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log('[DecksScreen] Screen focused, reloading decks');
+      console.log('[DecksScreen] Screen focused, reloading decks and metadata');
       reload();
-    }, [reload])
+      loadMetadata();
+    }, [reload, loadMetadata])
   );
 
   const handleDeckPress = (deckId: string) => {
@@ -152,6 +180,79 @@ export default function DecksScreen() {
     }
   };
 
+  const handleCustomizeDeck = (deck: DeckWithStats) => {
+    setDeckToCustomize(deck);
+    setCustomizationModalVisible(true);
+    setActionSheetVisible(false);
+  };
+
+  const handleSaveCustomization = async (updates: Partial<Omit<DeckMetadata, 'deckId'>>) => {
+    if (!deckToCustomize) return;
+    
+    console.log('[DecksScreen] Saving customization for deck:', deckToCustomize.id, updates);
+    await deckMetadataService.updateMetadata(deckToCustomize.id, updates);
+    await loadMetadata();
+    setCustomizationModalVisible(false);
+    console.log('[DecksScreen] Customization saved and metadata reloaded');
+  };
+
+  const handleSaveFolderCustomization = async (updates: Partial<Omit<FolderMetadata, 'folderName'>>) => {
+    if (!folderToCustomize) return;
+    
+    console.log('[DecksScreen] Saving customization for folder:', folderToCustomize, updates);
+    await deckMetadataService.updateFolderMetadata(folderToCustomize, updates);
+    await loadMetadata();
+    setFolderCustomizationModalVisible(false);
+    console.log('[DecksScreen] Folder customization saved and metadata reloaded');
+  };
+
+  const getFolderActions = (folderName: string): DeckAction[] => {
+    return [
+      {
+        id: 'customize',
+        label: 'Customize',
+        icon: 'color-palette-outline',
+        onPress: () => {
+          setFolderToCustomize(folderName);
+          setFolderCustomizationModalVisible(true);
+          setFolderActionSheetVisible(false);
+        },
+      },
+      {
+        id: 'delete',
+        label: 'Delete Folder',
+        icon: 'trash-outline',
+        onPress: async () => {
+          setFolderActionSheetVisible(false);
+          Alert.alert(
+            'Delete Folder',
+            `Delete "${folderName}"? All decks in this folder will be unassigned.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                  // Remove folder assignment from all decks
+                  const allMeta = await deckMetadataService.getAllMetadata();
+                  for (const [deckId, meta] of allMeta.entries()) {
+                    if (meta.folder === folderName) {
+                      await deckMetadataService.updateMetadata(deckId, { folder: undefined });
+                    }
+                  }
+                  // Delete folder metadata
+                  await deckMetadataService.deleteFolderMetadata(folderName);
+                  await loadMetadata();
+                  reload();
+                },
+              },
+            ]
+          );
+        },
+      },
+    ];
+  };
+
   const getDeckActions = (deck: DeckWithStats): DeckAction[] => {
     const actions: DeckAction[] = [
       {
@@ -159,6 +260,12 @@ export default function DecksScreen() {
         label: 'Study Now',
         icon: 'book-outline',
         onPress: () => handleDeckPress(deck.id),
+      },
+      {
+        id: 'customize',
+        label: 'Customize',
+        icon: 'color-palette-outline',
+        onPress: () => handleCustomizeDeck(deck),
       },
       {
         id: 'rename',
@@ -208,6 +315,18 @@ export default function DecksScreen() {
     });
   };
 
+  const toggleFolder = (folderName: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderName)) {
+        next.delete(folderName);
+      } else {
+        next.add(folderName);
+      }
+      return next;
+    });
+  };
+
   const totalDue = decks.reduce((sum, d) => sum + d.dueCount, 0);
   const totalCards = decks.reduce((sum, d) => sum + d.cardCount, 0);
 
@@ -227,6 +346,7 @@ export default function DecksScreen() {
           hasChildren={hasChildren}
           isExpanded={isExpanded}
           isCurrentDeck={currentDeckId === node.deck.id}
+          metadata={deckMetadata.get(node.deck.id)}
           onPress={() => {
             if (hasChildren) {
               toggleExpand(node.deck.name);
@@ -257,12 +377,57 @@ export default function DecksScreen() {
   // Filter decks by search query
   const filteredDecks = React.useMemo(() => filterDecks(decks, searchQuery), [decks, searchQuery]);
 
-  // Build tree from filtered decks
-  const filteredDeckTree = React.useMemo(() => {
+  // Group decks by folder
+  const groupedDecks = React.useMemo(() => {
+    const folders: Record<string, DeckWithStats[]> = {};
+    const unassigned: DeckWithStats[] = [];
+
+    // Initialize all folders from metadata (including empty ones)
+    folderMetadata.forEach((meta, folderName) => {
+      if (!folders[folderName]) {
+        folders[folderName] = [];
+      }
+    });
+
+    // Assign decks to their folders
+    filteredDecks.forEach(deck => {
+      const meta = deckMetadata.get(deck.id);
+      if (meta?.folder) {
+        if (!folders[meta.folder]) {
+          folders[meta.folder] = [];
+        }
+        folders[meta.folder].push(deck);
+      } else {
+        unassigned.push(deck);
+      }
+    });
+
+    // Sort folders by order
+    const sortedFolders = Object.keys(folders).sort((a, b) => {
+      const orderA = folderMetadata.get(a)?.order ?? 999;
+      const orderB = folderMetadata.get(b)?.order ?? 999;
+      return orderA - orderB;
+    });
+
+    console.log('[DecksScreen] Grouped decks - Folders:', sortedFolders.length, 'Unassigned:', unassigned.length);
+
+    return { folders, sortedFolders, unassigned };
+  }, [filteredDecks, deckMetadata, folderMetadata]);
+
+  // Build tree from unassigned decks only (decks not in folders)
+  const unassignedDeckTree = React.useMemo(() => {
     const tree: any[] = [];
     const map = new Map<string, any>();
+    
+    // Only build tree for unassigned decks
+    const unassignedDecks = groupedDecks.unassigned;
+    
+    console.log('[DecksScreen] Building tree from', unassignedDecks.length, 'unassigned decks');
+    unassignedDecks.forEach(deck => {
+      console.log('[DecksScreen] Unassigned deck:', deck.name);
+    });
 
-    filteredDecks.forEach(deck => {
+    unassignedDecks.forEach(deck => {
       const node = {
         deck,
         level: 0,
@@ -271,7 +436,7 @@ export default function DecksScreen() {
       map.set(deck.name, node);
     });
 
-    filteredDecks.forEach(deck => {
+    unassignedDecks.forEach(deck => {
       const node = map.get(deck.name);
       if (!node) return;
 
@@ -280,18 +445,73 @@ export default function DecksScreen() {
         const parentName = parts.slice(0, -1).join('::');
         const parent = map.get(parentName);
         if (parent) {
+          console.log('[DecksScreen] Found parent for', deck.name, '-> parent:', parentName);
           parent.children.push(node);
           node.level = parent.level + 1;
         } else {
+          console.log('[DecksScreen] No parent found for', deck.name, ', adding to root');
           tree.push(node);
         }
       } else {
         tree.push(node);
       }
     });
+    
+    console.log('[DecksScreen] Built tree with', tree.length, 'root nodes');
+    tree.forEach(node => {
+      console.log('[DecksScreen] Root:', node.deck.name, 'children:', node.children.length);
+    });
 
     return tree;
-  }, [filteredDecks]);
+  }, [groupedDecks.unassigned]);
+
+  // Build trees for all folders ONCE (not inside map loop)
+  const folderDeckTrees = React.useMemo(() => {
+    const trees: Record<string, DeckNode[]> = {};
+    
+    groupedDecks.sortedFolders.forEach(folderName => {
+      const decksInFolder = groupedDecks.folders[folderName];
+      const tree: DeckNode[] = [];
+      const map = new Map<string, DeckNode>();
+      
+      // Create nodes for all decks
+      decksInFolder.forEach(deck => {
+        const node: DeckNode = {
+          deck,
+          level: 1, // Start at level 1 since they're inside a folder
+          children: [],
+        };
+        map.set(deck.name, node);
+      });
+      
+      // Build parent-child relationships based on :: notation
+      decksInFolder.forEach(deck => {
+        const node = map.get(deck.name);
+        if (!node) return;
+        
+        const parts = deck.name.split('::');
+        if (parts.length > 1) {
+          // This is a child deck
+          const parentName = parts.slice(0, -1).join('::');
+          const parent = map.get(parentName);
+          if (parent) {
+            parent.children.push(node);
+            node.level = parent.level + 1;
+          } else {
+            // Parent not in folder, treat as root
+            tree.push(node);
+          }
+        } else {
+          // No ::, it's a root deck
+          tree.push(node);
+        }
+      });
+      
+      trees[folderName] = tree;
+    });
+    
+    return trees;
+  }, [groupedDecks.folders, groupedDecks.sortedFolders]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
@@ -300,6 +520,12 @@ export default function DecksScreen() {
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
             Decks
           </Text>
+          <Pressable
+            style={[styles.headerButton, { backgroundColor: theme.colors.surface }]}
+            onPress={() => setFolderModalVisible(true)}
+          >
+            <Ionicons name="folder-outline" size={24} color={theme.colors.accent} />
+          </Pressable>
         </View>
 
         {/* Search Bar */}
@@ -332,9 +558,46 @@ export default function DecksScreen() {
           />
         )}
 
-        {/* Render deck tree */}
+        {/* Render folders and decks */}
         {filteredDecks.length > 0 ? (
-          renderDeckNode(filteredDeckTree, 0)
+          <>
+            {/* Render folders */}
+            {groupedDecks.sortedFolders.map(folderName => {
+              const decksInFolder = groupedDecks.folders[folderName];
+              const isExpanded = expandedFolders.has(folderName);
+              const folderTree = folderDeckTrees[folderName] || [];
+              
+              // Calculate folder stats
+              const folderTotalCards = decksInFolder.reduce((sum, deck) => sum + deck.cardCount, 0);
+              const folderDueCards = decksInFolder.reduce((sum, deck) => sum + deck.dueCount, 0);
+              
+              return (
+                <View key={`folder-${folderName}`}>
+                  <FolderCard
+                    folderName={folderName}
+                    metadata={folderMetadata.get(folderName)}
+                    deckCount={decksInFolder.length}
+                    totalCards={folderTotalCards}
+                    dueCards={folderDueCards}
+                    isExpanded={isExpanded}
+                    onPress={() => toggleFolder(folderName)}
+                    onLongPress={() => {
+                      setSelectedFolder(folderName);
+                      setFolderActionSheetVisible(true);
+                    }}
+                    onMorePress={() => {
+                      setSelectedFolder(folderName);
+                      setFolderActionSheetVisible(true);
+                    }}
+                  />
+                  {isExpanded && renderDeckNode(folderTree, 1)}
+                </View>
+              );
+            })}
+            
+            {/* Render unassigned decks with hierarchy */}
+            {renderDeckNode(unassignedDeckTree, 0)}
+          </>
         ) : (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
@@ -361,6 +624,19 @@ export default function DecksScreen() {
           onClose={() => {
             setActionSheetVisible(false);
             setSelectedDeck(null);
+          }}
+        />
+      )}
+
+      {/* Folder Action Sheet */}
+      {selectedFolder && (
+        <DeckActionSheet
+          visible={folderActionSheetVisible}
+          deckName={selectedFolder}
+          actions={getFolderActions(selectedFolder)}
+          onClose={() => {
+            setFolderActionSheetVisible(false);
+            setSelectedFolder(null);
           }}
         />
       )}
@@ -415,6 +691,45 @@ export default function DecksScreen() {
         progress={importProgress}
         onCancel={cancelImport}
       />
+
+      {/* Deck Customization Modal */}
+      {deckToCustomize && (
+        <DeckCustomizationModal
+          visible={customizationModalVisible}
+          deckName={deckToCustomize.name}
+          currentMetadata={deckMetadata.get(deckToCustomize.id) || null}
+          onSave={handleSaveCustomization}
+          onClose={() => {
+            setCustomizationModalVisible(false);
+            setDeckToCustomize(null);
+          }}
+        />
+      )}
+
+      {/* Folder Customization Modal */}
+      {folderToCustomize && (
+        <FolderCustomizationModal
+          visible={folderCustomizationModalVisible}
+          folderName={folderToCustomize}
+          currentMetadata={folderMetadata.get(folderToCustomize) || null}
+          onSave={handleSaveFolderCustomization}
+          onClose={() => {
+            setFolderCustomizationModalVisible(false);
+            setFolderToCustomize(null);
+          }}
+        />
+      )}
+
+      {/* Folder Management Modal */}
+      <FolderManagementModal
+        visible={folderModalVisible}
+        decks={decks.map(d => ({ id: d.id, name: d.name }))}
+        onClose={() => setFolderModalVisible(false)}
+        onRefresh={() => {
+          reload();
+          loadMetadata();
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -439,6 +754,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: r.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   fab: {
     position: 'absolute',

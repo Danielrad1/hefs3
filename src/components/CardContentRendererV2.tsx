@@ -60,10 +60,9 @@ const CardContentRendererV2 = React.memo(function CardContentRendererV2({
     const audioRegex = /\[sound:([^\]]+)\]/gi;
     let audioMatch;
     while ((audioMatch = audioRegex.exec(html)) !== null) {
-      // Sanitize filename the same way images are sanitized (matching ApkgParser logic)
-      const originalFilename = audioMatch[1];
-      const sanitizedFilename = originalFilename.replace(/[^A-Za-z0-9._-]/g, '_');
-      extractedAudio.push(sanitizedFilename);
+      // Use original filename - files are saved with their original names from .apkg
+      const filename = audioMatch[1];
+      extractedAudio.push(filename);
     }
     return extractedAudio;
   }, [html]);
@@ -76,8 +75,8 @@ const CardContentRendererV2 = React.memo(function CardContentRendererV2({
     processed = processed.replace(
       /<img([^>]+)src="([^"]+)"([^>]*)>/gi,
       (match, before, src, after) => {
-        let sanitized = src.replace(/[^A-Za-z0-9._-]/g, '_');
-        const encodedFilename = encodeURIComponent(sanitized);
+        // Use original filename - files are saved with their original names from .apkg
+        const encodedFilename = encodeURIComponent(src);
         const mediaPath = `${FileSystem.documentDirectory}media/${encodedFilename}`;
         return `<img${before}src="${mediaPath}"${after}>`;
       }
@@ -348,8 +347,9 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
           shouldDuckAndroid: true,
         });
 
-        // Filename is already sanitized when extracted from HTML
-        const mediaPath = `${FileSystem.documentDirectory}media/${filename}`;
+        // Use original filename - encode for URL path
+        const encodedFilename = encodeURIComponent(filename);
+        const mediaPath = `${FileSystem.documentDirectory}media/${encodedFilename}`;
         
         console.log('[AudioPlayer] Loading audio:', filename, '→', mediaPath);
         

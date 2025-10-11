@@ -89,12 +89,13 @@ export class ApkgParser {
         const mediaMap = await this.extractMediaFromFs(extractedDir, options);
         result.mediaFiles = mediaMap;
 
-        // Update note fields to use sanitized filenames
-        console.log('[ApkgParser] Updating note fields with sanitized filenames...');
-        this.updateNoteFieldsWithSanitizedFilenames(result, mediaMap);
+        // No need to update note fields - we use original filenames!
+        console.log('[ApkgParser] Media files saved with original names - no note updates needed');
 
         // Best-effort cleanup of extracted dir
+        console.log('[ApkgParser] Cleaning up extracted directory...');
         try { await FileSystem.deleteAsync(extractedDir, { idempotent: true }); } catch {}
+        console.log('[ApkgParser] Cleanup complete');
 
         console.log('[ApkgParser] Parse complete (streaming path)!');
         onProgress('Completed');
@@ -412,8 +413,9 @@ export class ApkgParser {
   }
 
   /**
-   * Sanitize filename to prevent path traversal and ensure safe characters
-   * Strips all path components and ensures no directory separators remain
+   * Sanitize filename to prevent path traversal ONLY
+   * We keep the original filename to avoid needing to update note HTML
+   * Only strips directory paths - spaces, parentheses, etc. are safe in React Native
    */
   private sanitizeFilename(filename: string): string {
     // Strip all path components - keep only the basename
@@ -423,10 +425,9 @@ export class ApkgParser {
     // Remove any remaining path traversal attempts
     let sanitized = basename.replace(/\.\./g, '');
     
-    // Replace all unsafe characters with underscore
-    // Allow ONLY: alphanumeric, dot, dash, underscore
-    // This ensures / and \ are also replaced
-    sanitized = sanitized.replace(/[^A-Za-z0-9._-]/g, '_');
+    // ONLY remove path separators for security - keep everything else as-is!
+    // Spaces, parentheses, etc. are perfectly safe in React Native file system
+    sanitized = sanitized.replace(/[/\\]/g, '_');
     
     // Final safety check: assert no path separators remain
     if (sanitized.includes('/') || sanitized.includes('\\')) {
@@ -473,16 +474,11 @@ export class ApkgParser {
       index++;
       const file = zip.file(id);
       if (file) {
-        // Sanitize filename to prevent path traversal attacks
-        const sanitizedFilename = this.sanitizeFilename(filename);
-        if (sanitizedFilename !== filename) {
-          console.warn(`[ApkgParser] Sanitized filename from "${filename}" to "${sanitizedFilename}"`);
-        }
-        
+        // Use original filename - React Native FileSystem handles special characters fine
         const blob = await file.async('uint8array');
-        const destPath = `${this.mediaDir}${sanitizedFilename}`;
+        const destPath = `${this.mediaDir}${filename}`;
         
-        console.log(`[ApkgParser] Writing media file: ${sanitizedFilename} to ${destPath}`);
+        console.log(`[ApkgParser] Writing media file: ${filename} to ${destPath}`);
         await FileSystem.writeAsStringAsync(
           destPath,
           this.uint8ArrayToBase64(blob),
@@ -495,9 +491,9 @@ export class ApkgParser {
         // Verify file was written
         const fileInfo = await FileSystem.getInfoAsync(destPath);
         const size = fileInfo.exists && !fileInfo.isDirectory ? (fileInfo as any).size : 0;
-        console.log(`[ApkgParser] Media file written: ${sanitizedFilename}, exists: ${fileInfo.exists}, size: ${size}`);
+        console.log(`[ApkgParser] Media file written: ${filename}, exists: ${fileInfo.exists}, size: ${size}`);
 
-        mediaMap.set(id, sanitizedFilename);
+        mediaMap.set(id, filename);
       } else {
         console.warn(`[ApkgParser] Media file ${id} (${filename}) not found in zip`);
       }
@@ -538,12 +534,12 @@ export class ApkgParser {
         continue;
       }
 
-      const sanitizedFilename = this.sanitizeFilename(filename);
-      if (sanitizedFilename !== filename) {
-        console.warn(`[ApkgParser] Sanitized filename from "${filename}" to "${sanitizedFilename}"`);
-      }
-
-      const destPath = `${this.mediaDir}${sanitizedFilename}`;
+      // Use original filename - React Native FileSystem handles special characters fine
+      const destPath = `${this.mediaDir}${filename}`;
+      
+      // Log the specific file being processed
+      console.log(`[ApkgParser] Processing media ${index}/${entries.length}: ${filename}`);
+      
       try {
         // Prefer move to avoid doubling storage usage
         await FileSystem.moveAsync({ from: srcPath, to: destPath });
@@ -554,11 +550,13 @@ export class ApkgParser {
 
       const writtenInfo = await FileSystem.getInfoAsync(destPath);
       const size = writtenInfo.exists && !writtenInfo.isDirectory ? (writtenInfo as any).size : 0;
-      console.log(`[ApkgParser] Media file placed: ${sanitizedFilename}, exists: ${writtenInfo.exists}, size: ${size}`);
+      console.log(`[ApkgParser] Media file placed: ${filename}, exists: ${writtenInfo.exists}, size: ${size}`);
 
-      // Store original filename → sanitized filename mapping for note updates
-      mediaMap.set(filename, sanitizedFilename);
-      if (index % 25 === 0) {
+      // Store filename (no changes needed since we use original names)
+      mediaMap.set(filename, filename);
+      
+      // Update progress every file for the last 10
+      if (index >= entries.length - 10 || index % 25 === 0) {
         options.onProgress?.(`Placing media… (${index}/${entries.length})`);
       }
     }
@@ -799,7 +797,7 @@ export class ApkgParser {
    * Update note fields to use sanitized filenames
    * Replaces media references in note HTML with sanitized versions
    */
-  private updateNoteFieldsWithSanitizedFilenames(result: ApkgParseResult, mediaMap: Map<string, string>): void {
+  private async updateNoteFieldsWithSanitizedFilenames(result: ApkgParseResult, mediaMap: Map<string, string>): Promise<void> {
     if (!result.notes || result.notes.length === 0 || !mediaMap || mediaMap.size === 0) {
       return;
     }
@@ -821,31 +819,59 @@ export class ApkgParser {
       return;
     }
 
-    // Update each note's fields
+    // Update each note's fields - OPTIMIZED VERSION
+    console.log(`[ApkgParser] Starting to update ${result.notes.length} notes with ${originalToSanitized.size} filename replacements`);
     let updatedCount = 0;
-    result.notes.forEach(note => {
-      let originalFields = note.flds;
-      let updatedFields = originalFields;
-
-      // Replace all media references
-      originalToSanitized.forEach((sanitized, original) => {
-        // Match [sound:filename] and <img src="filename">
-        const soundRegex = new RegExp(`\\[sound:${this.escapeRegex(original)}\\]`, 'gi');
-        const imgRegex = new RegExp(`src="${this.escapeRegex(original)}"`, 'gi');
-        
-        updatedFields = updatedFields.replace(soundRegex, `[sound:${sanitized}]`);
-        updatedFields = updatedFields.replace(imgRegex, `src="${sanitized}"`);
+    
+    // Build a single combined regex pattern for all replacements (much faster!)
+    const replacements: Array<{ pattern: RegExp; replacement: string }> = [];
+    originalToSanitized.forEach((sanitized, original) => {
+      const escapedOriginal = this.escapeRegex(original);
+      // Match [sound:filename]
+      replacements.push({
+        pattern: new RegExp(`\\[sound:${escapedOriginal}\\]`, 'gi'),
+        replacement: `[sound:${sanitized}]`
       });
-
-      if (updatedFields !== originalFields) {
-        note.flds = updatedFields;
-        updatedCount++;
-      }
+      // Match <img src="filename">
+      replacements.push({
+        pattern: new RegExp(`src="${escapedOriginal}"`, 'gi'),
+        replacement: `src="${sanitized}"`
+      });
     });
+    
+    console.log(`[ApkgParser] Built ${replacements.length} replacement patterns`);
+    
+    // Process notes in batches with progress updates
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < result.notes.length; i += BATCH_SIZE) {
+      const batch = result.notes.slice(i, Math.min(i + BATCH_SIZE, result.notes.length));
+      
+      batch.forEach(note => {
+        let originalFields = note.flds;
+        let updatedFields = originalFields;
 
-    if (updatedCount > 0) {
-      console.log(`[ApkgParser] Updated ${updatedCount} notes with sanitized filenames`);
+        // Apply all replacements
+        for (const { pattern, replacement } of replacements) {
+          updatedFields = updatedFields.replace(pattern, replacement);
+        }
+
+        if (updatedFields !== originalFields) {
+          note.flds = updatedFields;
+          updatedCount++;
+        }
+      });
+      
+      // Log progress and yield to event loop
+      if (i % 500 === 0) {
+        console.log(`[ApkgParser] Processed ${Math.min(i + BATCH_SIZE, result.notes.length)}/${result.notes.length} notes`);
+      }
+      
+      // Yield to event loop every batch to prevent UI freeze
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
+
+    console.log(`[ApkgParser] Finished updating notes. Updated ${updatedCount} notes with sanitized filenames`);
+    console.log(`[ApkgParser] updateNotesWithMediaRenames COMPLETE`);
   }
 
   /**
