@@ -24,60 +24,44 @@ export default function HomeScreen() {
   useEffect(() => {
     const allCards = db.getAllCards();
     if (allCards.length === 0) {
-      console.log('[HomeScreen] First launch - loading sample decks');
       bootstrap(sampleCards);
-    } else {
-      console.log('[HomeScreen] Database has', allCards.length, 'cards');
     }
   }, [bootstrap]);
 
   // Function to refresh stats
   const refreshStats = React.useCallback((forceRefresh = false) => {
     if (isCalculatingRef.current && !forceRefresh) {
-      console.log('[HomeScreen] Already calculating, skipping...');
       return;
     }
     
-    console.log('[HomeScreen] Starting stats calculation...', forceRefresh ? '(forced)' : '');
     isCalculatingRef.current = true;
     if (forceRefresh) {
       setIsRefreshing(true);
     }
     
     setTimeout(() => {
-      console.log('[HomeScreen] Calculating stats from database...');
       const statsService = new StatsService(db);
       const stats = statsService.getHomeStats();
-      console.log('[HomeScreen] Stats calculated:', {
-        dueCount: stats.dueCount,
-        totalCards: stats.totalCardsCount,
-        todayReviews: stats.todayReviewCount,
-        currentStreak: stats.currentStreak,
-      });
       setHomeStats(stats);
       isCalculatingRef.current = false;
       setIsRefreshing(false);
-      console.log('[HomeScreen] Stats set, rendering complete');
     }, 0);
   }, []);
 
   // Pull-to-refresh handler
   const onRefresh = React.useCallback(() => {
-    console.log('[HomeScreen] Pull-to-refresh triggered');
     refreshStats(true);
   }, [refreshStats]);
 
   // Calculate statistics when screen is focused
   useFocusEffect(
     React.useCallback(() => {
-      console.log('[HomeScreen] useFocusEffect triggered, refreshing stats');
       refreshStats();
     }, [refreshStats])
   );
 
   // Show loading state while stats are being calculated
   if (!homeStats) {
-    console.log('[HomeScreen] Rendering loading state, isCalculating:', isCalculatingRef.current);
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
         <View style={[styles.content, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -86,8 +70,6 @@ export default function HomeScreen() {
       </SafeAreaView>
     );
   }
-  
-  console.log('[HomeScreen] Rendering home screen with stats');
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>

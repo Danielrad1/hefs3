@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import HomeScreen from '../app/Home/HomeScreen';
 import StudyScreen from '../app/Study/StudyScreen';
 import SettingsScreen from '../app/Settings/SettingsScreenNew';
@@ -12,6 +13,10 @@ const Tab = createBottomTabNavigator();
 
 export default function Tabs() {
   const theme = useTheme();
+
+  const handleTabPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   return (
     <Tab.Navigator 
@@ -42,6 +47,9 @@ export default function Tabs() {
           return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
+      screenListeners={{
+        tabPress: handleTabPress,
+      }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Decks" component={DecksStack} />

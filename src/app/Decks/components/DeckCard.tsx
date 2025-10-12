@@ -46,11 +46,6 @@ export default function DeckCard({
   const customIcon = metadata?.icon;
   const isEmoji = customIcon && (customIcon.length <= 2 && !/^[a-z-]+$/.test(customIcon));
 
-  // Log for debugging
-  if (metadata) {
-    console.log('[DeckCard] Rendering with metadata:', { deckId: deck.id, customColor, customIcon });
-  }
-
   // Generate gradient colors
   const gradientColors = customColor 
     ? [customColor + '30', customColor + '05'] as const

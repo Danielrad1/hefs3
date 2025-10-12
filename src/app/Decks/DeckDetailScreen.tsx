@@ -163,9 +163,7 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
   const handleAddNote = () => {
     // Use first available model (works with both built-in and imported models)
     const models = db.getAllModels();
-    console.log('[DeckDetail] All models:', models.map(m => ({ id: m.id, name: m.name })));
     const defaultModelId = models.length > 0 ? models[0].id : 1;  // Numeric ID
-    console.log('[DeckDetail] Navigating to NoteEditor with:', { deckId, modelId: defaultModelId });
     
     navigation.navigate('NoteEditor', {
       deckId,

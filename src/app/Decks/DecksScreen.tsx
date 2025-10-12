@@ -70,10 +70,6 @@ export default function DecksScreen() {
   const loadMetadata = React.useCallback(async () => {
     const metadata = await deckMetadataService.getAllMetadata();
     const folderMeta = await deckMetadataService.getAllFolderMetadata();
-    console.log('[DecksScreen] Loaded metadata:', metadata.size, 'decks', folderMeta.size, 'folders');
-    metadata.forEach((meta, deckId) => {
-      console.log('[DecksScreen] Deck', deckId, ':', meta);
-    });
     setDeckMetadata(metadata);
     setFolderMetadata(folderMeta);
   }, []);
@@ -81,7 +77,6 @@ export default function DecksScreen() {
   // Reload decks and metadata when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log('[DecksScreen] Screen focused, reloading decks and metadata');
       reload();
       loadMetadata();
     }, [reload, loadMetadata])
@@ -189,21 +184,17 @@ export default function DecksScreen() {
   const handleSaveCustomization = async (updates: Partial<Omit<DeckMetadata, 'deckId'>>) => {
     if (!deckToCustomize) return;
     
-    console.log('[DecksScreen] Saving customization for deck:', deckToCustomize.id, updates);
     await deckMetadataService.updateMetadata(deckToCustomize.id, updates);
     await loadMetadata();
     setCustomizationModalVisible(false);
-    console.log('[DecksScreen] Customization saved and metadata reloaded');
   };
 
   const handleSaveFolderCustomization = async (updates: Partial<Omit<FolderMetadata, 'folderName'>>) => {
     if (!folderToCustomize) return;
     
-    console.log('[DecksScreen] Saving customization for folder:', folderToCustomize, updates);
     await deckMetadataService.updateFolderMetadata(folderToCustomize, updates);
     await loadMetadata();
     setFolderCustomizationModalVisible(false);
-    console.log('[DecksScreen] Folder customization saved and metadata reloaded');
   };
 
   const getFolderActions = (folderName: string): DeckAction[] => {
@@ -409,8 +400,6 @@ export default function DecksScreen() {
       return orderA - orderB;
     });
 
-    console.log('[DecksScreen] Grouped decks - Folders:', sortedFolders.length, 'Unassigned:', unassigned.length);
-
     return { folders, sortedFolders, unassigned };
   }, [filteredDecks, deckMetadata, folderMetadata]);
 
@@ -421,11 +410,6 @@ export default function DecksScreen() {
     
     // Only build tree for unassigned decks
     const unassignedDecks = groupedDecks.unassigned;
-    
-    console.log('[DecksScreen] Building tree from', unassignedDecks.length, 'unassigned decks');
-    unassignedDecks.forEach(deck => {
-      console.log('[DecksScreen] Unassigned deck:', deck.name);
-    });
 
     unassignedDecks.forEach(deck => {
       const node = {
@@ -445,21 +429,14 @@ export default function DecksScreen() {
         const parentName = parts.slice(0, -1).join('::');
         const parent = map.get(parentName);
         if (parent) {
-          console.log('[DecksScreen] Found parent for', deck.name, '-> parent:', parentName);
           parent.children.push(node);
           node.level = parent.level + 1;
         } else {
-          console.log('[DecksScreen] No parent found for', deck.name, ', adding to root');
           tree.push(node);
         }
       } else {
         tree.push(node);
       }
-    });
-    
-    console.log('[DecksScreen] Built tree with', tree.length, 'root nodes');
-    tree.forEach(node => {
-      console.log('[DecksScreen] Root:', node.deck.name, 'children:', node.children.length);
     });
 
     return tree;
