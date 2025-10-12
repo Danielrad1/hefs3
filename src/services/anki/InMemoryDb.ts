@@ -1,6 +1,6 @@
 /**
  * In-memory database matching Anki schema
- * Holds cards, notes, col, revlog, and graves
+ * Coordinates access to data through specialized repositories
  */
 
 import {
@@ -20,6 +20,15 @@ import {
   MODEL_TYPE_CLOZE,
 } from './schema';
 import { nowSeconds, nowMillis, generateId } from './time';
+import {
+  CardRepository,
+  NoteRepository,
+  DeckRepository,
+  ModelRepository,
+  MediaRepository,
+  RevlogRepository,
+  StatsRepository,
+} from './db';
 
 export class InMemoryDb {
   // Single collection row
@@ -34,14 +43,39 @@ export class InMemoryDb {
   // Parsed JSON configs (cached)
   private decks: Map<string, Deck> = new Map();
   private deckConfigs: Map<string, DeckConfig> = new Map();
-  private models: Map<number, Model> = new Map();  // Anki uses numeric IDs
+  private models: Map<number, Model> = new Map(); // Anki uses numeric IDs
   private media: Map<string, Media> = new Map();
   private colConfig: ColConfig | null = null;
 
   // Update sequence number (local changes = -1)
   private usn: number = -1;
 
+  // Repositories
+  private cardRepo: CardRepository;
+  private noteRepo: NoteRepository;
+  private deckRepo: DeckRepository;
+  private modelRepo: ModelRepository;
+  private mediaRepo: MediaRepository;
+  private revlogRepo: RevlogRepository;
+  private statsRepo: StatsRepository;
+
   constructor() {
+    // Initialize repositories with getters to access current state
+    this.cardRepo = new CardRepository(this.cards, this.graves, this.usn);
+    this.noteRepo = new NoteRepository(this.notes, this.graves, this.usn);
+    this.deckRepo = new DeckRepository(
+      this.decks,
+      this.deckConfigs,
+      () => this.colConfig,
+      () => this.col,
+      this.graves,
+      this.usn
+    );
+    this.modelRepo = new ModelRepository(this.models, () => this.col, this.usn);
+    this.mediaRepo = new MediaRepository(this.media);
+    this.revlogRepo = new RevlogRepository(this.revlog);
+    this.statsRepo = new StatsRepository(this.cards);
+
     this.initializeCollection();
   }
 
@@ -243,41 +277,27 @@ export class InMemoryDb {
   // ==========================================================================
 
   getCard(id: string): AnkiCard | undefined {
-    return this.cards.get(id);
+    return this.cardRepo.get(id);
   }
 
   getAllCards(): AnkiCard[] {
-    return Array.from(this.cards.values());
+    return this.cardRepo.getAll();
   }
 
   getCardsByDeck(deckId: string): AnkiCard[] {
-    return Array.from(this.cards.values()).filter((c) => c.did === deckId);
+    return this.cardRepo.getByDeck(deckId);
   }
 
   addCard(card: AnkiCard): void {
-    this.cards.set(card.id, card);
+    this.cardRepo.add(card);
   }
 
   updateCard(id: string, updates: Partial<AnkiCard>): void {
-    const card = this.cards.get(id);
-    if (!card) {
-      throw new Error(`Card ${id} not found`);
-    }
-    this.cards.set(id, {
-      ...card,
-      ...updates,
-      mod: nowSeconds(),
-      usn: this.usn,
-    });
+    this.cardRepo.update(id, updates);
   }
 
   deleteCard(id: string): void {
-    this.cards.delete(id);
-    this.graves.push({
-      usn: this.usn,
-      oid: id,
-      type: 0,  // card
-    });
+    this.cardRepo.delete(id);
   }
 
   // ==========================================================================
@@ -285,37 +305,23 @@ export class InMemoryDb {
   // ==========================================================================
 
   getNote(id: string): AnkiNote | undefined {
-    return this.notes.get(id);
+    return this.noteRepo.get(id);
   }
 
   getAllNotes(): AnkiNote[] {
-    return Array.from(this.notes.values());
+    return this.noteRepo.getAll();
   }
 
   addNote(note: AnkiNote): void {
-    this.notes.set(note.id, note);
+    this.noteRepo.add(note);
   }
 
   updateNote(id: string, updates: Partial<AnkiNote>): void {
-    const note = this.notes.get(id);
-    if (!note) {
-      throw new Error(`Note ${id} not found`);
-    }
-    this.notes.set(id, {
-      ...note,
-      ...updates,
-      mod: nowSeconds(),
-      usn: this.usn,
-    });
+    this.noteRepo.update(id, updates);
   }
 
   deleteNote(id: string): void {
-    this.notes.delete(id);
-    this.graves.push({
-      usn: this.usn,
-      oid: id,
-      type: 1,  // note
-    });
+    this.noteRepo.delete(id);
   }
 
   // ==========================================================================
@@ -323,15 +329,15 @@ export class InMemoryDb {
   // ==========================================================================
 
   addRevlog(entry: AnkiRevlog): void {
-    this.revlog.push(entry);
+    this.revlogRepo.add(entry);
   }
 
   getRevlogForCard(cardId: string): AnkiRevlog[] {
-    return this.revlog.filter((r) => r.cid === cardId);
+    return this.revlogRepo.getForCard(cardId);
   }
 
   getAllRevlog(): AnkiRevlog[] {
-    return [...this.revlog];
+    return this.revlogRepo.getAll();
   }
 
   // ==========================================================================
@@ -339,101 +345,47 @@ export class InMemoryDb {
   // ==========================================================================
 
   getDeck(id: string): Deck | undefined {
-    return this.decks.get(id);
+    return this.deckRepo.getDeck(id);
   }
 
   getAllDecks(): Deck[] {
-    return Array.from(this.decks.values());
+    return this.deckRepo.getAllDecks();
   }
 
   addDeck(deck: Deck): void {
-    this.decks.set(deck.id, deck);
-    // Sync to col.decks JSON
-    this.syncDecksToCol();
+    this.deckRepo.addDeck(deck);
   }
 
   updateDeck(id: string, updates: Partial<Deck>): void {
-    const deck = this.decks.get(id);
-    if (!deck) {
-      throw new Error(`Deck ${id} not found`);
-    }
-    this.decks.set(id, {
-      ...deck,
-      ...updates,
-      mod: nowSeconds(),
-      usn: this.usn,
-    });
-    this.syncDecksToCol();
+    this.deckRepo.updateDeck(id, updates);
   }
 
   deleteDeck(id: string): void {
-    this.decks.delete(id);
-    this.graves.push({
-      usn: this.usn,
-      oid: id,
-      type: 2,  // deck
-    });
-    this.syncDecksToCol();
-  }
-
-  private syncDecksToCol(): void {
-    if (!this.col) return;
-    const decksObj: Record<string, Deck> = {};
-    this.decks.forEach((deck, id) => {
-      decksObj[id] = deck;
-    });
-    this.col.decks = JSON.stringify(decksObj);
-    this.col.mod = nowMillis();
+    this.deckRepo.deleteDeck(id);
   }
 
   getDeckConfig(id: string): DeckConfig | undefined {
-    return this.deckConfigs.get(id);
+    return this.deckRepo.getDeckConfig(id);
   }
 
   getAllDeckConfigs(): DeckConfig[] {
-    return Array.from(this.deckConfigs.values());
+    return this.deckRepo.getAllDeckConfigs();
   }
 
   addDeckConfig(config: DeckConfig): void {
-    this.deckConfigs.set(config.id, config);
-    this.syncDeckConfigsToCol();
+    this.deckRepo.addDeckConfig(config);
   }
 
   updateDeckConfig(id: string, updates: Partial<DeckConfig>): void {
-    const config = this.deckConfigs.get(id);
-    if (!config) {
-      throw new Error(`Deck config ${id} not found`);
-    }
-    this.deckConfigs.set(id, {
-      ...config,
-      ...updates,
-      mod: nowSeconds(),
-      usn: this.usn,
-    });
-    this.syncDeckConfigsToCol();
-  }
-
-  private syncDeckConfigsToCol(): void {
-    if (!this.col) return;
-    const configsObj: Record<string, DeckConfig> = {};
-    this.deckConfigs.forEach((config, id) => {
-      configsObj[id] = config;
-    });
-    this.col.dconf = JSON.stringify(configsObj);
-    this.col.mod = nowMillis();
+    this.deckRepo.updateDeckConfig(id, updates);
   }
 
   getDeckConfigForDeck(deckId: string): DeckConfig | undefined {
-    const deck = this.decks.get(deckId);
-    if (!deck) return undefined;
-    return this.deckConfigs.get(deck.conf);
+    return this.deckRepo.getDeckConfigForDeck(deckId);
   }
 
   getColConfig(): ColConfig {
-    if (!this.colConfig) {
-      throw new Error('Collection config not initialized');
-    }
-    return this.colConfig;
+    return this.deckRepo.getColConfig();
   }
 
   /**
@@ -441,19 +393,7 @@ export class InMemoryDb {
    * This is used to maintain sequential ordering of new cards
    */
   incrementNextPos(): number {
-    if (!this.colConfig) {
-      throw new Error('Collection config not initialized');
-    }
-    const currentPos = this.colConfig.nextPos;
-    this.colConfig.nextPos += 1;
-    
-    // Sync to col.conf JSON
-    if (this.col) {
-      this.col.conf = JSON.stringify(this.colConfig);
-      this.col.mod = nowMillis();
-    }
-    
-    return currentPos;
+    return this.deckRepo.incrementNextPos();
   }
 
   // ==========================================================================
@@ -461,54 +401,23 @@ export class InMemoryDb {
   // ==========================================================================
 
   getModel(id: string | number): Model | undefined {
-    // Accept both string and number, convert to number (Anki uses numbers)
-    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
-    return this.models.get(numericId);
+    return this.modelRepo.get(id);
   }
 
   getAllModels(): Model[] {
-    return Array.from(this.models.values());
+    return this.modelRepo.getAll();
   }
 
   addModel(model: Model): void {
-    // Ensure ID is a number (Anki way)
-    const normalizedModel = {
-      ...model,
-      id: typeof model.id === 'string' ? parseInt(model.id, 10) : model.id,
-    };
-    this.models.set(normalizedModel.id, normalizedModel);
-    this.syncModelsToCol();
+    this.modelRepo.add(model);
   }
 
   updateModel(id: string | number, updates: Partial<Model>): void {
-    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
-    const model = this.models.get(numericId);
-    if (!model) {
-      throw new Error(`Model ${id} not found`);
-    }
-    this.models.set(numericId, {
-      ...model,
-      ...updates,
-      mod: nowSeconds(),
-      usn: this.usn,
-    });
-    this.syncModelsToCol();
+    this.modelRepo.update(id, updates);
   }
 
   deleteModel(id: string | number): void {
-    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
-    this.models.delete(numericId);
-    this.syncModelsToCol();
-  }
-
-  private syncModelsToCol(): void {
-    if (!this.col) return;
-    const modelsObj: Record<string, Model> = {};
-    this.models.forEach((model, id) => {
-      modelsObj[id] = model;
-    });
-    this.col.models = JSON.stringify(modelsObj);
-    this.col.mod = nowMillis();
+    this.modelRepo.delete(id);
   }
 
   // ==========================================================================
@@ -516,27 +425,27 @@ export class InMemoryDb {
   // ==========================================================================
 
   getMedia(id: string): Media | undefined {
-    return this.media.get(id);
+    return this.mediaRepo.get(id);
   }
 
   getMediaByFilename(filename: string): Media | undefined {
-    return Array.from(this.media.values()).find((m) => m.filename === filename);
+    return this.mediaRepo.getByFilename(filename);
   }
 
   getMediaByHash(hash: string): Media | undefined {
-    return Array.from(this.media.values()).find((m) => m.hash === hash);
+    return this.mediaRepo.getByHash(hash);
   }
 
   getAllMedia(): Media[] {
-    return Array.from(this.media.values());
+    return this.mediaRepo.getAll();
   }
 
   addMedia(media: Media): void {
-    this.media.set(media.id, media);
+    this.mediaRepo.add(media);
   }
 
   deleteMedia(id: string): void {
-    this.media.delete(id);
+    this.mediaRepo.delete(id);
   }
 
   // ==========================================================================
@@ -549,27 +458,7 @@ export class InMemoryDb {
     reviewCount: number;
     totalCards: number;
   } {
-    const cards = deckId
-      ? this.getCardsByDeck(deckId)
-      : this.getAllCards();
-
-    // Filter out suspended and buried cards
-    const activeCards = cards.filter((c) => 
-      c.queue !== -1 && // Suspended
-      c.queue !== -2 && // User buried
-      c.queue !== -3    // Sched buried
-    );
-
-    const newCount = activeCards.filter((c) => c.type === 0).length;
-    const learningCount = activeCards.filter((c) => c.type === 1 || c.type === 3).length;
-    const reviewCount = activeCards.filter((c) => c.type === 2).length;
-
-    return {
-      newCount,
-      learningCount,
-      reviewCount,
-      totalCards: cards.length, // Total includes suspended
-    };
+    return this.statsRepo.getStats(deckId);
   }
 
   // ==========================================================================
@@ -584,8 +473,8 @@ export class InMemoryDb {
     this.deckConfigs.clear();
     this.models.clear();
     this.media.clear();
-    this.revlog = [];
-    this.graves = [];
+    this.revlog.length = 0; // Clear in-place to maintain repository references
+    this.graves.length = 0; // Clear in-place to maintain repository references
     this.col = null;
     this.colConfig = null;
     
@@ -691,16 +580,21 @@ export class InMemoryDb {
     this.deckConfigs.clear();
     this.models.clear();
     this.media.clear();
-    this.revlog = [];
-    this.graves = [];
+    this.revlog.length = 0; // Clear array in-place to maintain repository references
+    this.graves.length = 0; // Clear array in-place to maintain repository references
 
     // Restore data
     try {
       this.col = snapshot.col;
       snapshot.cards.forEach((card: AnkiCard) => this.cards.set(card.id, card));
       snapshot.notes.forEach((note: AnkiNote) => this.notes.set(note.id, note));
-      this.revlog = snapshot.revlog || [];
-      this.graves = snapshot.graves || [];
+      // Push to arrays in-place to maintain repository references
+      if (snapshot.revlog && Array.isArray(snapshot.revlog)) {
+        this.revlog.push(...snapshot.revlog);
+      }
+      if (snapshot.graves && Array.isArray(snapshot.graves)) {
+        this.graves.push(...snapshot.graves);
+      }
       snapshot.decks.forEach((deck: Deck) => this.decks.set(deck.id, deck));
       snapshot.deckConfigs.forEach((conf: DeckConfig) => this.deckConfigs.set(conf.id, conf));
       // Convert model IDs to numbers (JSON keys are strings)
