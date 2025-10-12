@@ -163,7 +163,8 @@ export class CloudBackupService {
 
   private static async getAuthHeaders(): Promise<HeadersInit> {
     const { auth } = await import('../../config/firebase');
-    const token = await auth().currentUser?.getIdToken(true);
+    // Let Firebase handle token refresh automatically (don't force with true)
+    const token = await auth().currentUser?.getIdToken();
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',

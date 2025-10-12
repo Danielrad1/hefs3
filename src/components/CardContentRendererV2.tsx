@@ -2,7 +2,6 @@ import React, { useState, useLayoutEffect } from 'react';
 import { View, Text as RNText, StyleSheet, Pressable, useWindowDimensions, Image } from 'react-native';
 import RenderHtml, { CustomBlockRenderer } from 'react-native-render-html';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../design/theme';
@@ -10,6 +9,7 @@ import { s } from '../design/spacing';
 import { r } from '../design/radii';
 import * as Haptics from 'expo-haptics';
 import { ImageCache } from '../utils/ImageCache';
+import { getMediaUri } from '../utils/mediaHelpers';
 
 interface CardContentRendererProps {
   html: string;
@@ -75,9 +75,8 @@ const CardContentRendererV2 = React.memo(function CardContentRendererV2({
     processed = processed.replace(
       /<img([^>]+)src="([^"]+)"([^>]*)>/gi,
       (match, before, src, after) => {
-        // Encode filename for URI (files are saved with encoded names)
-        const encodedFilename = encodeURIComponent(src);
-        const mediaPath = `${FileSystem.documentDirectory}media/${encodedFilename}`;
+        // Use canonical media URI helper
+        const mediaPath = getMediaUri(src);
         return `<img${before}src="${mediaPath}"${after}>`;
       }
     );
@@ -347,9 +346,8 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
           shouldDuckAndroid: true,
         });
 
-        // Encode filename for URI (# becomes %23 in URI, but file on disk has #)
-        const encodedFilename = encodeURIComponent(filename);
-        const mediaPath = `${FileSystem.documentDirectory}media/${encodedFilename}`;
+        // Use canonical media URI helper
+        const mediaPath = getMediaUri(filename);
         
         console.log('[AudioPlayer] Loading audio:', filename, '→', mediaPath);
         

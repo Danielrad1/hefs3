@@ -22,7 +22,8 @@ export class ApiService {
    * Get authentication headers with Firebase ID token
    */
   private static async getAuthHeaders(): Promise<HeadersInit> {
-    const token = await auth().currentUser?.getIdToken(true);
+    // Let Firebase handle token refresh automatically (don't force with true)
+    const token = await auth().currentUser?.getIdToken();
     if (!token) {
       throw new Error('Not authenticated');
     }

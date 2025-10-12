@@ -1,14 +1,12 @@
 /**
  * MediaService - Manage media files (images, audio)
  */
-
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import { InMemoryDb } from './InMemoryDb';
 import { Media } from './schema';
 import { nowSeconds, generateId } from './time';
-
-export const MEDIA_DIR = `${FileSystem.documentDirectory}media/`;
+import { getMediaUri, MEDIA_DIR, sanitizeMediaFilename } from '../../utils/mediaHelpers';
 
 export class MediaService {
   constructor(private db: InMemoryDb) {
@@ -30,36 +28,11 @@ export class MediaService {
    * Strips all path components and ensures no directory separators remain
    */
   private sanitizeFilename(filename: string): string {
-    // Strip all path components - keep only the basename
-    // This handles both / and \ separators
-    const basename = filename.split(/[/\\]/).pop() || '';
-    
-    // Remove any remaining path traversal attempts
-    let sanitized = basename.replace(/\.\./g, '');
-    
-    // Replace all unsafe characters with underscore
-    // Allow ONLY: alphanumeric, dot, dash, underscore
-    // This ensures / and \ are also replaced
-    sanitized = sanitized.replace(/[^A-Za-z0-9._-]/g, '_');
-    
-    // Final safety check: assert no path separators remain
-    if (sanitized.includes('/') || sanitized.includes('\\')) {
-      throw new Error(`Filename sanitization failed: path separators remain in "${sanitized}"`);
+    // Generate a filename if empty
+    if (!filename || filename.trim() === '') {
+      return `file_${Date.now()}`;
     }
-    
-    // Limit length to 255 chars (common filesystem limit)
-    if (sanitized.length > 255) {
-      const ext = sanitized.substring(sanitized.lastIndexOf('.'));
-      const name = sanitized.substring(0, 255 - ext.length);
-      sanitized = name + ext;
-    }
-    
-    // Ensure not empty
-    if (!sanitized || sanitized === '') {
-      sanitized = `file_${Date.now()}`;
-    }
-    
-    return sanitized;
+    return sanitizeMediaFilename(filename);
   }
 
   /**
@@ -70,8 +43,8 @@ export class MediaService {
 
     // Generate filename if not provided, then sanitize
     const rawFilename = filename || this.generateFilename(sourceUri);
-    const finalFilename = this.sanitizeFilename(rawFilename);
-    const localUri = MEDIA_DIR + finalFilename;
+    const finalFilename = sanitizeMediaFilename(rawFilename);
+    const localUri = getMediaUri(finalFilename);
 
     // Calculate content hash
     const hash = await this.calculateHash(sourceUri);
@@ -122,7 +95,7 @@ export class MediaService {
 
     await this.ensureMediaDir();
 
-    const localUri = MEDIA_DIR + filename;
+    const localUri = getMediaUri(filename);
 
     // Check if file exists
     const fileInfo = await FileSystem.getInfoAsync(localUri);
@@ -182,7 +155,7 @@ export class MediaService {
               return { filename, media: existing };
             }
 
-            const localUri = MEDIA_DIR + filename;
+            const localUri = getMediaUri(filename);
             const fileInfo = await FileSystem.getInfoAsync(localUri);
             
             if (!fileInfo.exists) {

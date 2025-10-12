@@ -11,7 +11,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../design/theme';
 import { s } from '../design/spacing';
 import { r } from '../design/radii';
-import { MEDIA_DIR } from '../services/anki/MediaService';
+import { getMediaUri } from '../utils/mediaHelpers';
 
 interface WYSIWYGEditorProps {
   value: string;
@@ -97,9 +97,8 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
           }
           
           try {
-            // Encode filename for URI (files are saved with encoded names)
-            const encodedFilename = encodeURIComponent(src);
-            const fullPath = `${MEDIA_DIR}${encodedFilename}`;
+            // Use canonical media URI helper
+            const fullPath = getMediaUri(src);
             
             // Check if file exists and convert to base64
             const fileInfo = await FileSystem.getInfoAsync(fullPath);
@@ -145,7 +144,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
       insertImage: async (filename: string) => {
         try {
           // Convert image to base64 for WebView compatibility
-          const fullPath = `${MEDIA_DIR}${filename}`;
+          const fullPath = getMediaUri(filename);
           const base64 = await FileSystem.readAsStringAsync(fullPath, {
             encoding: FileSystem.EncodingType.Base64,
           });
@@ -320,8 +319,9 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
           useContainer={true}
           pasteAsPlainText={false}
           allowFileAccess={true}
-          allowFileAccessFromFileURLs={true}
-          allowUniversalAccessFromFileURLs={true}
+          // Security: Only allow file access, not universal cross-origin access
+          allowFileAccessFromFileURLs={false}
+          allowUniversalAccessFromFileURLs={false}
         />
         )}
       </View>

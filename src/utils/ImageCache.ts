@@ -1,14 +1,7 @@
 import { Image } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
+import { getMediaUri } from './mediaHelpers';
 
 type ImgDims = { width: number; height: number };
-
-/**
- * Normalize filename to match sanitization used during import
- */
-export const normalizeFilename = (filename: string): string => {
-  return filename.replace(/[^A-Za-z0-9._-]/g, '_');
-};
 
 /**
  * Image cache for preloading images and caching dimensions
@@ -18,30 +11,21 @@ class ImageCacheService {
   private dims = new Map<string, ImgDims>();
 
   /**
-   * Get sanitized media URI for a filename
-   */
-  getMediaUri(filename: string): string {
-    const normalized = normalizeFilename(filename);
-    return `${FileSystem.documentDirectory}media/${encodeURIComponent(normalized)}`;
-  }
-
-  /**
    * Get dimensions for an image (async, with caching)
    */
   async getDimensions(filename: string): Promise<ImgDims | null> {
-    const normalized = normalizeFilename(filename);
-    if (this.dims.has(normalized)) {
-      return this.dims.get(normalized)!;
+    if (this.dims.has(filename)) {
+      return this.dims.get(filename)!;
     }
 
-    const uri = this.getMediaUri(normalized);
+    const uri = getMediaUri(filename);
     
     return new Promise((resolve) => {
       Image.getSize(
         uri,
         (width, height) => {
           const dims = { width, height };
-          this.dims.set(normalized, dims);
+          this.dims.set(filename, dims);
           resolve(dims);
         },
         () => resolve(null)
@@ -53,8 +37,7 @@ class ImageCacheService {
    * Get cached dimensions synchronously (returns null if not cached)
    */
   getCachedDimensions(filename: string): ImgDims | null {
-    const normalized = normalizeFilename(filename);
-    return this.dims.get(normalized) || null;
+    return this.dims.get(filename) || null;
   }
 
   /**
@@ -111,15 +94,14 @@ class ImageCacheService {
    * Preload an image into memory cache
    */
   async preloadImage(filename: string): Promise<void> {
-    const normalized = normalizeFilename(filename);
-    if (this.preloadedImages.has(normalized)) {
+    if (this.preloadedImages.has(filename)) {
       return;
     }
 
     try {
-      const mediaPath = this.getMediaUri(normalized);
+      const mediaPath = getMediaUri(filename);
       await Image.prefetch(mediaPath);
-      this.preloadedImages.add(normalized);
+      this.preloadedImages.add(filename);
     } catch (error) {
       // Silent fail
     }
