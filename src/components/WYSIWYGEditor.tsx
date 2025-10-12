@@ -45,7 +45,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
   ) => {
     const theme = useTheme();
     const richText = useRef<RichEditor>(null);
-    const lastValueRef = useRef(value);
+    const lastValueRef = useRef<string | null>(null);
     const isUserTypingRef = useRef(false);
 
     // Process HTML to convert filenames to base64 for display
