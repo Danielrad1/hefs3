@@ -3,6 +3,7 @@
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Crypto from 'expo-crypto';
 import { InMemoryDb } from './InMemoryDb';
 import { Media } from './schema';
 import { nowSeconds, generateId } from './time';
@@ -72,13 +73,13 @@ export class MediaService {
     const finalFilename = this.sanitizeFilename(rawFilename);
     const localUri = MEDIA_DIR + finalFilename;
 
-    // Calculate SHA1 hash
-    const sha1 = await this.calculateSha1(sourceUri);
+    // Calculate content hash
+    const hash = await this.calculateHash(sourceUri);
 
-    // Check if media with same SHA1 already exists
-    const existing = this.db.getMediaBySha1(sha1);
+    // Check if media with same hash already exists (deduplication)
+    const existing = this.db.getMediaByHash(hash);
     if (existing) {
-      console.log('[MediaService] Media with same SHA1 already exists:', existing.filename);
+      console.log('[MediaService] Media with same hash already exists, deduplicating:', existing.filename);
       return existing;
     }
 
@@ -100,7 +101,7 @@ export class MediaService {
       id: generateId(),
       filename: finalFilename,
       mime,
-      sha1,
+      hash,
       size,
       localUri,
       created: nowSeconds(),
@@ -114,6 +115,11 @@ export class MediaService {
    * Register existing media file (used during .apkg import when files are already in place)
    */
   async registerExistingMedia(filename: string): Promise<Media | null> {
+    // Validate filename
+    if (!filename || filename.trim() === '') {
+      return null;
+    }
+
     await this.ensureMediaDir();
 
     const localUri = MEDIA_DIR + filename;
@@ -131,9 +137,9 @@ export class MediaService {
       return existing;
     }
 
-    // Calculate SHA1 hash using existing fileInfo to avoid duplicate filesystem call
+    // Calculate content hash
     const size = 'size' in fileInfo ? fileInfo.size : 0;
-    const sha1 = this.calculateSha1FromSize(size);
+    const hash = await this.calculateHash(localUri);
 
     // Determine MIME type
     const mime = this.getMimeType(filename);
@@ -143,7 +149,7 @@ export class MediaService {
       id: generateId(),
       filename,
       mime,
-      sha1,
+      hash,
       size,
       localUri,
       created: nowSeconds(),
@@ -184,16 +190,16 @@ export class MediaService {
               return { filename, media: null };
             }
 
-            // Create media record with optimized hash calculation
+            // Create media record with real hash calculation
             const size = 'size' in fileInfo ? fileInfo.size : 0;
-            const sha1 = this.calculateSha1FromSize(size);
+            const hash = await this.calculateHash(localUri);
             const mime = this.getMimeType(filename);
 
             const media: Media = {
               id: generateId(),
               filename,
               mime,
-              sha1,
+              hash,
               size,
               localUri,
               created: nowSeconds(),
@@ -229,13 +235,13 @@ export class MediaService {
 
     const localUri = MEDIA_DIR + filename;
 
-    // Calculate SHA1 hash
-    const sha1 = await this.calculateSha1(sourceUri);
+    // Calculate content hash
+    const hash = await this.calculateHash(sourceUri);
 
-    // Check if media already exists
-    const existing = this.db.getMediaByFilename(filename) || this.db.getMediaBySha1(sha1);
+    // Check if media already exists (by filename or hash)
+    const existing = this.db.getMediaByFilename(filename) || this.db.getMediaByHash(hash);
     if (existing) {
-      console.log('[MediaService] Media already exists:', filename);
+      console.log('[MediaService] Media already exists, deduplicating:', filename);
       return existing;
     }
 
@@ -257,7 +263,7 @@ export class MediaService {
       id: generateId(),
       filename,
       mime,
-      sha1,
+      hash,
       size,
       localUri,
       created: nowSeconds(),
@@ -363,28 +369,38 @@ export class MediaService {
   }
 
   /**
-   * Calculate SHA1 hash of file (simplified - uses timestamp + random for now)
-   * TODO: Add expo-crypto for real SHA1 hashing when needed
+   * Calculate SHA-256 hash of file
+   * Uses expo-crypto for deterministic, cryptographically-secure hashing
+   * Enables proper deduplication and integrity checking
    */
-  private async calculateSha1(uri: string): Promise<string> {
+  private async calculateHash(uri: string): Promise<string> {
     try {
-      // Simple hash based on file size and timestamp
-      const fileInfo = await FileSystem.getInfoAsync(uri);
-      const size = fileInfo.exists && 'size' in fileInfo ? fileInfo.size : 0;
-      return this.calculateSha1FromSize(size);
+      // Read file as base64 for hashing
+      // Note: For very large files, consider streaming/chunked hashing in future
+      const fileContents = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      // Hash the base64 string - this is deterministic
+      const hash = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        fileContents,
+        { encoding: Crypto.CryptoEncoding.HEX }
+      );
+      
+      return hash;
     } catch (error) {
       console.error('[MediaService] Error calculating hash:', error);
-      return `fallback-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      // Fallback: use file info as hash (still better than random)
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        const size = fileInfo.exists && 'size' in fileInfo ? fileInfo.size : 0;
+        const modTime = fileInfo.exists && 'modificationTime' in fileInfo ? fileInfo.modificationTime : Date.now();
+        return `fallback-${size}-${modTime}`;
+      } catch {
+        return `error-${Date.now()}`;
+      }
     }
-  }
-
-  /**
-   * Calculate SHA1 hash from file size (avoids duplicate filesystem calls)
-   */
-  private calculateSha1FromSize(size: number): string {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 15);
-    return `sha1-${size}-${timestamp}-${random}`;
   }
 
   /**

@@ -159,10 +159,9 @@ export class ClozeService {
       }
     }
 
-    // Check for malformed cloze syntax
-    const malformedRegex = /{{c\d*::|{{c\d+:[^:}]*}}/g;
-    const matches = html.match(malformedRegex);
-    if (matches) {
+    // Check for malformed cloze syntax (single colon instead of double)
+    const singleColonRegex = /{{c\d+:(?!:)[^}]*}}/g;
+    if (singleColonRegex.test(html)) {
       errors.push('Found malformed cloze syntax');
     }
 

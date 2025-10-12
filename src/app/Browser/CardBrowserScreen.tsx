@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Animated, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,6 +13,8 @@ import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { db } from '../../services/anki/InMemoryDb';
 import { CardService, CardQuery } from '../../services/anki/CardService';
+import { NoteService } from '../../services/anki/NoteService';
+import { MediaService } from '../../services/anki/MediaService';
 import { SearchIndex } from '../../services/search/SearchIndex';
 import { AnkiCard, FIELD_SEPARATOR } from '../../services/anki/schema';
 import { PersistenceService } from '../../services/anki/PersistenceService';
@@ -46,6 +48,7 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
   const isIndexingRef = useRef(false);
 
   const cardService = useMemo(() => new CardService(db), []);
+  const noteService = useMemo(() => new NoteService(db), []);
 
   // Load cards immediately on focus - no reindexing blocking
   useFocusEffect(
@@ -152,6 +155,51 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
     setFilters(filters.filter((f) => f.id !== filterId));
   };
 
+  const handleDeleteCard = useCallback(async (card: AnkiCard) => {
+    const note = db.getNote(card.nid);
+    if (!note) return;
+
+    // Check if this note has other cards
+    const noteCards = db.getAllCards().filter(c => c.nid === card.nid);
+    const hasOtherCards = noteCards.length > 1;
+
+    const message = hasOtherCards
+      ? `Delete this card? The note has ${noteCards.length} cards total. Only this card will be deleted.`
+      : 'Delete this card and its note? This cannot be undone.';
+
+    Alert.alert(
+      'Delete Card',
+      message,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (hasOtherCards) {
+                // Delete only this card
+                await cardService.deleteCards([card.id]);
+              } else {
+                // Delete the entire note (and all its cards)
+                await noteService.deleteNote(card.nid);
+              }
+              
+              await PersistenceService.save(db);
+              reload();
+              loadCards(); // Refresh the list
+              
+              Alert.alert('Success', 'Card deleted');
+            } catch (error) {
+              console.error('[CardBrowser] Delete error:', error);
+              Alert.alert('Error', 'Failed to delete card');
+            }
+          },
+        },
+      ]
+    );
+  }, [cardService, noteService, reload, loadCards]);
+
 
   const renderCard = useCallback(({ item: card }: { item: AnkiCard }) => {
     const note = db.getNote(card.nid);
@@ -195,6 +243,7 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
             navigation.navigate('NoteEditor', { noteId: card.nid, deckId: deckId });
           }
         }}
+        onLongPress={() => handleDeleteCard(card)}
       >
         <View style={styles.cardContent}>
           <Text
@@ -226,12 +275,21 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
             </View>
           </View>
         </View>
-        {card.flags > 0 && (
-          <View style={[styles.flag, { backgroundColor: getFlagColor(card.flags) }]} />
-        )}
+        <View style={styles.cardActions}>
+          {card.flags > 0 && (
+            <View style={[styles.flag, { backgroundColor: getFlagColor(card.flags) }]} />
+          )}
+          <Pressable
+            style={styles.deleteButton}
+            onPress={() => handleDeleteCard(card)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="trash-outline" size={20} color={theme.colors.textSecondary} />
+          </Pressable>
+        </View>
       </Pressable>
     );
-  }, [theme, navigation]);
+  }, [theme, navigation, handleDeleteCard]);
 
   const getFlagColor = (flag: number): string => {
     switch (flag) {
@@ -561,6 +619,16 @@ const styles = StyleSheet.create({
     width: 4,
     height: 40,
     borderRadius: 2,
+    marginRight: s.sm,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.sm,
+  },
+  deleteButton: {
+    padding: s.xs,
+    opacity: 0.6,
   },
   loadingState: {
     padding: s['2xl'],

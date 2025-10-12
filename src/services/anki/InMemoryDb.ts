@@ -523,8 +523,8 @@ export class InMemoryDb {
     return Array.from(this.media.values()).find((m) => m.filename === filename);
   }
 
-  getMediaBySha1(sha1: string): Media | undefined {
-    return Array.from(this.media.values()).find((m) => m.sha1 === sha1);
+  getMediaByHash(hash: string): Media | undefined {
+    return Array.from(this.media.values()).find((m) => m.hash === hash);
   }
 
   getAllMedia(): Media[] {
@@ -553,15 +553,22 @@ export class InMemoryDb {
       ? this.getCardsByDeck(deckId)
       : this.getAllCards();
 
-    const newCount = cards.filter((c) => c.type === 0).length;
-    const learningCount = cards.filter((c) => c.type === 1 || c.type === 3).length;
-    const reviewCount = cards.filter((c) => c.type === 2).length;
+    // Filter out suspended and buried cards
+    const activeCards = cards.filter((c) => 
+      c.queue !== -1 && // Suspended
+      c.queue !== -2 && // User buried
+      c.queue !== -3    // Sched buried
+    );
+
+    const newCount = activeCards.filter((c) => c.type === 0).length;
+    const learningCount = activeCards.filter((c) => c.type === 1 || c.type === 3).length;
+    const reviewCount = activeCards.filter((c) => c.type === 2).length;
 
     return {
       newCount,
       learningCount,
       reviewCount,
-      totalCards: cards.length,
+      totalCards: cards.length, // Total includes suspended
     };
   }
 

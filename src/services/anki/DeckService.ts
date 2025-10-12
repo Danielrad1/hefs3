@@ -32,6 +32,11 @@ export class DeckService {
    * Create a new deck with Parent::Child support
    */
   createDeck(name: string, description?: string): Deck {
+    // Validate deck name
+    if (!name || name.trim() === '') {
+      throw new Error('Deck name required');
+    }
+
     // Ensure parent decks exist
     this.ensureParentDecks(name);
 
@@ -55,6 +60,11 @@ export class DeckService {
    * Rename a deck (handles Parent::Child hierarchy)
    */
   renameDeck(id: string, newName: string): void {
+    // Cannot rename default deck
+    if (id === DEFAULT_DECK_ID) {
+      throw new Error('Cannot rename default deck');
+    }
+
     const deck = this.db.getDeck(id);
     if (!deck) {
       throw new Error(`Deck ${id} not found`);

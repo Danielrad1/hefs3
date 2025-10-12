@@ -41,21 +41,12 @@ export class SchedulerV2 {
       ? this.db.getCardsByDeck(deckId)
       : this.db.getAllCards();
 
-    if (__DEV__) {
-      console.log('[SchedulerV2] Total cards:', cards.length);
-    }
-
     // Filter out suspended and buried
     const activeCards = cards.filter(
       (c) => c.queue !== CardQueue.Suspended &&
              c.queue !== CardQueue.UserBuried &&
              c.queue !== CardQueue.SchedBuried
     );
-
-    if (__DEV__) {
-      console.log('[SchedulerV2] Active cards:', activeCards.length);
-      console.log('[SchedulerV2] Card queues:', activeCards.map(c => ({ id: c.id, queue: c.queue, type: c.type })).slice(0, 5));
-    }
 
     // Prioritize: learning > review > new
     
@@ -66,10 +57,6 @@ export class SchedulerV2 {
         isDue(c.due, c.type, col, now)
       )
       .sort((a, b) => a.due - b.due);
-    
-    if (__DEV__) {
-      console.log('[SchedulerV2] Learning cards:', learning.length);
-    }
     
     if (learning.length > 0) {
       return learning[0];
@@ -83,10 +70,6 @@ export class SchedulerV2 {
       )
       .sort((a, b) => a.due - b.due);
     
-    if (__DEV__) {
-      console.log('[SchedulerV2] Review cards:', reviews.length);
-    }
-    
     if (reviews.length > 0) {
       return reviews[0];
     }
@@ -95,10 +78,6 @@ export class SchedulerV2 {
     const newCards = activeCards
       .filter((c) => c.queue === CardQueue.New)
       .sort((a, b) => a.due - b.due);
-    
-    if (__DEV__) {
-      console.log('[SchedulerV2] New cards:', newCards.length);
-    }
     
     if (newCards.length > 0) {
       return newCards[0];

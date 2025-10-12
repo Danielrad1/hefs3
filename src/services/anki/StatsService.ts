@@ -55,27 +55,19 @@ export class StatsService {
    * Get all statistics for home screen (optimized)
    */
   getHomeStats(): HomeStats {
-    const startTime = Date.now();
-    console.log('[StatsService] getHomeStats START');
-    
     // Get card stats first (fast - already cached in db)
-    const t1 = Date.now();
     const dbStats = this.db.getStats();
     const allDecks = this.db.getAllDecks();
     const deckCount = allDecks.filter(d => d.id !== '1').length; // Exclude Default deck
-    console.log(`[StatsService] Got deck stats in ${Date.now() - t1}ms`);
     
     // Calculate due count (optimized - single pass)
-    const t2 = Date.now();
     const col = this.db.getCol();
     const now = Math.floor(Date.now() / 1000);
     const dayStart = Math.floor(col.crt / 86400);
     const currentDay = Math.floor(now / 86400) - dayStart;
     
     const allCards = this.db.getAllCards();
-    console.log(`[StatsService] Got ${allCards.length} cards in ${Date.now() - t2}ms`);
     
-    const t3 = Date.now();
     let dueCount = 0;
     
     // Single pass through cards
@@ -88,19 +80,14 @@ export class StatsService {
         if (c.due <= currentDay) dueCount++;
       }
     }
-    console.log(`[StatsService] Calculated due count (${dueCount}) in ${Date.now() - t3}ms`);
     
     // Get revlog stats (only process if needed for display)
-    const t4 = Date.now();
     const revlog = this.db.getAllRevlog();
-    console.log(`[StatsService] Got ${revlog.length} revlog entries in ${Date.now() - t4}ms`);
     
     const today = this.getTodayString();
     
     // Quick check: if no reviews today, skip expensive calculations
-    const t5 = Date.now();
     const hasReviewsToday = revlog.some(r => this.timestampToDateString(parseInt(r.id, 10)) === today);
-    console.log(`[StatsService] Checked for today's reviews in ${Date.now() - t5}ms, hasReviewsToday: ${hasReviewsToday}`);
     
     let dailyStats: DailyStats[];
     let todayStats: DailyStats | undefined;
@@ -108,36 +95,18 @@ export class StatsService {
     let currentStreak = 0;
     let longestStreak = 0;
     
-    const t6 = Date.now();
     if (hasReviewsToday || revlog.length > 0) {
-      console.log('[StatsService] Processing revlog...');
-      
-      const t6a = Date.now();
       dailyStats = this.calculateDailyStats(revlog);
-      console.log(`[StatsService] calculateDailyStats took ${Date.now() - t6a}ms`);
-      
-      const t6b = Date.now();
       todayStats = dailyStats.find(s => s.date === today);
-      console.log(`[StatsService] find todayStats took ${Date.now() - t6b}ms`);
-      
-      const t6c = Date.now();
       weeklyActivity = this.getWeeklyActivity(dailyStats);
-      console.log(`[StatsService] getWeeklyActivity took ${Date.now() - t6c}ms`);
       
-      const t6d = Date.now();
       const streaks = this.calculateStreaks(dailyStats);
       currentStreak = streaks.currentStreak;
       longestStreak = streaks.longestStreak;
-      console.log(`[StatsService] calculateStreaks took ${Date.now() - t6d}ms`);
-      
-      console.log(`[StatsService] Processed revlog in ${Date.now() - t6}ms`);
     } else {
       // No reviews at all - return empty stats quickly
       weeklyActivity = this.getWeeklyActivity([]);
-      console.log(`[StatsService] No reviews, skipped processing in ${Date.now() - t6}ms`);
     }
-    
-    console.log(`[StatsService] getHomeStats COMPLETE in ${Date.now() - startTime}ms`);
     
     return {
       todayReviewCount: todayStats?.reviewCount || 0,
@@ -256,44 +225,34 @@ export class StatsService {
     // Calculate current streak (consecutive days with reviews)
     // Streak logic: consecutive days you've studied, including today if you studied today
     let currentStreak = 0;
-    const todayMs = new Date(today).getTime();
+    const now = new Date();
+    const todayMs = now.getTime();
     
     // Check if user studied today or yesterday (grace period)
     const hasStudiedToday = datesWithReviews.has(today);
-    const yesterday = new Date(todayMs - 86400000);
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = this.dateToString(yesterday);
     const hasStudiedYesterday = datesWithReviews.has(yesterdayStr);
-    
-    console.log('[StatsService] Streak calculation:', {
-      today,
-      hasStudiedToday,
-      yesterdayStr,
-      hasStudiedYesterday,
-      datesWithReviews: Array.from(datesWithReviews).slice(0, 10), // First 10 dates
-      totalDatesWithReviews: datesWithReviews.size,
-    });
     
     // If no activity today or yesterday, streak is broken
     if (!hasStudiedToday && !hasStudiedYesterday) {
       currentStreak = 0;
-      console.log('[StatsService] Streak broken - no activity today or yesterday');
     } else {
       // Count backwards from today to find consecutive days
       let startDay = hasStudiedToday ? 0 : 1; // Start from today if studied today, else yesterday
       
-      for (let i = startDay; i < 365; i++) { // Max 1 year lookback
-        const checkDate = new Date(todayMs - i * 86400000);
-        const dateStr = this.dateToString(checkDate);
+      for (let i = startDay; i < 365; i++) {
+        const date = new Date(todayMs - i * 86400000);
+        const dateStr = this.dateToString(date);
         
         if (datesWithReviews.has(dateStr)) {
           currentStreak++;
         } else {
           // Gap found, stop counting
-          console.log('[StatsService] Streak stopped at day', i, 'date:', dateStr);
           break;
         }
       }
-      console.log('[StatsService] Final current streak:', currentStreak);
     }
     
     // Calculate longest streak

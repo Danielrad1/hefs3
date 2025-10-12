@@ -233,7 +233,7 @@ export interface Media {
   id: string;
   filename: string;
   mime: string;
-  sha1: string;
+  hash: string;              // content hash (SHA-256 hex)
   size: number;
   localUri: string;          // local file path
   created: number;           // epoch seconds
