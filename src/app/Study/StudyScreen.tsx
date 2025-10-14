@@ -10,6 +10,7 @@ import { useScheduler } from '../../context/SchedulerProvider';
 import { ImageCache } from '../../utils/ImageCache';
 import CardPage from './CardPage';
 import { cardHintsService, CardHint } from '../../services/anki/CardHintsService';
+import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { db } from '../../services/anki/InMemoryDb';
 
 interface StudyScreenProps {
@@ -26,6 +27,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const [responseStartTime, setResponseStartTime] = useState(Date.now());
   const [hints, setHints] = useState<Map<string, CardHint>>(new Map());
   const [hintsLoading, setHintsLoading] = useState(true);
+  const [aiHintsEnabled, setAiHintsEnabled] = useState(false);
   
   const overlayColor = useSharedValue('rgba(0, 0, 0, 0)');
   const currentCardSwipeDistance = useSharedValue(0);
@@ -36,6 +38,19 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   //   bootstrap(sampleCards);
   // }, [bootstrap]);
   
+  // Load AI hints settings for current deck
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (currentDeckId) {
+        const settings = await deckMetadataService.getAiHintsSettings(currentDeckId);
+        setAiHintsEnabled(settings.enabled);
+      } else {
+        setAiHintsEnabled(false);
+      }
+    };
+    loadSettings();
+  }, [currentDeckId]);
+
   // Load hints for current and next cards
   useEffect(() => {
     const loadHints = async () => {
@@ -318,6 +333,8 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
                   disabled={!isCurrent}
                   hint={cardHint}
                   onRequestEnableHints={handleRequestEnableHints}
+                  aiHintsEnabled={aiHintsEnabled}
+                  hintsLoading={hintsLoading}
                 />
               </Animated.View>
             </React.Fragment>

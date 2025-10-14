@@ -38,9 +38,11 @@ type CardPageProps = {
   disabled?: boolean; // Disable gestures when card is in background
   hint?: CardHint | null; // AI-generated hint for this card
   onRequestEnableHints?: () => void; // Callback when user wants to enable hints
+  aiHintsEnabled?: boolean; // Whether AI hints are enabled for this deck
+  hintsLoading?: boolean; // Whether hints are currently loading
 };
 
-const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false, hint, onRequestEnableHints }: CardPageProps) {
+const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false, hint, onRequestEnableHints, aiHintsEnabled = false, hintsLoading = false }: CardPageProps) {
   const theme = useTheme();
   const { selection } = useHaptics();
   const panRef = useRef<GestureType | undefined>(undefined);
@@ -515,7 +517,8 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
                 selection();
                 if (hint) {
                   setShowHintModal(true);
-                } else if (onRequestEnableHints) {
+                } else if (!aiHintsEnabled && !hintsLoading && onRequestEnableHints) {
+                  // Only show enable prompt if hints are disabled and not loading
                   onRequestEnableHints();
                 }
               }}
@@ -541,7 +544,8 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
                 selection();
                 if (hint) {
                   setShowTipModal(true);
-                } else if (onRequestEnableHints) {
+                } else if (!aiHintsEnabled && !hintsLoading && onRequestEnableHints) {
+                  // Only show enable prompt if hints are disabled and not loading
                   onRequestEnableHints();
                 }
               }}
