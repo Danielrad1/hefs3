@@ -64,6 +64,18 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   const [showHintModal, setShowHintModal] = React.useState(false);
   const [showTipModal, setShowTipModal] = React.useState(false);
 
+  // Reset state when card changes (synchronize with card transitions)
+  React.useEffect(() => {
+    // Reset all state immediately when card changes
+    setRevealed(false);
+    setShowHintModal(false);
+    setShowTipModal(false);
+    isRevealed.value = false;
+    revealProgress.value = 0;
+    translateX.value = 0;
+    translateY.value = 0;
+  }, [card.id]);
+
   // Removed shadow animation - static shadows for better performance
 
   const handleReveal = () => {

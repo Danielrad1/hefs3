@@ -83,7 +83,7 @@ export function buildHintsUserPrompt(params: {
 **Input:** ${items.length} flashcards  
 ${deckName ? `**Deck:** ${deckName}\n` : ''}${languageHints?.length ? `**Language:** ${languageHints.join(', ')}\n` : ''}${style === 'mnemonic-heavy' ? '**Style:** Mnemonic-heavy encoding\n' : ''}
 
-${JSON.stringify(items, null, 2)}
+${JSON.stringify(items)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **CORE PRINCIPLES**

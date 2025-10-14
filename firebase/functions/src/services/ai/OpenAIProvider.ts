@@ -291,8 +291,18 @@ export class OpenAIProvider implements AIProvider {
     options?: any // Accept all HintsOptions
   ): Promise<HintsOutputItem[]> {
     const systemPrompt = getHintsSystemPrompt(noteModel);
+    
+    // Strip unnecessary fields to reduce prompt size
+    const strippedItems = items.map(item => ({
+      id: item.id,
+      model: item.model,
+      ...(item.front && { front: item.front }),
+      ...(item.back && { back: item.back }),
+      ...(item.cloze && { cloze: item.cloze }),
+    }));
+    
     const userPrompt = buildHintsUserPrompt({
-      items,
+      items: strippedItems,
       deckName: options?.deckName,
       languageHints: options?.languageHints,
       style: options?.style,
