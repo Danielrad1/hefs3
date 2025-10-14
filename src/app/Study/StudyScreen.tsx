@@ -26,7 +26,6 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const [responseStartTime, setResponseStartTime] = useState(Date.now());
   const [hints, setHints] = useState<Map<string, CardHint>>(new Map());
   const [hintsLoading, setHintsLoading] = useState(true);
-  const [answeredCardId, setAnsweredCardId] = useState<string | null>(null);
   
   const overlayColor = useSharedValue('rgba(0, 0, 0, 0)');
   const currentCardSwipeDistance = useSharedValue(0);
@@ -83,7 +82,6 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     currentCardSwipeDistance.value = 0; // Reset next card scale immediately
     setIsCurrentRevealed(false);
     setResponseStartTime(Date.now());
-    setAnsweredCardId(null); // Reset answered card tracking
   }, [current, overlayColor, currentCardSwipeDistance]);
 
   const handleAnswer = React.useCallback((difficulty: Difficulty) => {
@@ -112,10 +110,6 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     
     // Fade out color overlay smoothly as card flies away
     overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 400 });
-    
-    // Mark this card as answered immediately to trigger icon state reset
-    setAnsweredCardId(current.id);
-    setIsCurrentRevealed(false);
     
     // Delay state update to let card fly away animation complete
     setTimeout(() => {
@@ -304,9 +298,8 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       <View style={styles.cardStack}>
         {cards.map(({ card, zIndex, isCurrent, style }) => {
           const cardHint = hints.get(String(card.id)) || null;
-          // Include answered status in key to force immediate remount when card is answered
-          const isAnswered = answeredCardId === card.id;
-          const cardKey = `${card.id}-${isAnswered ? 'answered' : 'active'}`;
+          // Include hint availability in key to force re-render when hints load
+          const cardKey = `${card.id}-${cardHint ? 'with-hint' : 'no-hint'}`;
           return (
             <React.Fragment key={cardKey}>
               <Animated.View

@@ -17,8 +17,6 @@ import { useScheduler } from '../../context/SchedulerProvider';
 import { CardQueue } from '../../services/anki/schema';
 import { isDue } from '../../services/anki/time';
 import TextInputModal from '../../components/TextInputModal';
-import { deckMetadataService } from '../../services/anki/DeckMetadataService';
-import { cardHintsService } from '../../services/anki/CardHintsService';
 
 interface DeckDetailScreenProps {
   route: {
@@ -40,18 +38,10 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [nextDueSeconds, setNextDueSeconds] = useState<number | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [aiHintsEnabled, setAiHintsEnabled] = useState(false);
 
   const deck = db.getDeck(deckId);
   const cards = db.getCardsByDeck(deckId);
   const col = db.getCol();
-
-  // Load AI hints settings
-  useEffect(() => {
-    deckMetadataService.getAiHintsSettings(deckId).then((settings) => {
-      setAiHintsEnabled(settings.enabled);
-    });
-  }, [deckId]);
   
   // Calculate stats using proper isDue logic
   const newCards = cards.filter((c) => c.type === 0);
@@ -168,17 +158,6 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
 
   const handleBrowseCards = () => {
     navigation.navigate('DeckBrowser', { deckId });
-  };
-
-  const handleEnableAiHints = () => {
-    if (!deck) return;
-    
-    // Navigate to hints configuration/generation screen
-    navigation.navigate('AIHintsConfig', {
-      deckId,
-      deckName: deck.name,
-      totalCards: cards.length,
-    });
   };
 
   const handleAddNote = () => {
@@ -436,20 +415,6 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
           <Pressable style={styles.actionRow} onPress={handleBrowseCards}>
             <Ionicons name="search-outline" size={22} color={theme.colors.accent} />
             <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Browse Cards</Text>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
-          </Pressable>
-          
-          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-          
-          <Pressable style={styles.actionRow} onPress={handleEnableAiHints}>
-            <Ionicons 
-              name={aiHintsEnabled ? "bulb" : "bulb-outline"} 
-              size={22} 
-              color={aiHintsEnabled ? theme.colors.success : theme.colors.accent} 
-            />
-            <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>
-              {aiHintsEnabled ? 'Manage AI Hints' : 'Enable AI Hints'}
-            </Text>
             <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
           </Pressable>
           
