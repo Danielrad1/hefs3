@@ -236,17 +236,17 @@ export class OpenAIProvider implements AIProvider {
 
   /**
    * Process hints generation in parallel batches
-   * Splits items into batches of 20 and processes them concurrently
+   * Splits items into batches of 10 and processes them concurrently
    */
   private async generateHintsParallel(
     items: Array<{ id: string; model: 'basic' | 'cloze'; front?: string; back?: string; cloze?: string; tags?: string[]; context?: string }>,
     noteModel: 'basic' | 'cloze',
     options?: any // Accept all HintsOptions
   ): Promise<HintsOutputItem[]> {
-    const BATCH_SIZE = 20;
+    const BATCH_SIZE = 10;
     const batches: Array<typeof items> = [];
     
-    // Split into batches of 20
+    // Split into batches of 10
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       batches.push(items.slice(i, i + BATCH_SIZE));
     }
@@ -301,19 +301,20 @@ export class OpenAIProvider implements AIProvider {
       ...(item.cloze && { cloze: item.cloze }),
     }));
     
+    // All instructions are in system prompt (cached), user prompt is just card data
     const userPrompt = buildHintsUserPrompt({
       items: strippedItems,
       deckName: options?.deckName,
       languageHints: options?.languageHints,
-      style: options?.style,
-      // Pass through all advanced options (multi-level hints are always generated)
-      enableConfusableInference: options?.enableConfusableInference,
-      mnemonicGating: options?.mnemonicGating,
-      enforceDistinctiveness: options?.enforceDistinctiveness,
     });
 
     console.log('[OpenAIProvider] Hints system prompt length:', systemPrompt.length);
     console.log('[OpenAIProvider] Hints user prompt length:', userPrompt.length);
+    console.log('[OpenAIProvider] ===== SYSTEM PROMPT =====');
+    console.log(systemPrompt);
+    console.log('[OpenAIProvider] ===== USER PROMPT =====');
+    console.log(userPrompt);
+    console.log('[OpenAIProvider] ===== END PROMPTS =====');
 
     try {
       console.log('[OpenAIProvider] Calling OpenAI API for hints...');
