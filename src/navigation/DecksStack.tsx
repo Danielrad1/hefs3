@@ -7,6 +7,8 @@ import NoteEditorScreen from '../app/Editor/NoteEditorScreen';
 import AIDeckCreatorScreen from '../app/Decks/AIDeckCreatorScreen';
 import AIGeneratingScreen from '../app/Decks/AIGeneratingScreen';
 import AIDeckPreviewScreen from '../app/Decks/AIDeckPreviewScreen';
+import AIHintsConfigScreen from '../app/Decks/AIHintsConfigScreen';
+import AIHintsGeneratingScreen from '../app/Decks/AIHintsGeneratingScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,6 +22,8 @@ export default function DecksStack() {
       <Stack.Screen name="AIDeckCreator" component={AIDeckCreatorScreen} />
       <Stack.Screen name="AIGenerating" component={AIGeneratingScreen} />
       <Stack.Screen name="AIDeckPreview" component={AIDeckPreviewScreen} />
+      <Stack.Screen name="AIHintsConfig" component={AIHintsConfigScreen} />
+      <Stack.Screen name="AIHintsGenerating" component={AIHintsGeneratingScreen} />
     </Stack.Navigator>
   );
 }

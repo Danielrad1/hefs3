@@ -62,6 +62,14 @@ export class ApiService {
 
       clearTimeout(timeoutId);
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error(`[ApiService] Non-JSON response:`, text.substring(0, 500));
+        throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
+      }
+
       const data: ApiResponse<T> = await response.json();
 
       if (!response.ok || !data.success) {

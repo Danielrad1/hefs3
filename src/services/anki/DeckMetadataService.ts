@@ -9,6 +9,9 @@ export interface DeckMetadata {
   color?: string; // Hex color
   folder?: string; // Folder name the deck belongs to
   order?: number; // Display order
+  aiHintsEnabled?: boolean; // Whether AI hints are enabled for this deck
+  aiHintsIconFront?: string; // Icon for front hint (default: bulb-outline)
+  aiHintsIconBack?: string; // Icon for back tip (default: sparkles-outline)
 }
 
 /**
@@ -200,6 +203,29 @@ export class DeckMetadataService {
     }
     this.folderCache.delete(folderName);
     await this.saveFolders();
+  }
+
+  /**
+   * Get AI hints settings for a deck
+   */
+  async getAiHintsSettings(deckId: string): Promise<{
+    enabled: boolean;
+    iconFront: string;
+    iconBack: string;
+  }> {
+    const metadata = await this.getMetadata(deckId);
+    return {
+      enabled: metadata?.aiHintsEnabled || false,
+      iconFront: metadata?.aiHintsIconFront || 'bulb-outline',
+      iconBack: metadata?.aiHintsIconBack || 'sparkles-outline',
+    };
+  }
+
+  /**
+   * Set AI hints enabled for a deck
+   */
+  async setAiHintsEnabled(deckId: string, enabled: boolean): Promise<void> {
+    await this.updateMetadata(deckId, { aiHintsEnabled: enabled });
   }
 
   /**

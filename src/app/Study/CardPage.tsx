@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, StyleSheet, Dimensions, Text, ScrollView } from 'react-native';
+import { View, StyleSheet, Dimensions, Text, ScrollView, Pressable, Modal } from 'react-native';
 import Animated, { 
   useAnimatedStyle, 
   withTiming, 
@@ -12,6 +12,7 @@ import Animated, {
   Easing
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView, GestureType } from 'react-native-gesture-handler';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design';
 import { ImageCache } from '../../utils/ImageCache';
 import { s } from '../../design/spacing';
@@ -21,6 +22,9 @@ import { Card } from '../../domain/models';
 import { Difficulty } from '../../domain/srsTypes';
 import { useHaptics } from '../../hooks/useHaptics';
 import CardContentRenderer from '../../components/CardContentRendererV2';
+import { cardHintsService, CardHint } from '../../services/anki/CardHintsService';
+import { MultiLevelHintDisplay } from '../../components/MultiLevelHintDisplay';
+import { TipDisplay } from '../../components/TipDisplay';
 
 const { height, width } = Dimensions.get('window');
 
@@ -32,9 +36,11 @@ type CardPageProps = {
   onSwipeChange?: (translateX: number, translateY: number, isRevealed: boolean) => void;
   onReveal?: () => void;
   disabled?: boolean; // Disable gestures when card is in background
+  hint?: CardHint | null; // AI-generated hint for this card
+  onRequestEnableHints?: () => void; // Callback when user wants to enable hints
 };
 
-const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false }: CardPageProps) {
+const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false, hint, onRequestEnableHints }: CardPageProps) {
   const theme = useTheme();
   const { selection } = useHaptics();
   const panRef = useRef<GestureType | undefined>(undefined);
@@ -55,6 +61,8 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   
   // React state for revealed status (for rendering)
   const [revealed, setRevealed] = React.useState(false);
+  const [showHintModal, setShowHintModal] = React.useState(false);
+  const [showTipModal, setShowTipModal] = React.useState(false);
 
   // Removed shadow animation - static shadows for better performance
 
@@ -344,6 +352,8 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       revealProgress.value = 0;
       isRevealed.value = false;
       setRevealed(false);
+      setShowHintModal(false);
+      setShowTipModal(false);
       gestureStartedAtEdge.value = false;
       
       // Reset scroll position to top
@@ -475,8 +485,69 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   const composedGesture = Gesture.Simultaneous(scrollGesture, ratingGesture);
 
   return (
-    <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[styles.container, cardAnimatedStyle]}>
+    <View style={styles.container}>
+      {/* Top area - non-interactive, contains hint button (outside animation) */}
+      {!disabled && (
+        <View style={styles.topArea}>
+          {!revealed && (
+            <Pressable 
+              style={({ pressed }) => [
+                styles.floatingButton, 
+                { 
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  opacity: pressed ? 0.7 : 1,
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                }
+              ]}
+              onPress={() => {
+                selection();
+                if (hint) {
+                  setShowHintModal(true);
+                } else if (onRequestEnableHints) {
+                  onRequestEnableHints();
+                }
+              }}
+            >
+              <Ionicons 
+                name="bulb-outline" 
+                size={24} 
+                color="#8B5CF6" 
+              />
+            </Pressable>
+          )}
+          {revealed && (
+            <Pressable 
+              style={({ pressed }) => [
+                styles.floatingButton, 
+                { 
+                  backgroundColor: 'rgba(236, 72, 153, 0.15)',
+                  opacity: pressed ? 0.7 : 1,
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                }
+              ]}
+              onPress={() => {
+                selection();
+                if (hint) {
+                  setShowTipModal(true);
+                } else if (onRequestEnableHints) {
+                  onRequestEnableHints();
+                }
+              }}
+            >
+              <Ionicons 
+                name="sparkles" 
+                size={24} 
+                color="#EC4899" 
+              />
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {/* Card area - interactive with gestures */}
+      <GestureDetector gesture={composedGesture}>
+        <Animated.View style={[styles.cardArea, cardAnimatedStyle]}>
+
         {/* Dual cards with crossfade - no content swapping */}
         <View style={styles.cardContainer}>
           <Animated.View style={[styles.card, { backgroundColor: theme.colors.surface }, sh.card]}>
@@ -535,14 +606,89 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
           </Animated.View>
         </View>
 
-        {/* Tinder-style swipe overlay */}
-        <Animated.View style={[styles.swipeOverlay, overlayPositionStyle, overlayAnimatedStyle]} pointerEvents="none">
-          <View style={[styles.swipeLabelContainer, { borderColor: swipeColor }]}>
-            <Text style={[styles.swipeLabel, { color: swipeColor }]}>{swipeLabel}</Text>
-          </View>
+          {/* Tinder-style swipe overlay */}
+          <Animated.View style={[styles.swipeOverlay, overlayPositionStyle, overlayAnimatedStyle]} pointerEvents="none">
+            <View style={[styles.swipeLabelContainer, { borderColor: swipeColor }]}>
+              <Text style={[styles.swipeLabel, { color: swipeColor }]}>{swipeLabel}</Text>
+            </View>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
-    </GestureDetector>
+      </GestureDetector>
+
+      {/* Hint Modal - Bottom Sheet */}
+      <Modal
+        visible={showHintModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowHintModal(false)}
+      >
+        <View style={styles.bottomModalOverlay}>
+          <Pressable 
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowHintModal(false)}
+          />
+          <View style={styles.bottomModalContent}>
+            {hint && hint.hintL1 && hint.hintL2 && hint.hintL3 ? (
+              <MultiLevelHintDisplay
+                hintL1={hint.hintL1}
+                hintL2={hint.hintL2}
+                hintL3={hint.hintL3}
+                onClose={() => setShowHintModal(false)}
+              />
+            ) : (
+              <View style={[styles.noHintCard, { backgroundColor: theme.colors.surface }]}>
+                <Ionicons name="bulb-outline" size={48} color={theme.colors.textSecondary} />
+                <Text style={[styles.noHintTitle, { color: theme.colors.textPrimary }]}>
+                  No hints available
+                </Text>
+                <Text style={[styles.noHintText, { color: theme.colors.textSecondary }]}>
+                  Generate AI hints for this deck first.
+                </Text>
+                <Pressable 
+                  onPress={() => setShowHintModal(false)}
+                  style={[styles.noHintButton, { backgroundColor: theme.colors.accent }]}
+                >
+                  <Text style={styles.noHintButtonText}>Close</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Tip Modal - Bottom Sheet (No Dark Overlay) */}
+      <Modal
+        visible={showTipModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTipModal(false)}
+      >
+        <View style={styles.tipModalOverlay}>
+          <Pressable 
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowTipModal(false)}
+          />
+          <View style={styles.tipModalContent}>
+            {hint && hint.tip ? (
+              <TipDisplay 
+                tip={hint.tip} 
+                confusableContrast={hint.confusableContrast}
+                onClose={() => setShowTipModal(false)}
+              />
+            ) : (
+              <View style={{ padding: s.xl }}>
+                <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
+                  No tip available
+                </Text>
+                <Text style={[styles.modalText, { color: theme.colors.textSecondary, marginTop: s.md }]}>
+                  Generate hints for this card first.
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }, (prevProps, nextProps) => {
   // Memo returns TRUE to SKIP re-render, FALSE to re-render
@@ -561,6 +707,40 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     backgroundColor: 'transparent',
+  },
+  topArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: height * 0.125,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingRight: s.lg + 4,
+    paddingTop: 8,
+    zIndex: 1000,
+  },
+  cardArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  floatingButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   cardContainer: {
     position: 'absolute',
@@ -608,5 +788,118 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '900',
     letterSpacing: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: s.xl,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: r.lg,
+    padding: s.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  bottomModalOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end',
+  },
+  bottomModalContent: {
+    width: '100%',
+  },
+  tipModalOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end',
+  },
+  tipModalContent: {
+    width: '100%',
+    maxHeight: '70%',
+  },
+  noHintCard: {
+    width: '100%',
+    padding: s.xl * 2,
+    borderRadius: r.xl,
+    alignItems: 'center',
+    gap: s.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  noHintTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  noHintText: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  noHintButton: {
+    marginTop: s.md,
+    paddingHorizontal: s.xl * 2,
+    paddingVertical: s.lg,
+    borderRadius: r.lg,
+  },
+  noHintButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0A0A0B',
+  },
+  modernModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'flex-end',
+  },
+  modernModalContent: {
+    width: '100%',
+    borderTopLeftRadius: r.xl,
+    borderTopRightRadius: r.xl,
+    padding: s.xl,
+    paddingBottom: s.xl + 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.md,
+    marginBottom: s.lg,
+  },
+  modalTitle: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalText: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  closeModalButton: {
+    marginTop: s.xl,
+    padding: s.lg,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderRadius: r.md,
+    alignItems: 'center',
+  },
+  closeModalText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#8B5CF6',
   },
 });

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
-import { AIProvider, GenerateDeckRequest, GenerateDeckResponse, GeneratedNote } from '../../types/ai';
+import { AIProvider, GenerateDeckRequest, GenerateDeckResponse, GeneratedNote, GenerateHintsRequest, GenerateHintsResponse, HintsOutputItem } from '../../types/ai';
 import { getSystemPrompt, buildUserPrompt } from './prompts';
+import { getHintsSystemPrompt, buildHintsUserPrompt } from './prompts.hints';
 import { AI_CONFIG } from '../../config/ai';
 
 /**
@@ -191,6 +192,268 @@ export class OpenAIProvider implements AIProvider {
       
       throw new Error('AI generation failed: Unknown error');
     }
+  }
+
+  async generateHints(request: GenerateHintsRequest): Promise<GenerateHintsResponse> {
+    console.log('[OpenAIProvider] Starting hints generation:', {
+      itemsCount: request.items.length,
+      deckName: request.options?.deckName,
+      style: request.options?.style,
+    });
+
+    // Group items by model type for consistent prompts
+    const basicItems = request.items.filter(item => item.model === 'basic');
+    const clozeItems = request.items.filter(item => item.model === 'cloze');
+
+    const allResults: HintsOutputItem[] = [];
+
+    // Process basic cards in parallel batches
+    if (basicItems.length > 0) {
+      const results = await this.generateHintsParallel(basicItems, 'basic', request.options);
+      allResults.push(...results);
+    }
+
+    // Process cloze cards in parallel batches
+    if (clozeItems.length > 0) {
+      const results = await this.generateHintsParallel(clozeItems, 'cloze', request.options);
+      allResults.push(...results);
+    }
+
+    console.log('[OpenAIProvider] Hints generation complete:', {
+      totalRequested: request.items.length,
+      successfulResults: allResults.length,
+    });
+
+    return {
+      items: allResults,
+      metadata: {
+        modelUsed: this.getName(),
+        totalItems: request.items.length,
+        successfulItems: allResults.length,
+      },
+    };
+  }
+
+  /**
+   * Process hints generation in parallel batches
+   * Splits items into batches of 20 and processes them concurrently
+   */
+  private async generateHintsParallel(
+    items: Array<{ id: string; model: 'basic' | 'cloze'; front?: string; back?: string; cloze?: string; tags?: string[]; context?: string }>,
+    noteModel: 'basic' | 'cloze',
+    options?: any // Accept all HintsOptions
+  ): Promise<HintsOutputItem[]> {
+    const BATCH_SIZE = 20;
+    const batches: Array<typeof items> = [];
+    
+    // Split into batches of 20
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      batches.push(items.slice(i, i + BATCH_SIZE));
+    }
+
+    console.log(`[OpenAIProvider] Processing ${items.length} items in ${batches.length} parallel batches of ${BATCH_SIZE}`);
+
+    // Process all batches in parallel using Promise.all
+    const startTime = Date.now();
+    const batchPromises = batches.map((batch, index) => 
+      this.generateHintsForBatch(batch, noteModel, options)
+        .then(results => {
+          console.log(`[OpenAIProvider] Batch ${index + 1}/${batches.length} complete (${results.length} items)`);
+          return results;
+        })
+        .catch(error => {
+          console.error(`[OpenAIProvider] Batch ${index + 1}/${batches.length} failed:`, error);
+          // Return empty array on error to not block other batches
+          return [];
+        })
+    );
+
+    // Wait for all batches to complete
+    const batchResults = await Promise.all(batchPromises);
+    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    // Flatten results from all batches
+    const allResults = batchResults.flat();
+
+    console.log(`[OpenAIProvider] Parallel processing complete in ${elapsedTime}s:`, {
+      totalBatches: batches.length,
+      totalItems: items.length,
+      successfulItems: allResults.length,
+      failedItems: items.length - allResults.length,
+    });
+
+    return allResults;
+  }
+
+  private async generateHintsForBatch(
+    items: Array<{ id: string; model: 'basic' | 'cloze'; front?: string; back?: string; cloze?: string; tags?: string[]; context?: string }>,
+    noteModel: 'basic' | 'cloze',
+    options?: any // Accept all HintsOptions
+  ): Promise<HintsOutputItem[]> {
+    const systemPrompt = getHintsSystemPrompt(noteModel);
+    const userPrompt = buildHintsUserPrompt({
+      items,
+      deckName: options?.deckName,
+      languageHints: options?.languageHints,
+      style: options?.style,
+      // Pass through all advanced options (multi-level hints are always generated)
+      enableConfusableInference: options?.enableConfusableInference,
+      mnemonicGating: options?.mnemonicGating,
+      enforceDistinctiveness: options?.enforceDistinctiveness,
+    });
+
+    console.log('[OpenAIProvider] Hints system prompt length:', systemPrompt.length);
+    console.log('[OpenAIProvider] Hints user prompt length:', userPrompt.length);
+
+    try {
+      console.log('[OpenAIProvider] Calling OpenAI API for hints...');
+      const completion = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        // Note: GPT-5 Nano only supports default temperature (1)
+      });
+
+      console.log('[OpenAIProvider] Hints API call successful');
+
+      // Log token usage
+      const usage = completion.usage;
+      if (usage) {
+        const modelConfig = AI_CONFIG.models.find(m => m.id === this.model);
+        if (modelConfig) {
+          const inputCost = (usage.prompt_tokens / 1_000_000) * modelConfig.pricing.inputPer1M;
+          const outputCost = (usage.completion_tokens / 1_000_000) * modelConfig.pricing.outputPer1M;
+          const totalCost = inputCost + outputCost;
+          
+          console.log('[OpenAIProvider] Hints token usage:', {
+            input: usage.prompt_tokens,
+            output: usage.completion_tokens,
+            total: usage.total_tokens,
+            cost: `$${totalCost.toFixed(6)}`,
+          });
+        }
+      }
+
+      const content = completion.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('No response from AI provider');
+      }
+
+      console.log('[OpenAIProvider] Raw AI response (first 500 chars):', content.substring(0, 500));
+
+      const parsed = JSON.parse(content);
+      console.log('[OpenAIProvider] Hints response parsed:', {
+        itemsCount: parsed.items?.length || 0,
+        requestedCount: items.length,
+      });
+
+      return this.parseHintsResponse(parsed, items, content);
+    } catch (error) {
+      console.error('[OpenAIProvider] Hints generation failed:', error);
+      
+      if (error instanceof Error) {
+        throw new Error(`Hints generation failed: ${error.message}`);
+      }
+      
+      throw new Error('Hints generation failed: Unknown error');
+    }
+  }
+
+  private parseHintsResponse(
+    parsed: any,
+    requestedItems: Array<{ id: string }>,
+    rawContent?: string
+  ): HintsOutputItem[] {
+    if (!parsed.items || !Array.isArray(parsed.items)) {
+      throw new Error('Invalid response: missing or invalid items array');
+    }
+
+    const results: HintsOutputItem[] = [];
+    const requestedIds = new Set(requestedItems.map(i => i.id));
+
+    for (const item of parsed.items) {
+      // Validate structure
+      if (!item.id || !requestedIds.has(item.id)) {
+        console.warn('[OpenAIProvider] Skipping item with invalid/unknown ID:', item.id);
+        continue;
+      }
+
+      // Extract all 3 hint levels (HTML formatted)
+      const hintL1 = String(item.hintL1 || '').trim();
+      const hintL2 = String(item.hintL2 || '').trim();
+      const hintL3 = String(item.hintL3 || '').trim();
+      const tip = String(item.tip || '').trim();
+      const obstacle = item.obstacle || 'mechanism'; // Default to mechanism if not provided
+
+      // Log warnings but accept all items
+      if (!hintL1 || !hintL2 || !hintL3) {
+        console.warn('[OpenAIProvider] Missing hint levels for', item.id, {
+          hasL1: !!hintL1,
+          hasL2: !!hintL2,
+          hasL3: !!hintL3,
+          hasTip: !!tip,
+          obstacle,
+          hasError: !!item.error,
+          errorMessage: item.error,
+          rawItem: JSON.stringify(item).substring(0, 200),
+        });
+        // Continue processing - accept incomplete items
+      }
+
+      if (hintL1.length > 180 || hintL2.length > 180 || hintL3.length > 180) {
+        console.warn('[OpenAIProvider] Hint length exceeds limit for', item.id, {
+          l1Length: hintL1.length,
+          l2Length: hintL2.length,
+          l3Length: hintL3.length,
+        });
+        // Continue processing - accept long hints
+      }
+
+      if (!tip) {
+        console.warn('[OpenAIProvider] Missing tip for', item.id);
+        // Continue processing - accept missing tip
+      } else if (tip.length > 320) {
+        console.warn('[OpenAIProvider] Tip length exceeds limit for', item.id, {
+          tipLength: tip.length,
+        });
+        // Continue processing - accept long tips
+      }
+
+      results.push({
+        id: item.id,
+        hintL1,
+        hintL2,
+        hintL3,
+        tip,
+        obstacle,
+        metadata: item.metadata,
+      });
+    }
+
+    const missingIds = requestedItems
+      .map(r => r.id)
+      .filter(id => !results.find(r => r.id === id));
+
+    console.log('[OpenAIProvider] Parsed hints results:', {
+      requested: requestedItems.length,
+      received: parsed.items.length,
+      valid: results.length,
+      missing: missingIds.length,
+      missingIds: missingIds.length > 0 ? missingIds : undefined,
+    });
+
+    if (missingIds.length > 0 && rawContent) {
+      console.log('[OpenAIProvider] Checking raw content for missing IDs...');
+      missingIds.forEach(id => {
+        const inRawContent = rawContent.includes(`"id":"${id}"`);
+        console.log(`  ${id}: ${inRawContent ? 'PRESENT in raw response' : 'NOT in raw response'}`);
+      });
+    }
+
+    return results;
   }
 
   private parseResponse(parsed: any, request: GenerateDeckRequest): GenerateDeckResponse {

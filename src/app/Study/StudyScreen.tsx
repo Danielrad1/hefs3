@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet, Text, Alert } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Extrapolate } from 'react-native-reanimated';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useTheme } from '../../design';
@@ -9,8 +9,14 @@ import { sampleCards } from '../../mocks/sampleCards';
 import { useScheduler } from '../../context/SchedulerProvider';
 import { ImageCache } from '../../utils/ImageCache';
 import CardPage from './CardPage';
+import { cardHintsService, CardHint } from '../../services/anki/CardHintsService';
+import { db } from '../../services/anki/InMemoryDb';
 
-export default function StudyScreen() {
+interface StudyScreenProps {
+  navigation?: any;
+}
+
+export default function StudyScreen({ navigation }: StudyScreenProps) {
   const theme = useTheme();
   const haptics = useHaptics();
   const confettiRef = useRef<ConfettiCannon>(null);
@@ -18,6 +24,8 @@ export default function StudyScreen() {
   
   const [isCurrentRevealed, setIsCurrentRevealed] = useState(false);
   const [responseStartTime, setResponseStartTime] = useState(Date.now());
+  const [hints, setHints] = useState<Map<string, CardHint>>(new Map());
+  const [hintsLoading, setHintsLoading] = useState(true);
   
   const overlayColor = useSharedValue('rgba(0, 0, 0, 0)');
   const currentCardSwipeDistance = useSharedValue(0);
@@ -27,6 +35,25 @@ export default function StudyScreen() {
   // useEffect(() => {
   //   bootstrap(sampleCards);
   // }, [bootstrap]);
+  
+  // Load hints for current and next cards
+  useEffect(() => {
+    const loadHints = async () => {
+      setHintsLoading(true);
+      const cardIds: string[] = [];
+      if (current) cardIds.push(String(current.id));
+      if (next) cardIds.push(String(next.id));
+      
+      if (cardIds.length > 0) {
+        const loadedHints = await cardHintsService.getMany(cardIds);
+        setHints(loadedHints);
+      } else {
+        setHints(new Map());
+      }
+      setHintsLoading(false);
+    };
+    loadHints();
+  }, [current, next]);
   
   // Preload images and dimensions for current and next cards
   // Deferred to prevent blocking UI - fire and forget
@@ -167,14 +194,48 @@ export default function StudyScreen() {
     return {
       transform: [
         { scale },
-        { translateY }
+        { translateY },
       ],
     };
-  });
+  }, [currentCardSwipeDistance]);
 
   // Memoized callbacks for preview card
   const emptyOnAnswer = React.useCallback(() => {}, []);
-  const handleReveal = React.useCallback(() => setIsCurrentRevealed(true), []);
+  const handleReveal = React.useCallback(() => {
+    setIsCurrentRevealed(true);
+  }, []);
+
+  const handleRequestEnableHints = React.useCallback(() => {
+    if (!currentDeckId) return;
+    
+    const deck = db.getDeck(currentDeckId);
+    if (!deck) return;
+
+    Alert.alert(
+      'Enable AI Hints',
+      `Generate smart hints and memory tips for "${deck.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Enable',
+          onPress: () => {
+            // Navigate to Decks tab, then to deck detail, then to hints config
+            const parent = navigation?.getParent();
+            if (parent) {
+              parent.navigate('Decks', {
+                screen: 'AIHintsConfig',
+                params: {
+                  deckId: currentDeckId,
+                  deckName: deck.name,
+                  totalCards: db.getCardsByDeck(currentDeckId).length,
+                },
+              });
+            }
+          },
+        },
+      ]
+    );
+  }, [currentDeckId, navigation]);
 
   // Collect all visible cards in a single flat array with stable keys
   // MUST be before conditional returns to avoid hook ordering issues
@@ -235,26 +296,33 @@ export default function StudyScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       {/* Card stack - all cards in same flat structure for React reconciliation */}
       <View style={styles.cardStack}>
-        {cards.map(({ card, zIndex, isCurrent, style }) => (
-          <React.Fragment key={card.id}>
-            <Animated.View
-              style={[
-                styles.cardWrapper,
-                { zIndex },
-                style,
-              ]}
-              pointerEvents={isCurrent ? 'auto' : 'none'}
-            >
-              <CardPage
-                card={card}
-                onAnswer={handleAnswer}
-                onSwipeChange={handleSwipeChange}
-                onReveal={handleReveal}
-                disabled={!isCurrent}
-              />
-            </Animated.View>
-          </React.Fragment>
-        ))}
+        {cards.map(({ card, zIndex, isCurrent, style }) => {
+          const cardHint = hints.get(String(card.id)) || null;
+          // Include hint availability in key to force re-render when hints load
+          const cardKey = `${card.id}-${cardHint ? 'with-hint' : 'no-hint'}`;
+          return (
+            <React.Fragment key={cardKey}>
+              <Animated.View
+                style={[
+                  styles.cardWrapper,
+                  { zIndex },
+                  style,
+                ]}
+                pointerEvents={isCurrent ? 'auto' : 'none'}
+              >
+                <CardPage
+                  card={card}
+                  onAnswer={handleAnswer}
+                  onSwipeChange={handleSwipeChange}
+                  onReveal={handleReveal}
+                  disabled={!isCurrent}
+                  hint={cardHint}
+                  onRequestEnableHints={handleRequestEnableHints}
+                />
+              </Animated.View>
+            </React.Fragment>
+          );
+        })}
       </View>
       
       {/* Screen overlay for swipe feedback */}
