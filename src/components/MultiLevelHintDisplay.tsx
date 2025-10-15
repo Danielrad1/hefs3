@@ -20,6 +20,7 @@ interface MultiLevelHintDisplayProps {
   hintL2: string;
   hintL3: string;
   onClose?: () => void;
+  onHintRevealed?: (depth: 1 | 2 | 3) => void; // Callback when user reveals a hint level
 }
 
 const LEVEL_INFO = {
@@ -42,13 +43,21 @@ const LEVEL_INFO = {
 
 const HINT_COLOR = '#3B82F6'; // Darker magical blue
 
-export function MultiLevelHintDisplay({ hintL1, hintL2, hintL3, onClose }: MultiLevelHintDisplayProps) {
+export function MultiLevelHintDisplay({ hintL1, hintL2, hintL3, onClose, onHintRevealed }: MultiLevelHintDisplayProps) {
   const theme = useTheme();
   const { selection } = useHaptics();
   const { width } = useWindowDimensions();
   
   const [currentLevel, setCurrentLevel] = useState<HintLevel>('L1');
   const [contentKey, setContentKey] = useState(0);
+  const [revealedLevels, setRevealedLevels] = useState<Set<HintLevel>>(new Set(['L1'])); // Track which levels have been revealed
+  
+  // Track L1 reveal on mount
+  React.useEffect(() => {
+    if (onHintRevealed) {
+      onHintRevealed(1);
+    }
+  }, []);
   
   const getCurrentHint = () => {
     switch (currentLevel) {
@@ -65,6 +74,15 @@ export function MultiLevelHintDisplay({ hintL1, hintL2, hintL3, onClose }: Multi
     selection();
     setCurrentLevel(newLevel);
     setContentKey(prev => prev + 1);
+    
+    // Track hint reveal if this level hasn't been revealed yet
+    if (!revealedLevels.has(newLevel)) {
+      setRevealedLevels(prev => new Set(prev).add(newLevel));
+      if (onHintRevealed) {
+        const depth = newLevel === 'L1' ? 1 : newLevel === 'L2' ? 2 : 3;
+        onHintRevealed(depth);
+      }
+    }
   };
 
   const htmlStyles = {

@@ -38,7 +38,7 @@ export default function FolderCard({
 
   // Generate gradient colors
   const gradientColors = customColor 
-    ? [customColor + '30', customColor + '05'] as const
+    ? [customColor + '1E', customColor + '0D'] as const
     : null;
 
   const cardContent = (
@@ -56,7 +56,7 @@ export default function FolderCard({
           {/* Folder Icon - with badge only if has custom color */}
           {!customIcon && (
             customColor ? (
-              <View style={[styles.folderBadge, { backgroundColor: customColor + '20' }]}>
+              <View style={[styles.folderBadge, { backgroundColor: customColor + '1E' }]}>
                 <Ionicons 
                   name={isExpanded ? 'folder-open' : 'folder'} 
                   size={16} 
@@ -67,7 +67,7 @@ export default function FolderCard({
               <Ionicons 
                 name={isExpanded ? 'folder-open' : 'folder'} 
                 size={24} 
-                color={theme.colors.accent}
+                color={theme.colors.primary}
               />
             )
           )}
@@ -104,7 +104,7 @@ export default function FolderCard({
       </View>
 
       <View style={styles.folderStats}>
-        <Text style={[styles.statText, { color: theme.colors.accent }]}>
+        <Text style={[styles.statText, { color: theme.colors.textPrimary }]}>
           {dueCards} due
         </Text>
         <Text style={[styles.statDivider, { color: theme.colors.textSecondary }]}>•</Text>

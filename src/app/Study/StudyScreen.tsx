@@ -13,6 +13,7 @@ import CardPage from './CardPage';
 import { cardHintsService, CardHint } from '../../services/anki/CardHintsService';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { db } from '../../services/anki/InMemoryDb';
+import { hintEventsRepository } from '../../services/anki/db/HintEventsRepository';
 import AIHintsPromoModal from './AIHintsPromoModal';
 
 interface StudyScreenProps {
@@ -31,6 +32,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const [hintsLoading, setHintsLoading] = useState(true);
   const [aiHintsEnabled, setAiHintsEnabled] = useState(false);
   const [showPromoModal, setShowPromoModal] = useState(false);
+  const [currentCardMaxHintDepth, setCurrentCardMaxHintDepth] = useState<number | null>(null); // Track highest hint level revealed for current card
   
   const overlayColor = useSharedValue('rgba(0, 0, 0, 0)');
   const currentCardSwipeDistance = useSharedValue(0);
@@ -117,6 +119,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     currentCardSwipeDistance.value = 0; // Reset next card scale immediately
     setIsCurrentRevealed(false);
     setResponseStartTime(Date.now());
+    setCurrentCardMaxHintDepth(null); // Reset hint tracking for new card
   }, [current, overlayColor, currentCardSwipeDistance]);
 
   const handleAnswer = React.useCallback((difficulty: Difficulty) => {
@@ -143,6 +146,24 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     // Calculate response time
     const responseTimeMs = Date.now() - responseStartTime;
     
+    // Record review with hint linkage
+    const easeMap: Record<Difficulty, number> = {
+      again: 1,
+      hard: 2,
+      good: 3,
+      easy: 4,
+    };
+    const ease = easeMap[difficulty];
+    
+    hintEventsRepository.recordReview({
+      cardId: String(current.id),
+      deckId: currentDeckId || '', // FIXED: Pass deckId for deck-scoped analytics
+      hintDepth: currentCardMaxHintDepth,
+      reviewTimestamp: Date.now(),
+      ease,
+      wasSuccessful: ease >= 2,
+    });
+    
     // Fade out color overlay smoothly as card flies away
     overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 400 });
     
@@ -150,7 +171,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     setTimeout(() => {
       answer(difficulty, responseTimeMs);
     }, 250);
-  }, [current, haptics, responseStartTime, overlayColor, answer]);
+  }, [current, haptics, responseStartTime, overlayColor, answer, currentCardMaxHintDepth]);
 
   const handleSwipeChange = React.useCallback((translateX: number, translateY: number, isRevealed: boolean) => {
     if (!isRevealed) {
@@ -243,6 +264,23 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const handleRequestEnableHints = React.useCallback(() => {
     setShowPromoModal(true);
   }, []);
+
+  const handleHintRevealed = React.useCallback((depth: 1 | 2 | 3) => {
+    if (!current || !currentDeckId) return;
+    
+    // Track this hint reveal
+    hintEventsRepository.recordHintRevealed({
+      cardId: String(current.id),
+      deckId: currentDeckId,
+      depth,
+      timestamp: Date.now(),
+    });
+    
+    // Update the max depth for this card
+    setCurrentCardMaxHintDepth(prevDepth => 
+      prevDepth === null ? depth : Math.max(prevDepth, depth)
+    );
+  }, [current, currentDeckId]);
 
   const handleEnableHints = React.useCallback(() => {
     if (!currentDeckId) {
@@ -398,6 +436,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
                   onRequestEnableHints={handleRequestEnableHints}
                   aiHintsEnabled={aiHintsEnabled}
                   hintsLoading={hintsLoading}
+                  onHintRevealed={handleHintRevealed}
                 />
               </Animated.View>
             </React.Fragment>

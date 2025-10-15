@@ -48,7 +48,7 @@ export default function DeckCard({
 
   // Generate gradient colors
   const gradientColors = customColor 
-    ? [customColor + '30', customColor + '05'] as const
+    ? [customColor + '1E', customColor + '0D'] as const
     : null;
 
   const cardContent = (
@@ -67,8 +67,8 @@ export default function DeckCard({
           
           {/* Tree Badge for Anki hierarchical decks */}
           {hasChildren && !customIcon && (
-            <View style={[styles.treeBadge, { backgroundColor: theme.colors.accent + '20' }]}>
-              <Ionicons name="git-network" size={16} color={theme.colors.accent} />
+            <View style={[styles.treeBadge, { backgroundColor: theme.colors.overlay.primary }]}>
+              <Ionicons name="git-network" size={16} color={theme.colors.primary} />
             </View>
           )}
           
@@ -107,7 +107,7 @@ export default function DeckCard({
       </View>
       
       <View style={styles.deckStats}>
-        <Text style={[styles.statText, { color: theme.colors.accent }]}>
+        <Text style={[styles.statText, { color: theme.colors.textPrimary }]}>
           {deck.dueCount} due
         </Text>
         <Text style={[styles.statDivider, { color: theme.colors.textSecondary }]}>•</Text>

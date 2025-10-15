@@ -40,9 +40,10 @@ type CardPageProps = {
   onRequestEnableHints?: () => void; // Callback when user wants to enable hints
   aiHintsEnabled?: boolean; // Whether AI hints are enabled for this deck
   hintsLoading?: boolean; // Whether hints are currently loading
+  onHintRevealed?: (depth: 1 | 2 | 3) => void; // Callback when user reveals a hint level
 };
 
-const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false, hint, onRequestEnableHints, aiHintsEnabled = false, hintsLoading = false }: CardPageProps) {
+const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false, hint, onRequestEnableHints, aiHintsEnabled = false, hintsLoading = false, onHintRevealed }: CardPageProps) {
   const theme = useTheme();
   const { selection } = useHaptics();
   const panRef = useRef<GestureType | undefined>(undefined);
@@ -650,6 +651,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
                 hintL2={hint.hintL2}
                 hintL3={hint.hintL3}
                 onClose={() => setShowHintModal(false)}
+                onHintRevealed={onHintRevealed}
               />
             ) : (
               <View style={[styles.noHintCard, { backgroundColor: theme.colors.surface }]}>

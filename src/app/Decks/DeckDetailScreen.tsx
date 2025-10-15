@@ -337,11 +337,11 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
         {/* Stats Cards */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
-            <Text style={[styles.statNumber, { color: theme.colors.accent }]}>{actuallyDueCards.length}</Text>
+            <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>{actuallyDueCards.length}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Due Today</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
-            <Text style={[styles.statNumber, { color: theme.colors.success }]}>{cards.length}</Text>
+            <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>{cards.length}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Cards</Text>
           </View>
         </View>
@@ -356,14 +356,14 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
               <View style={styles.barRow}>
                 <View style={styles.barLabelContainer}>
                   <Text style={[styles.barLabel, { color: theme.colors.textPrimary }]}>Studied</Text>
-                  <Text style={[styles.barCount, { color: theme.colors.success }]}>{studiedCards}</Text>
+                  <Text style={[styles.barCount, { color: theme.colors.textPrimary }]}>{studiedCards}</Text>
                 </View>
                 <View style={styles.barContainer}>
                   <View 
                     style={[
                       styles.bar, 
                       { 
-                        backgroundColor: theme.colors.success,
+                        backgroundColor: theme.colors.primary,
                         width: cards.length > 0 ? `${(studiedCards / cards.length) * 100}%` : '0%'
                       }
                     ]} 
@@ -374,14 +374,14 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
               <View style={styles.barRow}>
                 <View style={styles.barLabelContainer}>
                   <Text style={[styles.barLabel, { color: theme.colors.textPrimary }]}>Learning</Text>
-                  <Text style={[styles.barCount, { color: '#FFA500' }]}>{inProgressCards}</Text>
+                  <Text style={[styles.barCount, { color: theme.colors.textPrimary }]}>{inProgressCards}</Text>
                 </View>
                 <View style={styles.barContainer}>
                   <View 
                     style={[
                       styles.bar, 
                       { 
-                        backgroundColor: '#FFA500',
+                        backgroundColor: theme.colors.info,
                         width: cards.length > 0 ? `${(inProgressCards / cards.length) * 100}%` : '0%'
                       }
                     ]} 
@@ -392,14 +392,14 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
               <View style={styles.barRow}>
                 <View style={styles.barLabelContainer}>
                   <Text style={[styles.barLabel, { color: theme.colors.textPrimary }]}>Not Started</Text>
-                  <Text style={[styles.barCount, { color: theme.colors.textSecondary }]}>{notStudiedCards}</Text>
+                  <Text style={[styles.barCount, { color: theme.colors.textPrimary }]}>{notStudiedCards}</Text>
                 </View>
                 <View style={styles.barContainer}>
                   <View 
                     style={[
                       styles.bar, 
                       { 
-                        backgroundColor: theme.colors.border,
+                        backgroundColor: theme.colors.textTertiary,
                         width: cards.length > 0 ? `${(notStudiedCards / cards.length) * 100}%` : '0%'
                       }
                     ]} 
@@ -435,10 +435,10 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
             <Text style={styles.primaryButtonText}>Study Now</Text>
           </Pressable>
           <Pressable
-            style={[styles.primaryButton, { backgroundColor: theme.colors.success }]}
+            style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
             onPress={handleAddNote}
           >
-            <Ionicons name="add-circle-outline" size={20} color="#000" style={{ marginRight: s.sm }} />
+            <Ionicons name="add-circle-outline" size={20} color="#FFF" style={{ marginRight: s.sm }} />
             <Text style={styles.primaryButtonText}>Add Note</Text>
           </Pressable>
         </View>
@@ -448,6 +448,17 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
           <Pressable style={styles.actionRow} onPress={handleBrowseCards}>
             <Ionicons name="search-outline" size={22} color={theme.colors.accent} />
             <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Browse Cards</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+          </Pressable>
+          
+          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+          
+          <Pressable 
+            style={styles.actionRow} 
+            onPress={() => navigation.navigate('DeckStats', { deckId, deckName: deck.name })}
+          >
+            <Ionicons name="stats-chart-outline" size={22} color={theme.colors.accent} />
+            <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>View Statistics</Text>
             <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
           </Pressable>
           
