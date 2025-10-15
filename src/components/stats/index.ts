@@ -4,9 +4,6 @@
  */
 
 // Phase 1-2: Core Stats
-export { StatsCardToday } from './StatsCardToday';
-export { RetentionCard } from './RetentionCard';
-export { TrendMiniChart } from './TrendMiniChart';
 export { DeckHealthCard } from './DeckHealthCard';
 export { DeckCountsBar } from './DeckCountsBar';
 export { BacklogPressureCard } from './BacklogPressureCard';

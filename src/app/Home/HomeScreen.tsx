@@ -8,7 +8,7 @@ import { useScheduler } from '../../context/SchedulerProvider';
 import { sampleCards } from '../../mocks/sampleCards';
 import { db } from '../../services/anki/InMemoryDb';
 import { StatsService, HomeStats, GlobalSnapshot, WeeklyCoachReport as WeeklyCoachReportType } from '../../services/anki/StatsService';
-import { StatsCardToday, RetentionCard, BacklogPressureCard, EfficiencyCard, StreakCalendarCard, WeeklyCoachReport } from '../../components/stats';
+import { BacklogPressureCard, EfficiencyCard, StreakCalendarCard, WeeklyCoachReport } from '../../components/stats';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { useNavigation } from '@react-navigation/native';
@@ -223,7 +223,7 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              {homeStats.todayReviews > 0 && (
+              {homeStats.todayReviewCount > 0 && (
                 <>
                   <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
                   <View style={styles.secondaryStat}>
@@ -270,6 +270,16 @@ export default function HomeScreen() {
               </View>
             </View>
           </View>
+        )}
+
+        {/* Study Efficiency - Speed metrics */}
+        {globalSnapshot && homeStats.totalReviewsAllTime > 0 && (
+          <EfficiencyCard
+            reviewsPerMin={globalSnapshot.reviewsPerMin}
+            avgSecondsPerReview={globalSnapshot.avgSecondsPerReview}
+            totalReviews={homeStats.totalReviewsAllTime}
+            totalMinutes={Math.round(globalSnapshot.minutesToday)}
+          />
         )}
 
         {/* Activity Calendar - Full Month View */}

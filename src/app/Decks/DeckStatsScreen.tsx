@@ -166,35 +166,19 @@ export default function DeckStatsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Stats */}
-        <View style={[styles.heroStats, { backgroundColor: theme.colors.surface }]}>
-          <View style={styles.heroStat}>
-            <Text style={[styles.heroStatValue, { color: theme.colors.accent }]}>
-              {snapshot.today.due}
-            </Text>
-            <Text style={[styles.heroStatLabel, { color: theme.colors.textSecondary }]}>
-              Due Today
-            </Text>
-          </View>
-          <View style={[styles.heroDivider, { backgroundColor: theme.colors.border }]} />
-          <View style={styles.heroStat}>
-            <Text style={[styles.heroStatValue, { color: theme.colors.warning }]}>
-              {snapshot.today.learn}
-            </Text>
-            <Text style={[styles.heroStatLabel, { color: theme.colors.textSecondary }]}>
-              Learning
-            </Text>
-          </View>
-          <View style={[styles.heroDivider, { backgroundColor: theme.colors.border }]} />
-          <View style={styles.heroStat}>
-            <Text style={[styles.heroStatValue, { color: theme.colors.textPrimary }]}>
-              {Math.round(snapshot.today.estTimeP50Sec / 60)}m
-            </Text>
-            <Text style={[styles.heroStatLabel, { color: theme.colors.textSecondary }]}>
-              Est. Time
-            </Text>
-          </View>
-        </View>
+        {/* Deck Health Summary - Hero Card */}
+        <DeckHealthCard
+          difficultyIndex={snapshot.difficultyIndex}
+          retention={{
+            young7: snapshot.retention.young7,
+            mature7: snapshot.retention.mature7,
+          }}
+          throughput={{
+            rpm: snapshot.throughput.rpm,
+            secPerReview: snapshot.throughput.secPerReview,
+          }}
+          estTimeMinutes={Math.round(snapshot.today.estTimeP50Sec / 60)}
+        />
 
         {/* Retention Grid */}
         <View style={[styles.retentionCard, { backgroundColor: theme.colors.surface }]}>
