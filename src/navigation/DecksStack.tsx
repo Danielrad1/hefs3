@@ -9,6 +9,7 @@ import AIGeneratingScreen from '../app/Decks/AIGeneratingScreen';
 import AIDeckPreviewScreen from '../app/Decks/AIDeckPreviewScreen';
 import AIHintsConfigScreen from '../app/Decks/AIHintsConfigScreen';
 import AIHintsGeneratingScreen from '../app/Decks/AIHintsGeneratingScreen';
+import ManageHintsScreen from '../app/Decks/ManageHintsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -24,6 +25,7 @@ export default function DecksStack() {
       <Stack.Screen name="AIDeckPreview" component={AIDeckPreviewScreen} />
       <Stack.Screen name="AIHintsConfig" component={AIHintsConfigScreen} />
       <Stack.Screen name="AIHintsGenerating" component={AIHintsGeneratingScreen} />
+      <Stack.Screen name="ManageHints" component={ManageHintsScreen} />
     </Stack.Navigator>
   );
 }

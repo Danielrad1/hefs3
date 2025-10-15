@@ -153,6 +153,11 @@ export class CardHintsService {
       await this.load();
     }
 
+    // Handle empty hints array
+    if (hints.length === 0) {
+      return;
+    }
+
     const pairs: Array<[string, string]> = [];
     const cardIds: string[] = [];
 

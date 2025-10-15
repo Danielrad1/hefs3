@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { useScheduler } from '../../context/SchedulerProvider';
@@ -19,6 +20,27 @@ export default function HomeScreen() {
   const [homeStats, setHomeStats] = useState<HomeStats | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isCalculatingRef = React.useRef(false);
+  
+  // Random motivational messages - must be before any conditional returns
+  const getMotivationalMessage = React.useCallback(() => {
+    const messages = [
+      'Ready to grow?',
+      'Keep building knowledge',
+      'Your brain is ready',
+      'Make today count',
+      'Knowledge is power',
+      'Stay curious today',
+      'Every card counts',
+      'You\'re on fire!',
+      'Keep the momentum',
+      'Time to level up',
+    ];
+    const randomIndex = Math.floor(Math.random() * messages.length);
+    return messages[randomIndex];
+  }, []);
+  
+  // Store motivational message so it doesn't change during the session
+  const [motivationalMessage] = React.useState(getMotivationalMessage);
 
   // Bootstrap sample data ONLY on first launch (empty database)
   useEffect(() => {
@@ -60,6 +82,17 @@ export default function HomeScreen() {
     }, [refreshStats])
   );
 
+  // User name (TODO: pull from settings/profile)
+  const userName = 'Daniel';
+
+  // Get greeting based on time of day - memoize to update properly
+  const getGreeting = React.useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  }, []); // Empty deps means it calculates once per mount
+
   // Show loading state while stats are being calculated
   if (!homeStats) {
     return (
@@ -85,38 +118,65 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* Streak Badge */}
-        {homeStats.currentStreak > 0 && (
-          <View style={styles.streakContainer}>
-            <View style={[styles.streakBadge, { backgroundColor: theme.colors.warning + '15' }]}>
-              <Ionicons name="flame" size={20} color={theme.colors.warning} />
-              <Text style={[styles.streakText, { color: theme.colors.warning }]}>
-                {homeStats.currentStreak} day streak
-              </Text>
+        {/* Header */}
+        <View style={styles.headerSection}>
+          <Text style={[styles.greetingSmall, { color: theme.colors.textSecondary }]}>
+            {getGreeting}, {userName}
+          </Text>
+          <Text style={[styles.greetingLarge, { color: theme.colors.textPrimary }]}>
+            {motivationalMessage}
+          </Text>
+          
+          {/* Centered Streak Badge */}
+          {homeStats.currentStreak > 0 && (
+            <View style={styles.streakContainer}>
+              <View style={[styles.streakBadge, { backgroundColor: theme.colors.warning + '15' }]}>
+                <Ionicons name="flame" size={20} color={theme.colors.warning} />
+                <Text style={[styles.streakText, { color: theme.colors.warning }]}>
+                  {homeStats.currentStreak} day streak
+                </Text>
+              </View>
             </View>
-          </View>
-        )}
+          )}
+        </View>
 
         {/* Main CTA: Due Cards */}
         {homeStats.dueCount > 0 ? (
           <Pressable 
-            style={[styles.heroCard, { backgroundColor: theme.colors.surface }]}
+            style={styles.heroCard}
             onPress={() => navigation.navigate('Study' as never)}
           >
-            <Text style={[styles.heroCardLabel, { color: theme.colors.textSecondary }]}>Cards Due</Text>
-            <Text style={[styles.heroCardValue, { color: theme.colors.info }]}>{homeStats.dueCount}</Text>
-            <View style={styles.heroCardAction}>
-              <Text style={[styles.heroCardActionText, { color: theme.colors.textPrimary }]}>Start Studying</Text>
-              <Ionicons name="arrow-forward" size={20} color={theme.colors.info} />
-            </View>
+            <LinearGradient
+              colors={['#8B5CF6', '#6366F1']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroGradient}
+            >
+              <View style={styles.heroContent}>
+                <View style={styles.heroIconCircle}>
+                  <Ionicons name="book" size={32} color="#FFFFFF" />
+                </View>
+                <Text style={styles.heroLabel}>Ready to Study</Text>
+                <Text style={styles.heroValue}>{homeStats.dueCount}</Text>
+                <Text style={styles.heroSubtext}>cards waiting for you</Text>
+                <View style={styles.heroButton}>
+                  <Text style={styles.heroButtonText}>Start Now</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#000" />
+                </View>
+              </View>
+            </LinearGradient>
           </Pressable>
         ) : (
           <View style={[styles.heroCard, { backgroundColor: theme.colors.surface }]}>
-            <Ionicons name="checkmark-circle" size={48} color={theme.colors.success} style={{ marginBottom: s.md }} />
-            <Text style={[styles.heroCardLabel, { color: theme.colors.textPrimary }]}>All Caught Up!</Text>
-            <Text style={[styles.heroCardSubtext, { color: theme.colors.textSecondary }]}>
-              No cards due right now
-            </Text>
+            <View style={styles.completedHero}>
+              <View style={[styles.heroIconCircle, { backgroundColor: theme.colors.success + '20' }]}>
+                <Ionicons name="checkmark-circle" size={48} color={theme.colors.success} />
+              </View>
+              <Text style={[styles.heroLabel, { color: theme.colors.textPrimary }]}>All Caught Up!</Text>
+              <Text style={[styles.completedSubtext, { color: theme.colors.textSecondary }]}>
+                Great work! Check back later for more cards
+              </Text>
+            </View>
           </View>
         )}
 
@@ -124,25 +184,31 @@ export default function HomeScreen() {
         {homeStats.todayReviewCount > 0 && (
           <View style={[styles.todayCard, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.todayHeader}>
-              <Text style={[styles.todayTitle, { color: theme.colors.textPrimary }]}>
-                Today's Progress
-              </Text>
-              <Ionicons name="calendar-outline" size={20} color={theme.colors.textSecondary} />
+              <View style={styles.todayHeaderLeft}>
+                <Ionicons name="today" size={24} color={theme.colors.accent} />
+                <Text style={[styles.todayTitle, { color: theme.colors.textPrimary }]}>
+                  Today's Progress
+                </Text>
+              </View>
             </View>
             
             <View style={styles.todayStats}>
               <View style={styles.todayStat}>
+                <View style={[styles.todayStatIcon, { backgroundColor: theme.colors.info + '15' }]}>
+                  <Ionicons name="layers" size={20} color={theme.colors.info} />
+                </View>
                 <Text style={[styles.todayStatValue, { color: theme.colors.textPrimary }]}>
                   {homeStats.todayReviewCount}
                 </Text>
                 <Text style={[styles.todayStatLabel, { color: theme.colors.textSecondary }]}>
-                  Cards
+                  Cards Reviewed
                 </Text>
               </View>
               
-              <View style={styles.todayStatDivider} />
-              
               <View style={styles.todayStat}>
+                <View style={[styles.todayStatIcon, { backgroundColor: theme.colors.success + '15' }]}>
+                  <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
+                </View>
                 <Text style={[styles.todayStatValue, { color: theme.colors.success }]}>
                   {homeStats.todayAccuracy}%
                 </Text>
@@ -151,14 +217,15 @@ export default function HomeScreen() {
                 </Text>
               </View>
               
-              <View style={styles.todayStatDivider} />
-              
               <View style={styles.todayStat}>
+                <View style={[styles.todayStatIcon, { backgroundColor: theme.colors.warning + '15' }]}>
+                  <Ionicons name="time" size={20} color={theme.colors.warning} />
+                </View>
                 <Text style={[styles.todayStatValue, { color: theme.colors.textPrimary }]}>
                   {homeStats.todayTimeMinutes}m
                 </Text>
                 <Text style={[styles.todayStatLabel, { color: theme.colors.textSecondary }]}>
-                  Time
+                  Study Time
                 </Text>
               </View>
             </View>
@@ -222,53 +289,56 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Card Stats Grid */}
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: theme.colors.textSecondary + '20' }]}>
-              <Ionicons name="library" size={20} color={theme.colors.textSecondary} />
+        {/* Card Stats Row */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statPill, { backgroundColor: theme.colors.surface }]}>
+            <View style={[styles.statPillIcon, { backgroundColor: '#EC4899' + '15' }]}>
+              <Ionicons name="sparkles" size={22} color="#EC4899" />
             </View>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
+            <View style={styles.statPillContent}>
+              <Text style={[styles.statPillValue, { color: theme.colors.textPrimary }]}>
+                {homeStats.newCount}
+              </Text>
+              <Text style={[styles.statPillLabel, { color: theme.colors.textSecondary }]}>
+                New
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.statPill, { backgroundColor: theme.colors.surface }]}>
+            <View style={[styles.statPillIcon, { backgroundColor: theme.colors.info + '15' }]}>
+              <Ionicons name="school" size={22} color={theme.colors.info} />
+            </View>
+            <View style={styles.statPillContent}>
+              <Text style={[styles.statPillValue, { color: theme.colors.textPrimary }]}>
+                {homeStats.learningCount}
+              </Text>
+              <Text style={[styles.statPillLabel, { color: theme.colors.textSecondary }]}>
+                Learning
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Collection Stats */}
+        <View style={styles.collectionRow}>
+          <View style={[styles.collectionCard, { backgroundColor: theme.colors.surface }]}>
+            <Ionicons name="library" size={28} color={theme.colors.accent} />
+            <Text style={[styles.collectionValue, { color: theme.colors.textPrimary }]}>
               {homeStats.totalCardsCount}
             </Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.collectionLabel, { color: theme.colors.textSecondary }]}>
               Total Cards
             </Text>
           </View>
 
-          <View style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: theme.colors.success + '15' }]}>
-              <Ionicons name="albums" size={20} color={theme.colors.success} />
-            </View>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
+          <View style={[styles.collectionCard, { backgroundColor: theme.colors.surface }]}>
+            <Ionicons name="albums" size={28} color={theme.colors.success} />
+            <Text style={[styles.collectionValue, { color: theme.colors.textPrimary }]}>
               {homeStats.totalDecksCount}
             </Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.collectionLabel, { color: theme.colors.textSecondary }]}>
               Decks
-            </Text>
-          </View>
-
-          <View style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: theme.colors.warning + '15' }]}>
-              <Ionicons name="sparkles" size={20} color={theme.colors.warning} />
-            </View>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
-              {homeStats.newCount}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-              New
-            </Text>
-          </View>
-
-          <View style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: theme.colors.info + '15' }]}>
-              <Ionicons name="school" size={20} color={theme.colors.info} />
-            </View>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
-              {homeStats.learningCount}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-              Learning
             </Text>
           </View>
         </View>
@@ -302,107 +372,181 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: s.lg,
-    paddingBottom: s.xl * 2,
+    padding: s.xl,
+    paddingBottom: s.xl * 3,
+    gap: s.xl,
   },
-  // Streak Badge
+  // Header Section
+  headerSection: {
+    gap: s.md,
+    marginBottom: s.sm,
+  },
+  greetingSmall: {
+    fontSize: 14,
+    fontWeight: '600',
+    opacity: 0.5,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  greetingLarge: {
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: -1,
+    lineHeight: 38,
+    marginBottom: s.xs,
+  },
   streakContainer: {
-    alignItems: 'flex-start',
-    marginBottom: s.lg,
+    alignItems: 'center',
+    marginTop: s.xs,
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s.xs,
-    paddingVertical: s.sm,
-    paddingHorizontal: s.md,
+    gap: s.sm,
+    paddingVertical: s.md,
+    paddingHorizontal: s.xl,
     borderRadius: r.pill,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   streakText: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
-  // Hero Card - Main CTA
+  // Hero Card
   heroCard: {
-    padding: s.xl,
-    borderRadius: r.xl,
-    marginBottom: s.lg,
-    alignItems: 'center',
+    borderRadius: r['2xl'],
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  heroCardLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.9)',
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
+  heroGradient: {
+    padding: s['2xl'],
+  },
+  heroContent: {
+    alignItems: 'center',
+    gap: s.sm,
+  },
+  heroIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: s.sm,
   },
-  heroCardValue: {
-    fontSize: 64,
+  heroLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  heroValue: {
+    fontSize: 72,
     fontWeight: '900',
     color: '#FFFFFF',
-    lineHeight: 64,
+    lineHeight: 72,
+  },
+  heroSubtext: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.8)',
     marginBottom: s.md,
   },
-  heroCardSubtext: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.7)',
+  heroButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: s.md,
+    paddingHorizontal: s.xl,
+    borderRadius: r.pill,
+    gap: s.sm,
+    marginTop: s.sm,
   },
-  heroCardAction: {
+  heroButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#000',
+  },
+  completedHero: {
+    padding: s.xl,
+    alignItems: 'center',
+    gap: s.md,
+  },
+  completedSubtext: {
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  // Today's Progress
+  todayCard: {
+    padding: s.xl,
+    borderRadius: r['2xl'],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  todayHeader: {
+    marginBottom: s.lg,
+  },
+  todayHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: s.sm,
-    marginTop: s.md,
-  },
-  heroCardActionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  // Today's Progress Card
-  todayCard: {
-    padding: s.lg,
-    borderRadius: r.lg,
-    marginBottom: s.lg,
-  },
-  todayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: s.md,
   },
   todayTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
   },
   todayStats: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    gap: s.md,
   },
   todayStat: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
+    gap: s.sm,
+  },
+  todayStatIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: r.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   todayStatValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
-    marginBottom: s.xs,
   },
   todayStatLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    textAlign: 'center',
+    opacity: 0.8,
   },
-  todayStatDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: 'rgba(0,0,0,0.1)',
+  motivationalText: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
   },
   // Activity Card
   activityCard: {
-    padding: s.lg,
-    borderRadius: r.lg,
-    marginBottom: s.lg,
+    padding: s.xl,
+    borderRadius: r['2xl'],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   activityHeader: {
     flexDirection: 'row',
@@ -411,8 +555,8 @@ const styles = StyleSheet.create({
     marginBottom: s.md,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
   },
   longestStreakText: {
     fontSize: 12,
@@ -421,69 +565,108 @@ const styles = StyleSheet.create({
   weekGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: s.xs,
+    gap: s.sm,
   },
   dayColumn: {
     flex: 1,
     alignItems: 'center',
-    gap: s.xs,
+    gap: s.sm,
   },
   dayBox: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: r.md,
+    borderRadius: r.lg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   todayBox: {
-    borderWidth: 3,
+    borderWidth: 2.5,
   },
   dayLabel: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   dayCount: {
-    fontSize: 9,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
-  // Stats Grid
-  statsGrid: {
+  // Stats Row
+  statsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: s.md,
-    marginBottom: s.lg,
   },
-  statCard: {
+  statPill: {
     flex: 1,
-    minWidth: '45%',
-    padding: s.md,
-    borderRadius: r.lg,
+    flexDirection: 'row',
     alignItems: 'center',
+    padding: s.lg,
+    borderRadius: r.xl,
+    gap: s.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  statIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: r.md,
+  statPillIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: r.lg,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: s.sm,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    marginBottom: s.xs / 2,
+  statPillContent: {
+    gap: 4,
+    flex: 1,
   },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
+  statPillValue: {
+    fontSize: 28,
+    fontWeight: '900',
+    lineHeight: 28,
+  },
+  statPillLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    opacity: 0.8,
+  },
+  // Collection Stats
+  collectionRow: {
+    flexDirection: 'row',
+    gap: s.md,
+  },
+  collectionCard: {
+    flex: 1,
+    padding: s.xl,
+    borderRadius: r.xl,
+    alignItems: 'center',
+    gap: s.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  collectionValue: {
+    fontSize: 32,
+    fontWeight: '900',
+    lineHeight: 32,
+  },
+  collectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    opacity: 0.9,
   },
   // All-time Card
   allTimeCard: {
-    padding: s.lg,
-    borderRadius: r.lg,
-    marginBottom: s.lg,
+    padding: s.xl,
+    borderRadius: r['2xl'],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   allTimeHeader: {
     flexDirection: 'row',
@@ -492,8 +675,8 @@ const styles = StyleSheet.create({
     marginBottom: s.md,
   },
   allTimeTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
   },
   allTimeStats: {
     alignItems: 'center',

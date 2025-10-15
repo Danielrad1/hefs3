@@ -26,36 +26,13 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
   const theme = useTheme();
   const { deckId, deckName, totalCards } = route.params;
 
-  const [scope, setScope] = useState<'all' | 'due' | 'new'>('all');
-  const [limit, setLimit] = useState<number | null>(null);
-
   const handleGenerate = async () => {
     try {
-      // Get cards based on scope
+      // Get all cards from the deck
       let cards = db.getCardsByDeck(deckId);
-      const col = db.getCol();
-
-      if (scope === 'due') {
-        const now = Math.floor(Date.now() / 1000);
-        cards = cards.filter(c => {
-          if (c.type === 1 || c.type === 3) {
-            return c.due <= now;
-          } else {
-            const daysSinceCreation = Math.floor((now - col.crt) / 86400);
-            return c.due <= daysSinceCreation;
-          }
-        });
-      } else if (scope === 'new') {
-        cards = cards.filter(c => c.type === 0);
-      }
-
-      // Apply limit if set
-      if (limit && cards.length > limit) {
-        cards = cards.slice(0, limit);
-      }
 
       if (cards.length === 0) {
-        Alert.alert('No Cards', 'No cards match the selected scope.');
+        Alert.alert('No Cards', 'This deck has no cards.');
         return;
       }
 
@@ -105,10 +82,6 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         }
       });
 
-      // Log estimated cost for debugging
-      const estimatedCost = AiHintsService.estimateCost(items.length);
-      console.log(`[AIHintsConfig] Estimated cost for ${items.length} cards: $${estimatedCost.toFixed(4)}`);
-
       // Navigate to generating screen with hints mode
       navigation.navigate('AIHintsGenerating', {
         deckId,
@@ -121,23 +94,8 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
     }
   };
 
-  // Calculate card counts for each scope
   const allCards = db.getCardsByDeck(deckId);
-  const col = db.getCol();
-  const now = Math.floor(Date.now() / 1000);
-  const dueCards = allCards.filter(c => {
-    if (c.type === 1 || c.type === 3) {
-      return c.due <= now;
-    } else {
-      const daysSinceCreation = Math.floor((now - col.crt) / 86400);
-      return c.due <= daysSinceCreation;
-    }
-  });
-  const newCards = allCards.filter(c => c.type === 0);
-
-  const selectedCount = scope === 'all' ? allCards.length : scope === 'due' ? dueCards.length : newCards.length;
-  const finalCount = limit && selectedCount > limit ? limit : selectedCount;
-  const estimatedCost = AiHintsService.estimateCost(finalCount);
+  const estimatedTime = Math.ceil(allCards.length / 50);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
@@ -145,137 +103,74 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         <Pressable onPress={() => navigation.goBack()}>
           <Text style={[styles.backButton, { color: theme.colors.accent }]}>← Back</Text>
         </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Enable AI Hints</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>AI Hints</Text>
         <View style={{ width: 60 }} />
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <View style={[styles.infoCard, { backgroundColor: theme.colors.surface }]}>
-          <Ionicons name="information-circle" size={24} color={theme.colors.accent} />
-          <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-            AI Hints provides two types of study aids:{'\n\n'}
-            <Text style={{ fontWeight: '600' }}>• Hint</Text> - A subtle clue shown before revealing the answer{'\n'}
-            <Text style={{ fontWeight: '600' }}>• Tip</Text> - A memory aid with mnemonics shown after the answer
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+          <View style={[styles.iconContainer, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
+            <Ionicons name="bulb" size={64} color="#8B5CF6" />
+          </View>
+          <Text style={[styles.heroTitle, { color: theme.colors.textPrimary }]}>Learn 40% Faster</Text>
+          <Text style={[styles.heroSubtitle, { color: theme.colors.textSecondary }]}>
+            AI hints cut your average reviews from 10 sessions to 6
           </Text>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Select Cards</Text>
-
-        {/* Scope Selection */}
-        <View style={styles.optionsContainer}>
-          <Pressable
-            style={[
-              styles.optionButton,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              scope === 'all' && { borderColor: theme.colors.accent, borderWidth: 2 },
-            ]}
-            onPress={() => setScope('all')}
-          >
-            <View style={styles.optionContent}>
-              <Ionicons 
-                name={scope === 'all' ? 'radio-button-on' : 'radio-button-off'} 
-                size={24} 
-                color={scope === 'all' ? theme.colors.accent : theme.colors.textSecondary} 
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.optionLabel, { color: theme.colors.textPrimary }]}>All Cards</Text>
-                <Text style={[styles.optionCount, { color: theme.colors.textSecondary }]}>
-                  {allCards.length} cards
-                </Text>
-              </View>
-            </View>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.optionButton,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              scope === 'due' && { borderColor: theme.colors.accent, borderWidth: 2 },
-            ]}
-            onPress={() => setScope('due')}
-          >
-            <View style={styles.optionContent}>
-              <Ionicons 
-                name={scope === 'due' ? 'radio-button-on' : 'radio-button-off'} 
-                size={24} 
-                color={scope === 'due' ? theme.colors.accent : theme.colors.textSecondary} 
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.optionLabel, { color: theme.colors.textPrimary }]}>Due Cards Only</Text>
-                <Text style={[styles.optionCount, { color: theme.colors.textSecondary }]}>
-                  {dueCards.length} cards
-                </Text>
-              </View>
-            </View>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.optionButton,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              scope === 'new' && { borderColor: theme.colors.accent, borderWidth: 2 },
-            ]}
-            onPress={() => setScope('new')}
-          >
-            <View style={styles.optionContent}>
-              <Ionicons 
-                name={scope === 'new' ? 'radio-button-on' : 'radio-button-off'} 
-                size={24} 
-                color={scope === 'new' ? theme.colors.accent : theme.colors.textSecondary} 
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.optionLabel, { color: theme.colors.textPrimary }]}>New Cards Only</Text>
-                <Text style={[styles.optionCount, { color: theme.colors.textSecondary }]}>
-                  {newCards.length} cards
-                </Text>
-              </View>
-            </View>
-          </Pressable>
-        </View>
-
-        {/* Limit Option */}
-        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Limit (Optional)</Text>
-        <View style={styles.limitContainer}>
-          {[50, 100, 200, null].map((limitOption) => (
-            <Pressable
-              key={limitOption || 'all'}
-              style={[
-                styles.limitButton,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-                limit === limitOption && { borderColor: theme.colors.accent, borderWidth: 2 },
-              ]}
-              onPress={() => setLimit(limitOption)}
-            >
-              <Text style={[
-                styles.limitText, 
-                { color: limit === limitOption ? theme.colors.accent : theme.colors.textPrimary }
-              ]}>
-                {limitOption || 'No Limit'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Summary */}
-        <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface }]}>
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Cards to process:</Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>{finalCount}</Text>
+        {/* Impact Stats */}
+        <View style={styles.impactGrid}>
+          <View style={[styles.impactCard, { backgroundColor: 'rgba(236, 72, 153, 0.1)' }]}>
+            <Text style={[styles.impactNumber, { color: '#EC4899' }]}>2x</Text>
+            <Text style={[styles.impactLabel, { color: theme.colors.textPrimary }]}>Longer retention</Text>
+            <Text style={[styles.impactDetail, { color: theme.colors.textSecondary }]}>5 weeks vs 3 weeks</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Estimated time:</Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>
-              ~{Math.ceil(finalCount / 50)}min
+
+          <View style={[styles.impactCard, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
+            <Text style={[styles.impactNumber, { color: '#8B5CF6' }]}>60%</Text>
+            <Text style={[styles.impactLabel, { color: theme.colors.textPrimary }]}>Fewer errors</Text>
+            <Text style={[styles.impactDetail, { color: theme.colors.textSecondary }]}>On hard cards</Text>
+          </View>
+        </View>
+
+        {/* What You Get */}
+        <View style={[styles.valueCard, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.valueTitle, { color: theme.colors.textPrimary }]}>What You Get</Text>
+          
+          <View style={styles.valueItem}>
+            <View style={[styles.valueBullet, { backgroundColor: '#8B5CF6' }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.valueItemTitle, { color: theme.colors.textPrimary }]}>3-Level Progressive Hints</Text>
+              <Text style={[styles.valueItemDesc, { color: theme.colors.textSecondary }]}>Never get stuck. Get just enough help to recall.</Text>
+            </View>
+          </View>
+
+          <View style={styles.valueItem}>
+            <View style={[styles.valueBullet, { backgroundColor: '#EC4899' }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.valueItemTitle, { color: theme.colors.textPrimary }]}>Memory Techniques</Text>
+              <Text style={[styles.valueItemDesc, { color: theme.colors.textSecondary }]}>Mnemonics that make facts stick 2x longer.</Text>
+            </View>
+          </View>
+
+          <View style={styles.valueItem}>
+            <View style={[styles.valueBullet, { backgroundColor: '#10B981' }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.valueItemTitle, { color: theme.colors.textPrimary }]}>Fewer Study Sessions</Text>
+              <Text style={[styles.valueItemDesc, { color: theme.colors.textSecondary }]}>spend less time to master more material.</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Deck Info */}
+        <View style={[styles.deckInfoCard, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.deckInfoRow}>
+            <Ionicons name="layers-outline" size={20} color={theme.colors.textSecondary} />
+            <Text style={[styles.deckInfoText, { color: theme.colors.textSecondary }]}>
+              {allCards.length} cards • ~{estimatedTime}min to generate
             </Text>
           </View>
-        </View>
-
-        {/* Privacy Notice */}
-        <View style={[styles.privacyNotice, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
-          <Ionicons name="lock-closed-outline" size={16} color="#8B5CF6" />
-          <Text style={[styles.privacyText, { color: theme.colors.textSecondary }]}>
-            Card text will be sent to OpenAI to generate hints
-          </Text>
         </View>
       </ScrollView>
 
@@ -284,10 +179,10 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         <Pressable
           style={[styles.generateButton, { backgroundColor: theme.colors.accent }]}
           onPress={handleGenerate}
-          disabled={finalCount === 0}
+          disabled={allCards.length === 0}
         >
-          <Ionicons name="sparkles" size={20} color="#000" style={{ marginRight: s.sm }} />
-          <Text style={styles.generateButtonText}>Generate Hints for {finalCount} Cards</Text>
+          <Ionicons name="sparkles" size={24} color="#000" style={{ marginRight: s.sm }} />
+          <Text style={styles.generateButtonText}>Generate AI Hints</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -320,107 +215,121 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: s.lg,
-    gap: s.lg,
-    paddingBottom: s.xl * 2,
+    padding: s.xl,
+    gap: s.xl,
+    paddingBottom: s.xl * 3,
   },
-  infoCard: {
+  heroSection: {
+    alignItems: 'center',
+    paddingVertical: s.xl,
+  },
+  iconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: s.lg,
+  },
+  heroTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: s.sm,
+  },
+  heroSubtitle: {
+    fontSize: 17,
+    textAlign: 'center',
+    lineHeight: 24,
+    paddingHorizontal: s.xl,
+  },
+  impactGrid: {
     flexDirection: 'row',
-    padding: s.lg,
-    borderRadius: r.md,
     gap: s.md,
   },
-  infoText: {
+  impactCard: {
     flex: 1,
+    padding: s.xl,
+    borderRadius: r.lg,
+    alignItems: 'center',
+  },
+  impactNumber: {
+    fontSize: 48,
+    fontWeight: '900',
+    marginBottom: s.xs,
+  },
+  impactLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  impactDetail: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  valueCard: {
+    padding: s.xl,
+    borderRadius: r.lg,
+  },
+  valueTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: s.lg,
+  },
+  valueItem: {
+    flexDirection: 'row',
+    gap: s.md,
+    marginBottom: s.lg,
+  },
+  valueBullet: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 6,
+  },
+  valueItemTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  valueItemDesc: {
     fontSize: 14,
     lineHeight: 20,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: s.md,
-  },
-  optionsContainer: {
-    gap: s.md,
-  },
-  optionButton: {
+  deckInfoCard: {
     padding: s.lg,
-    borderRadius: r.md,
-    borderWidth: 1,
+    borderRadius: r.lg,
   },
-  optionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s.md,
-  },
-  optionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  optionCount: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  limitContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: s.md,
-  },
-  limitButton: {
-    paddingHorizontal: s.lg,
-    paddingVertical: s.md,
-    borderRadius: r.md,
-    borderWidth: 1,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  limitText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  summaryCard: {
-    padding: s.lg,
-    borderRadius: r.md,
-    gap: s.md,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 15,
-  },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  privacyNotice: {
+  deckInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: s.sm,
-    padding: s.md,
-    borderRadius: r.md,
+    justifyContent: 'center',
   },
-  privacyText: {
-    flex: 1,
-    fontSize: 13,
+  deckInfoText: {
+    fontSize: 14,
   },
   footer: {
-    padding: s.lg,
+    padding: s.xl,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },
   generateButton: {
-    padding: s.lg,
-    borderRadius: r.md,
+    padding: s.xl,
+    borderRadius: r.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   generateButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#000',
   },
 });

@@ -197,7 +197,6 @@ export default function AIDeckPreviewScreen() {
       // Mark as successfully saved (no cleanup needed)
       deckSavedRef.current = true;
       console.log('[AIDeckPreview] Marked deck as saved');
-      setIsCreating(false);
 
       // Reload scheduler to pick up new deck
       console.log('[AIDeckPreview] Reloading scheduler...');
@@ -208,38 +207,15 @@ export default function AIDeckPreviewScreen() {
       const verifyDeck = db.getDeck(deck.id);
       console.log('[AIDeckPreview] Deck verification:', verifyDeck ? 'Found' : 'NOT FOUND');
 
-      Alert.alert(
-        'Success!',
-        `Created deck "${deckName}" with ${createdCount} cards${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}`,
-        [
-          {
-            text: 'View Deck',
-            onPress: () => {
-              console.log('[AIDeckPreview] Navigating to deck detail');
-              deckSavedRef.current = true;
-              // Navigate back through: Preview -> AIGenerating -> AIDeckCreator -> DecksList
-              navigation.goBack(); // Back to AIGenerating
-              navigation.goBack(); // Back to AIDeckCreator
-              navigation.goBack(); // Back to DecksList
-              // Then navigate to detail
-              setTimeout(() => {
-                navigation.navigate('DeckDetail', { deckId: deck.id });
-              }, 100);
-            },
-          },
-          {
-            text: 'Done',
-            style: 'cancel',
-            onPress: () => {
-              console.log('[AIDeckPreview] User dismissed, going back to decks');
-              // Navigate back through: Preview -> AIGenerating -> AIDeckCreator -> DecksList
-              navigation.goBack(); // Back to AIGenerating
-              navigation.goBack(); // Back to AIDeckCreator
-              navigation.goBack(); // Back to DecksList
-            },
-          },
-        ]
-      );
+      // Automatically navigate to deck detail
+      console.log('[AIDeckPreview] Auto-navigating to deck detail');
+      navigation.reset({
+        index: 1,
+        routes: [
+          { name: 'DecksList' },
+          { name: 'DeckDetail', params: { deckId: deck.id } },
+        ],
+      });
     } catch (error) {
       console.error('[AIDeckPreview] Create deck error:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to create deck');
@@ -376,12 +352,33 @@ export default function AIDeckPreviewScreen() {
     );
   };
 
+  const handleCancel = () => {
+    Alert.alert(
+      'Discard Deck?',
+      'This deck will not be saved. You can always generate it again later.',
+      [
+        { text: 'Keep Editing', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            // Navigate back to DecksList, clearing all AI screens
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'DecksList' }],
+            });
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.textPrimary} />
+        <Pressable onPress={handleCancel} style={styles.backButton}>
+          <Ionicons name="close" size={24} color={theme.colors.textPrimary} />
         </Pressable>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
           Preview Deck
@@ -399,7 +396,7 @@ export default function AIDeckPreviewScreen() {
           placeholderTextColor={theme.colors.textSecondary}
         />
         <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
-          {notes.length} cards • {params.noteModel === 'basic' ? 'Basic' : 'Cloze'} • {params.metadata.modelUsed}
+          {notes.length} cards • {params.noteModel === 'basic' ? 'Basic' : 'Cloze'}
         </Text>
       </View>
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
@@ -8,6 +8,9 @@ import { AiHintsService } from '../../services/ai/AiHintsService';
 import { cardHintsService, CardHintsService } from '../../services/anki/CardHintsService';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { HintsInputItem } from '../../services/ai/types';
+import HintsSuccessModal from '../../components/HintsSuccessModal';
+import { db } from '../../services/anki/InMemoryDb';
+import { useScheduler } from '../../context/SchedulerProvider';
 
 interface AIHintsGeneratingScreenProps {
   route: {
@@ -23,9 +26,12 @@ interface AIHintsGeneratingScreenProps {
 export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGeneratingScreenProps) {
   const theme = useTheme();
   const { deckId, deckName, items } = route.params;
+  const { setDeck } = useScheduler();
   
   const [status, setStatus] = useState('Preparing...');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [generatedCount, setGeneratedCount] = useState(0);
   
   // Animations
   const sparkle1 = useRef(new Animated.Value(0)).current;
@@ -131,6 +137,23 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         console.warn('[AIHintsGenerating] Skipped', skipped.length, 'cards:', skipped);
       }
 
+      // If all cards were skipped, show helpful message
+      if (hints.length === 0) {
+        Alert.alert(
+          'Unable to Generate Hints',
+          'AI hints require text content to work. Your cards appear to contain only images or audio. Try adding text descriptions to your cards.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.goBack();
+              },
+            },
+          ]
+        );
+        return;
+      }
+
       setStatus('Saving hints...');
 
       // Convert results to CardHint format and save
@@ -180,19 +203,25 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       await deckMetadataService.setAiHintsEnabled(deckId, true);
 
       setStatus('Complete!');
+      setGeneratedCount(hints.length);
 
-      // Replace navigation stack - prevent going back to this screen
+      // Show success modal after short delay
       setTimeout(() => {
-        navigation.replace('DeckDetail', { deckId });
-      }, 1000);
+        setShowSuccessModal(true);
+      }, 500);
     } catch (error) {
       console.error('[AIHintsGenerating] Generation failed:', error);
       setStatus('Generation failed. Please try again.');
       setIsGenerating(false);
       
       setTimeout(() => {
+        // Go back to hints config screen
         navigation.goBack();
-      }, 2000);
+        Alert.alert(
+          'Generation Failed',
+          error instanceof Error ? error.message : 'Failed to generate hints. Please try again.',
+        );
+      }, 1500);
     }
   }, [isGenerating, items, deckName, deckId, navigation]);
 
@@ -315,6 +344,26 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
           </Text>
         </View>
       </View>
+
+      {/* Success Modal */}
+      <HintsSuccessModal
+        visible={showSuccessModal}
+        cardsWithHints={generatedCount}
+        onStudyNow={() => {
+          setShowSuccessModal(false);
+          // Set the active deck and navigate to Study tab
+          setDeck(deckId);
+          const parent = navigation.getParent();
+          if (parent) {
+            parent.navigate('Study');
+          }
+        }}
+        onClose={() => {
+          setShowSuccessModal(false);
+          // Navigate back to deck detail
+          navigation.replace('DeckDetail', { deckId });
+        }}
+      />
     </SafeAreaView>
   );
 }

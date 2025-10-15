@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Text, Alert } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Extrapolate } from 'react-native-reanimated';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../design';
 import { useHaptics } from '../../hooks/useHaptics';
 import { Difficulty } from '../../domain/srsTypes';
@@ -12,6 +13,7 @@ import CardPage from './CardPage';
 import { cardHintsService, CardHint } from '../../services/anki/CardHintsService';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { db } from '../../services/anki/InMemoryDb';
+import AIHintsPromoModal from './AIHintsPromoModal';
 
 interface StudyScreenProps {
   navigation?: any;
@@ -28,6 +30,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const [hints, setHints] = useState<Map<string, CardHint>>(new Map());
   const [hintsLoading, setHintsLoading] = useState(true);
   const [aiHintsEnabled, setAiHintsEnabled] = useState(false);
+  const [showPromoModal, setShowPromoModal] = useState(false);
   
   const overlayColor = useSharedValue('rgba(0, 0, 0, 0)');
   const currentCardSwipeDistance = useSharedValue(0);
@@ -69,6 +72,23 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     };
     loadHints();
   }, [current, next]);
+
+  // Reload hints when screen comes into focus (e.g., after generating hints)
+  useFocusEffect(
+    React.useCallback(() => {
+      const reloadHints = async () => {
+        const cardIds: string[] = [];
+        if (current) cardIds.push(String(current.id));
+        if (next) cardIds.push(String(next.id));
+        
+        if (cardIds.length > 0) {
+          const loadedHints = await cardHintsService.getMany(cardIds);
+          setHints(loadedHints);
+        }
+      };
+      reloadHints();
+    }, [current, next])
+  );
   
   // Preload images and dimensions for current and next cards
   // Deferred to prevent blocking UI - fire and forget
@@ -221,18 +241,61 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   }, []);
 
   const handleRequestEnableHints = React.useCallback(() => {
+    setShowPromoModal(true);
+  }, []);
+
+  const handleEnableHints = React.useCallback(() => {
+    if (!currentDeckId) {
+      console.log('[StudyScreen] No currentDeckId');
+      return;
+    }
+    
+    const deck = db.getDeck(currentDeckId);
+    if (!deck) {
+      console.log('[StudyScreen] Deck not found:', currentDeckId);
+      return;
+    }
+
+    console.log('[StudyScreen] Navigating to AIHintsConfig for deck:', deck.name);
+    setShowPromoModal(false);
+    
+    // Small delay to let modal close animation finish
+    setTimeout(() => {
+      // Navigate to Decks tab - navigation is the tab navigator
+      if (navigation) {
+        navigation.navigate('Decks', {
+          screen: 'AIHintsConfig',
+          params: {
+            deckId: currentDeckId,
+            deckName: deck.name,
+            totalCards: db.getCardsByDeck(currentDeckId).length,
+          },
+        });
+        console.log('[StudyScreen] Navigation triggered');
+      } else {
+        console.log('[StudyScreen] No navigation prop');
+      }
+    }, 100);
+  }, [currentDeckId, navigation]);
+
+  const handleClosePromoModal = React.useCallback(() => {
+    setShowPromoModal(false);
+  }, []);
+
+  // Old alert-based handler (keeping structure for reference)
+  const _oldHandleRequestEnableHints = React.useCallback(() => {
     if (!currentDeckId) return;
     
     const deck = db.getDeck(currentDeckId);
     if (!deck) return;
 
     Alert.alert(
-      'Enable AI Hints',
-      `Generate smart hints and memory tips for "${deck.name}"?`,
+      '🚀 Learn 40% Faster',
+      'AI hints cut your reviews from 10 to 6 sessions and double how long you remember. Get progressive hints and memory techniques for every card.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Not Now', style: 'cancel' },
         {
-          text: 'Enable',
+          text: 'Enable AI Hints',
           onPress: () => {
             // Navigate to Decks tab, then to deck detail, then to hints config
             const parent = navigation?.getParent();
@@ -351,6 +414,13 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         origin={{ x: -10, y: 0 }}
         autoStart={false}
         fadeOut={true}
+      />
+
+      {/* AI Hints Promo Modal */}
+      <AIHintsPromoModal
+        visible={showPromoModal}
+        onClose={handleClosePromoModal}
+        onEnable={handleEnableHints}
       />
     </View>
   );

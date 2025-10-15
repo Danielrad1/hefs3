@@ -13,21 +13,34 @@ import { AiService } from '../../services/ai/AiService';
 import { NoteModel, GeneratedNote } from '../../services/ai/types';
 import { ApiService } from '../../services/cloud/ApiService';
 
-type TabType = 'prompt' | 'notes';
+const EXAMPLE_PROMPTS = [
+  "Human anatomy muscles with origin, insertion, action",
+  "Spanish vocabulary for daily conversations",
+  "World War 2 key events and dates",
+  "Python programming concepts for beginners",
+  "Organic chemistry functional groups",
+];
 
 export default function AIDeckCreatorScreen() {
   const theme = useTheme();
   const navigation = useNavigation<any>();
   
-  const [activeTab, setActiveTab] = useState<TabType>('prompt');
   const [prompt, setPrompt] = useState('');
   const [notesText, setNotesText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
-  const [showPasteInput, setShowPasteInput] = useState(false);
+  const [showImportOptions, setShowImportOptions] = useState(false);
   const [importedFileName, setImportedFileName] = useState<string | null>(null);
-  const [deckName, setDeckName] = useState('');
   const [noteModel, setNoteModel] = useState<NoteModel>('basic');
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [itemLimit, setItemLimit] = useState('50');
+  
+  // Rotate placeholder examples
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderIndex((prev) => (prev + 1) % EXAMPLE_PROMPTS.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleImportFile = async () => {
     try {
@@ -54,7 +67,7 @@ export default function AIDeckCreatorScreen() {
           // Handle .txt files directly
           const content = await FileSystem.readAsStringAsync(file.uri);
           setNotesText(content);
-          setShowPasteInput(false);
+          setShowImportOptions(true);
         } else if (
           file.name.endsWith('.docx') || 
           file.name.endsWith('.doc') ||
@@ -86,7 +99,7 @@ export default function AIDeckCreatorScreen() {
             
             if (response.text) {
               setNotesText(response.text);
-              setShowPasteInput(false);
+              setShowImportOptions(true);
             } else {
               throw new Error('No text extracted from Word document');
             }
@@ -124,7 +137,7 @@ export default function AIDeckCreatorScreen() {
             
             if (response.text) {
               setNotesText(response.text);
-              setShowPasteInput(false);
+              setShowImportOptions(true);
             } else {
               throw new Error('No text extracted from PDF');
             }
@@ -155,37 +168,32 @@ export default function AIDeckCreatorScreen() {
   };
 
   const handleGenerate = async () => {
+    // Determine source type based on what user filled in
+    const sourceType = notesText.trim() ? 'notes' : 'prompt';
+    
     // Validation
-    if (activeTab === 'prompt' && !prompt.trim()) {
-      Alert.alert('Error', 'Please enter a prompt');
-      return;
-    }
-    if (activeTab === 'notes' && !notesText.trim()) {
-      Alert.alert('Error', 'Please paste some notes');
+    if (!prompt.trim() && !notesText.trim()) {
+      Alert.alert('Need Content', 'Describe what you want to learn or import your notes');
       return;
     }
 
     const limit = parseInt(itemLimit) || 50;
-    if (limit < 1 || limit > 150) {
-      Alert.alert('Error', 'Item limit must be between 1 and 150');
-      return;
-    }
 
-    // Navigate to loading screen immediately
+    // Navigate to loading screen with handler
     navigation.navigate('AIGenerating' as any);
 
     try {
       const response = await AiService.generateDeck({
-        sourceType: activeTab,
-        prompt: activeTab === 'prompt' ? prompt : undefined,
-        notesText: activeTab === 'notes' ? notesText : undefined,
-        deckName: deckName || undefined,
+        sourceType,
+        prompt: prompt.trim() ? prompt : undefined,
+        notesText: notesText.trim() ? notesText : undefined,
+        deckName: undefined,
         noteModel,
         itemLimit: limit,
       });
 
-      // Navigate to preview screen
-      navigation.navigate('AIDeckPreview', {
+      // Replace loading screen with preview (can't go back to loading)
+      navigation.replace('AIDeckPreview', {
         deckName: response.deckName,
         noteModel: response.model,
         notes: response.notes,
@@ -193,7 +201,7 @@ export default function AIDeckCreatorScreen() {
       });
     } catch (error) {
       console.error('AI generation error:', error);
-      // Go back from loading screen
+      // Go back to creator screen
       navigation.goBack();
       Alert.alert(
         'Generation Failed',
@@ -215,8 +223,18 @@ export default function AIDeckCreatorScreen() {
             <Ionicons name="arrow-back" size={24} color={theme.colors.textPrimary} />
           </Pressable>
           <View style={styles.headerContent}>
-            <Ionicons name="sparkles" size={24} color="#8B5CF6" style={styles.sparkleIcon} />
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Create with AI</Text>
+            <LinearGradient
+              colors={['#8B5CF6', '#EC4899']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.headerIconGradient}
+            >
+              <Ionicons name="sparkles" size={20} color="#FFF" />
+            </LinearGradient>
+            <View>
+              <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Create with AI</Text>
+              <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Generate ~{itemLimit} cards instantly</Text>
+            </View>
           </View>
           <View style={{ width: 24 }} />
         </View>
@@ -226,290 +244,226 @@ export default function AIDeckCreatorScreen() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Tabs */}
-        <View style={[styles.tabContainer, { backgroundColor: theme.colors.surface }]}>
-          <Pressable
-            style={styles.tab}
-            onPress={() => setActiveTab('prompt')}
-          >
-            {activeTab === 'prompt' ? (
-              <LinearGradient
-                colors={['#8B5CF6', '#EC4899']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.tabGradient}
-              >
-                <Text style={[styles.tabText, { color: '#FFF' }]}>
-                  Prompt
-                </Text>
-              </LinearGradient>
-            ) : (
-              <View style={styles.tabInactive}>
-                <Text style={[styles.tabText, { color: theme.colors.textSecondary }]}>
-                  Prompt
-                </Text>
-              </View>
-            )}
-          </Pressable>
-          <Pressable
-            style={styles.tab}
-            onPress={() => setActiveTab('notes')}
-          >
-            {activeTab === 'notes' ? (
-              <LinearGradient
-                colors={['#8B5CF6', '#EC4899']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.tabGradient}
-              >
-                <Text style={[styles.tabText, { color: '#FFF' }]}>
-                  Import Notes
-                </Text>
-              </LinearGradient>
-            ) : (
-              <View style={styles.tabInactive}>
-                <Text style={[styles.tabText, { color: theme.colors.textSecondary }]}>
-                  Import Notes
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
-
-        {/* Input Section */}
-        {activeTab === 'prompt' ? (
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-              What do you want to learn?
-            </Text>
-            <Text style={[styles.hint, { color: theme.colors.textSecondary, marginBottom: s.xs }]}>
-              Enter as little or as much detail as you'd like. Describe the topic, difficulty level, or how you want your deck structured for best results.
-            </Text>
+          {/* Main Input - Smart unified input */}
+          <View style={styles.mainInputSection}>
+            <View style={styles.inputHeader}>
+              <Text style={[styles.inputLabel, { color: theme.colors.textPrimary }]}>
+                What do you want to learn?
+              </Text>
+              <Text style={[styles.inputHint, { color: theme.colors.textSecondary }]}>
+                Describe the topic, add your notes, or both
+              </Text>
+            </View>
+            
             <TextInput
               style={[
-                styles.input,
-                styles.promptInput,
+                styles.mainInput,
                 { backgroundColor: theme.colors.surface, color: theme.colors.textPrimary },
               ]}
-              placeholder="e.g., human anatomy cards covering muscles with origin, insertion, action, and innervation"
+              placeholder={EXAMPLE_PROMPTS[placeholderIndex]}
               placeholderTextColor={theme.colors.textSecondary}
-              value={prompt}
-              onChangeText={setPrompt}
+              value={prompt || notesText}
+              onChangeText={(text) => {
+                if (notesText) {
+                  setNotesText(text);
+                } else {
+                  setPrompt(text);
+                }
+              }}
               multiline
-              numberOfLines={4}
+              numberOfLines={8}
               textAlignVertical="top"
             />
-          </View>
-        ) : (
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-              Import your notes
-            </Text>
             
-            {/* Import and Paste Options */}
-            <View style={styles.importOptionsContainer}>
-              {/* Import Button */}
+            {/* Import file button */}
+            {!notesText && (
+              <View style={styles.orDivider}>
+                <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
+                <Text style={[styles.orText, { color: theme.colors.textSecondary }]}>or</Text>
+                <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
+              </View>
+            )}
+            
+            {!notesText && (
               <Pressable
-                style={[styles.importButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+                style={[styles.importFileButton, { borderColor: '#8B5CF6' }]}
                 onPress={handleImportFile}
                 disabled={isParsing}
               >
-                {isParsing ? (
-                  <ActivityIndicator size="small" color="#8B5CF6" />
-                ) : (
-                  <Ionicons name="document-attach" size={24} color="#8B5CF6" />
-                )}
-                <View style={styles.importButtonContent}>
-                  <Text style={[styles.importButtonText, { color: theme.colors.textPrimary }]}>
-                    {isParsing ? 'Parsing file...' : importedFileName || 'Import File'}
+                <LinearGradient
+                  colors={['#8B5CF6', '#EC4899']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.importIconGradient}
+                >
+                  {isParsing ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Ionicons name="cloud-upload" size={20} color="#FFF" />
+                  )}
+                </LinearGradient>
+                <View style={styles.importFileContent}>
+                  <Text style={[styles.importFileText, { color: theme.colors.textPrimary }]}>
+                    {isParsing ? 'Parsing file...' : 'Choose File'}
                   </Text>
-                  <Text style={[styles.importButtonHint, { color: theme.colors.textSecondary }]}>
-                    {isParsing ? 'Please wait' : importedFileName ? 'Tap to change' : '.txt, .doc, .docx, .pdf'}
-                  </Text>
-                </View>
-                {!isParsing && <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />}
-              </Pressable>
-
-              {/* Paste Button */}
-              <Pressable
-                style={[styles.importButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
-                onPress={() => setShowPasteInput(!showPasteInput)}
-              >
-                <Ionicons name="clipboard-outline" size={24} color="#8B5CF6" />
-                <View style={styles.importButtonContent}>
-                  <Text style={[styles.importButtonText, { color: theme.colors.textPrimary }]}>
-                    Paste Text
-                  </Text>
-                  <Text style={[styles.importButtonHint, { color: theme.colors.textSecondary }]}>
-                    Copy and paste directly
+                  <Text style={[styles.importFileHint, { color: theme.colors.textSecondary }]}>
+                    {isParsing ? 'Please wait...' : '.txt, .pdf, .doc, .docx'}
                   </Text>
                 </View>
-                <Ionicons 
-                  name={showPasteInput ? "chevron-up" : "chevron-down"} 
-                  size={20} 
-                  color={theme.colors.textSecondary} 
-                />
               </Pressable>
-            </View>
-
-            {/* Paste Text Area */}
-            {showPasteInput && (
-              <View style={styles.pasteSection}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    styles.notesInput,
-                    { backgroundColor: theme.colors.surface, color: theme.colors.textPrimary },
-                  ]}
-                  placeholder="Paste your notes here..."
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={notesText}
-                  onChangeText={setNotesText}
-                  multiline
-                  numberOfLines={10}
-                  textAlignVertical="top"
-                />
-              </View>
             )}
-
-            {/* Text Preview/Edit (for imported files) */}
-            {notesText && !showPasteInput && (
-              <View style={styles.previewSection}>
-                <Text style={[styles.previewLabel, { color: theme.colors.textSecondary }]}>
-                  Preview (editable):
+            
+            {/* Notes preview (when imported) */}
+            {notesText && importedFileName && (
+              <View style={styles.fileTag}>
+                <Ionicons name="document-text" size={14} color="#8B5CF6" />
+                <Text style={[styles.fileTagText, { color: theme.colors.textSecondary }]}>
+                  {importedFileName}
                 </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    styles.notesInput,
-                    { backgroundColor: theme.colors.surface, color: theme.colors.textPrimary },
-                  ]}
-                  placeholder="Your imported notes will appear here..."
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={notesText}
-                  onChangeText={setNotesText}
-                  multiline
-                  numberOfLines={8}
-                  textAlignVertical="top"
-                />
+                <Pressable onPress={() => { setNotesText(''); setImportedFileName(null); setPrompt(''); }}>
+                  <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+                </Pressable>
               </View>
             )}
           </View>
-        )}
 
-        {/* Options */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Deck Name (optional)
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              { backgroundColor: theme.colors.surface, color: theme.colors.textPrimary },
-            ]}
-            placeholder="AI will suggest a name if left empty"
-            placeholderTextColor={theme.colors.textSecondary}
-            value={deckName}
-            onChangeText={setDeckName}
-          />
-        </View>
+          {/* Card Count Selector */}
+          <View style={styles.cardCountSection}>
+            <Text style={[styles.cardTypeLabel, { color: theme.colors.textSecondary }]}>
+              NUMBER OF CARDS
+            </Text>
+            <View style={styles.countOptions}>
+              {['25', '50', '75', '100'].map((count) => (
+                <Pressable
+                  key={count}
+                  style={[
+                    styles.countOption,
+                    { 
+                      backgroundColor: itemLimit === count ? 'rgba(139, 92, 246, 0.15)' : theme.colors.surface,
+                      borderColor: itemLimit === count ? '#8B5CF6' : theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => setItemLimit(count)}
+                >
+                  <Text style={[
+                    styles.countText,
+                    { color: itemLimit === count ? '#8B5CF6' : theme.colors.textPrimary }
+                  ]}>
+                    {count}
+                  </Text>
+                </Pressable>
+              ))}
+              <Pressable
+                style={[
+                  styles.countOption,
+                  styles.customCountOption,
+                  { 
+                    backgroundColor: !['25', '50', '75', '100'].includes(itemLimit) ? 'rgba(139, 92, 246, 0.15)' : theme.colors.surface,
+                    borderColor: !['25', '50', '75', '100'].includes(itemLimit) ? '#8B5CF6' : theme.colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  Alert.prompt(
+                    'Custom Amount',
+                    'Enter number of cards (max 150)',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Set',
+                        onPress: (value?: string) => {
+                          const num = parseInt(value || '50');
+                          if (num >= 1 && num <= 150) {
+                            setItemLimit(value || '50');
+                          } else {
+                            Alert.alert('Invalid', 'Please enter a number between 1 and 150');
+                          }
+                        },
+                      },
+                    ],
+                    'plain-text',
+                    itemLimit,
+                    'number-pad'
+                  );
+                }}
+              >
+                <Text style={[
+                  styles.countText,
+                  { color: !['25', '50', '75', '100'].includes(itemLimit) ? '#8B5CF6' : theme.colors.textPrimary }
+                ]}>
+                  {!['25', '50', '75', '100'].includes(itemLimit) ? itemLimit : 'Custom'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Card Type
-          </Text>
-          <View style={styles.radioGroup}>
-            <Pressable
-              style={styles.radioOption}
-              onPress={() => setNoteModel('basic')}
-            >
-              <View style={[
-                styles.radioCard,
-                { backgroundColor: theme.colors.surface },
-                noteModel === 'basic' && styles.radioCardSelected,
-              ]}>
+          {/* Card Type - Simplified Pills */}
+          <View style={styles.cardTypeSection}>
+            <Text style={[styles.cardTypeLabel, { color: theme.colors.textSecondary }]}>
+              CARD TYPE
+            </Text>
+            <View style={styles.pillGroup}>
+              <Pressable
+                style={[
+                  styles.pill,
+                  { borderColor: noteModel === 'basic' ? '#8B5CF6' : theme.colors.border },
+                ]}
+                onPress={() => setNoteModel('basic')}
+              >
                 {noteModel === 'basic' && (
                   <LinearGradient
                     colors={['#8B5CF6', '#EC4899']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={styles.selectedBorder}
+                    style={styles.pillGradient}
                   />
                 )}
-                <View style={styles.radioContent}>
-                  <Ionicons
-                    name={noteModel === 'basic' ? 'radio-button-on' : 'radio-button-off'}
-                    size={24}
-                    color={noteModel === 'basic' ? '#8B5CF6' : theme.colors.textSecondary}
+                <View style={styles.pillContent}>
+                  <Ionicons 
+                    name="swap-horizontal" 
+                    size={20} 
+                    color={noteModel === 'basic' ? '#FFF' : theme.colors.textPrimary} 
                   />
-                  <View style={styles.radioTextContainer}>
-                    <Text style={[styles.radioTitle, { color: theme.colors.textPrimary }]}>
-                      Basic (Q&A)
-                    </Text>
-                    <Text style={[styles.radioDesc, { color: theme.colors.textSecondary }]}>
-                      Front and back cards
-                    </Text>
-                  </View>
+                  <Text style={[
+                    styles.pillText,
+                    { color: noteModel === 'basic' ? '#FFF' : theme.colors.textPrimary }
+                  ]}>
+                    Front & Back
+                  </Text>
                 </View>
-              </View>
-            </Pressable>
-
-            <Pressable
-              style={styles.radioOption}
-              onPress={() => setNoteModel('cloze')}
-            >
-              <View style={[
-                styles.radioCard,
-                { backgroundColor: theme.colors.surface },
-                noteModel === 'cloze' && styles.radioCardSelected,
-              ]}>
+              </Pressable>
+              
+              <Pressable
+                style={[
+                  styles.pill,
+                  { borderColor: noteModel === 'cloze' ? '#8B5CF6' : theme.colors.border },
+                ]}
+                onPress={() => setNoteModel('cloze')}
+              >
                 {noteModel === 'cloze' && (
                   <LinearGradient
                     colors={['#8B5CF6', '#EC4899']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={styles.selectedBorder}
+                    style={styles.pillGradient}
                   />
                 )}
-                <View style={styles.radioContent}>
-                  <Ionicons
-                    name={noteModel === 'cloze' ? 'radio-button-on' : 'radio-button-off'}
-                    size={24}
-                    color={noteModel === 'cloze' ? '#8B5CF6' : theme.colors.textSecondary}
+                <View style={styles.pillContent}>
+                  <Ionicons 
+                    name="remove-circle-outline" 
+                    size={20} 
+                    color={noteModel === 'cloze' ? '#FFF' : theme.colors.textPrimary} 
                   />
-                  <View style={styles.radioTextContainer}>
-                    <Text style={[styles.radioTitle, { color: theme.colors.textPrimary }]}>
-                      Fill in the Blank
-                    </Text>
-                    <Text style={[styles.radioDesc, { color: theme.colors.textSecondary }]}>
-                      Test recall by hiding key terms
-                    </Text>
-                  </View>
+                  <Text style={[
+                    styles.pillText,
+                    { color: noteModel === 'cloze' ? '#FFF' : theme.colors.textPrimary }
+                  ]}>
+                    Fill-in-Blank
+                  </Text>
                 </View>
-              </View>
-            </Pressable>
+              </Pressable>
+            </View>
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Number of Cards
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              { backgroundColor: theme.colors.surface, color: theme.colors.textPrimary },
-            ]}
-            placeholder="50"
-            placeholderTextColor={theme.colors.textSecondary}
-            value={itemLimit}
-            onChangeText={setItemLimit}
-            keyboardType="number-pad"
-          />
-          <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
-            Maximum: 150 cards
-          </Text>
-        </View>
         </ScrollView>
 
         {/* Generate Button with Magic */}
@@ -550,7 +504,14 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s.xs,
+    gap: s.sm,
+  },
+  headerIconGradient: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sparkleIcon: {
     marginRight: s.xs / 2,
@@ -562,12 +523,17 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
+  subtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
   scrollView: {
     flex: 1,
   },
   content: {
     padding: s.lg,
-    gap: s.xl,
+    paddingTop: s.md,
+    gap: s.lg,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -595,22 +561,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   section: {
-    gap: s.sm,
+    gap: s.md,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
   },
   input: {
-    borderRadius: r.md,
-    padding: s.md,
+    borderRadius: r.lg,
+    padding: s.lg,
     fontSize: 16,
   },
   promptInput: {
-    minHeight: 100,
+    minHeight: 140,
+    fontSize: 17,
   },
   notesInput: {
-    minHeight: 200,
+    minHeight: 240,
   },
   hint: {
     fontSize: 14,
@@ -637,16 +604,8 @@ const styles = StyleSheet.create({
   importButtonHint: {
     fontSize: 14,
   },
-  pasteSection: {
+  textInputSection: {
     marginTop: s.sm,
-  },
-  previewSection: {
-    gap: s.xs,
-    marginTop: s.sm,
-  },
-  previewLabel: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   radioGroup: {
     gap: s.md,
@@ -722,5 +681,148 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#FFF',
+  },
+  // New unified input styles
+  mainInputSection: {
+    gap: s.md,
+  },
+  inputHeader: {
+    gap: s.xs / 2,
+  },
+  inputLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  inputHint: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  mainInput: {
+    borderRadius: r.lg,
+    padding: s.xl,
+    fontSize: 17,
+    minHeight: 180,
+    lineHeight: 24,
+  },
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.md,
+    marginVertical: s.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  orText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  importFileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: s.lg,
+    borderRadius: r.lg,
+    borderWidth: 2,
+    gap: s.md,
+  },
+  importIconGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  importFileContent: {
+    flex: 1,
+    gap: s.xs / 2,
+  },
+  importFileText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  importFileHint: {
+    fontSize: 13,
+  },
+  fileTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.xs,
+    paddingHorizontal: s.md,
+    paddingVertical: s.sm,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderRadius: r.pill,
+    alignSelf: 'flex-start',
+  },
+  fileTagText: {
+    fontSize: 13,
+    fontWeight: '500',
+    flex: 1,
+  },
+  // Card count selection
+  cardCountSection: {
+    gap: s.sm,
+  },
+  countOptions: {
+    flexDirection: 'row',
+    gap: s.sm,
+  },
+  countOption: {
+    flex: 1,
+    paddingVertical: s.md,
+    paddingHorizontal: s.sm,
+    borderRadius: r.lg,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  customCountOption: {
+    minWidth: 70,
+  },
+  // Simplified card type selection
+  cardTypeSection: {
+    gap: s.sm,
+  },
+  cardTypeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  pillGroup: {
+    flexDirection: 'row',
+    gap: s.sm,
+  },
+  pill: {
+    flex: 1,
+    borderRadius: r.lg,
+    borderWidth: 2,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  pillGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  pillContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: s.lg,
+    gap: s.sm,
+  },
+  pillSelected: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  pillText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
