@@ -83,8 +83,8 @@ export function StreakCalendarCard({
             {calendar.monthName} {calendar.year}
           </Text>
           <View style={styles.streakRow}>
-            <Ionicons name="flame" size={14} color="#FF8C00" />
-            <Text style={[styles.streakText, { color: theme.colors.textSecondary }]}>
+            <Ionicons name="flame" size={14} color={theme.colors.streak} />
+            <Text style={[styles.streakText, { color: theme.colors.textMed }]}>
               {currentStreak} day streak
               {longestStreak > currentStreak && ` · Best: ${longestStreak}`}
             </Text>
@@ -110,6 +110,16 @@ export function StreakCalendarCard({
           <View key={weekIdx} style={styles.gridRow}>
             {calendar.days.slice(weekIdx * 7, (weekIdx + 1) * 7).map((day, dayIdx) => {
               const hasActivity = day.reviewCount > 0;
+              // Use brand primary with intensity based on review count
+              const maxReviews = Math.max(...calendar.days.filter(d => d.date !== null).map(d => d.reviewCount), 1);
+              const intensity = hasActivity ? Math.min(day.reviewCount / maxReviews, 1) : 0;
+              const getActivityColor = () => {
+                if (!hasActivity) return theme.colors.border;
+                // Brand ramp: overlay.primary → primary based on intensity
+                if (intensity < 0.33) return theme.colors.overlay.primary;
+                if (intensity < 0.66) return theme.colors.primary + '80';
+                return theme.colors.primary;
+              };
               
               return (
                 <View
@@ -118,12 +128,8 @@ export function StreakCalendarCard({
                     styles.gridCell,
                     day.isToday && styles.todayCell,
                     {
-                      backgroundColor: day.date === null
-                        ? 'transparent'
-                        : hasActivity
-                        ? theme.colors.success
-                        : theme.colors.border,
-                      borderColor: day.isToday ? theme.colors.textPrimary : 'transparent',
+                      backgroundColor: day.date === null ? 'transparent' : getActivityColor(),
+                      borderColor: day.isToday ? theme.colors.primary : 'transparent',
                     },
                   ]}
                 >
@@ -132,11 +138,11 @@ export function StreakCalendarCard({
                       style={[
                         styles.dateText,
                         {
-                          color: hasActivity
-                            ? '#FFF'
+                          color: intensity >= 0.66
+                            ? theme.colors.onPrimary
                             : day.isToday
-                            ? theme.colors.textPrimary
-                            : theme.colors.textSecondary,
+                            ? theme.colors.textHigh
+                            : theme.colors.textMed,
                           fontWeight: day.isToday ? '800' : '600',
                         },
                       ]}
@@ -163,7 +169,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
-    gap: s.lg,
+    gap: s.md,
   },
   header: {
     marginBottom: s.sm,

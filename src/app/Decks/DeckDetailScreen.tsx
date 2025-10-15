@@ -336,34 +336,34 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Stats Cards */}
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
-            <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>{actuallyDueCards.length}</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Due Today</Text>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.surface2 }]}>
+            <Text style={[styles.statNumber, { color: theme.colors.textHigh }]}>{actuallyDueCards.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textMed }]}>DUE TODAY</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
-            <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>{cards.length}</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Cards</Text>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.surface2 }]}>
+            <Text style={[styles.statNumber, { color: theme.colors.textHigh }]}>{cards.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textMed }]}>TOTAL CARDS</Text>
           </View>
         </View>
 
         {/* Progress Chart */}
-        <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Progress</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.surface2 }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textHigh }]}>Progress</Text>
           
           {/* Simple bar chart */}
           <View style={styles.chartContainer}>
             <View style={styles.barChart}>
               <View style={styles.barRow}>
                 <View style={styles.barLabelContainer}>
-                  <Text style={[styles.barLabel, { color: theme.colors.textPrimary }]}>Studied</Text>
-                  <Text style={[styles.barCount, { color: theme.colors.textPrimary }]}>{studiedCards}</Text>
+                  <Text style={[styles.barLabel, { color: theme.colors.textHigh }]}>Studied</Text>
+                  <Text style={[styles.barCount, { color: theme.colors.textHigh }]}>{studiedCards}</Text>
                 </View>
                 <View style={styles.barContainer}>
                   <View 
                     style={[
                       styles.bar, 
                       { 
-                        backgroundColor: theme.colors.primary,
+                        backgroundColor: theme.colors.dataViz.mature,
                         width: cards.length > 0 ? `${(studiedCards / cards.length) * 100}%` : '0%'
                       }
                     ]} 
@@ -373,15 +373,15 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
               
               <View style={styles.barRow}>
                 <View style={styles.barLabelContainer}>
-                  <Text style={[styles.barLabel, { color: theme.colors.textPrimary }]}>Learning</Text>
-                  <Text style={[styles.barCount, { color: theme.colors.textPrimary }]}>{inProgressCards}</Text>
+                  <Text style={[styles.barLabel, { color: theme.colors.textHigh }]}>Learning</Text>
+                  <Text style={[styles.barCount, { color: theme.colors.textHigh }]}>{inProgressCards}</Text>
                 </View>
                 <View style={styles.barContainer}>
                   <View 
                     style={[
                       styles.bar, 
                       { 
-                        backgroundColor: theme.colors.info,
+                        backgroundColor: theme.colors.dataViz.young,
                         width: cards.length > 0 ? `${(inProgressCards / cards.length) * 100}%` : '0%'
                       }
                     ]} 
@@ -391,15 +391,15 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
               
               <View style={styles.barRow}>
                 <View style={styles.barLabelContainer}>
-                  <Text style={[styles.barLabel, { color: theme.colors.textPrimary }]}>Not Started</Text>
-                  <Text style={[styles.barCount, { color: theme.colors.textPrimary }]}>{notStudiedCards}</Text>
+                  <Text style={[styles.barLabel, { color: theme.colors.textHigh }]}>Not Started</Text>
+                  <Text style={[styles.barCount, { color: theme.colors.textHigh }]}>{notStudiedCards}</Text>
                 </View>
                 <View style={styles.barContainer}>
                   <View 
                     style={[
                       styles.bar, 
                       { 
-                        backgroundColor: theme.colors.textTertiary,
+                        backgroundColor: theme.colors.dataViz.new,
                         width: cards.length > 0 ? `${(notStudiedCards / cards.length) * 100}%` : '0%'
                       }
                     ]} 
@@ -412,12 +412,12 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
           {/* Next card timer - always visible */}
           {timeRemaining && (
             <View style={[styles.timerContainer, { backgroundColor: theme.colors.bg }]}>
-              <Text style={[styles.timerLabel, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.timerLabel, { color: theme.colors.textMed }]}>
                 Card Status
               </Text>
               <Text style={[
                 styles.timerValue, 
-                { color: actuallyDueCards.length > 0 ? theme.colors.success : theme.colors.accent }
+                { color: theme.colors.textHigh }
               ]}>
                 {timeRemaining}
               </Text>
@@ -428,27 +428,27 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
         {/* Primary Actions */}
         <View style={styles.primaryActions}>
           <Pressable
-            style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
+            style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
             onPress={handleStudy}
           >
-            <Ionicons name="book-outline" size={20} color="#000" style={{ marginRight: s.sm }} />
-            <Text style={styles.primaryButtonText}>Study Now</Text>
+            <Ionicons name="book-outline" size={20} color={theme.colors.onPrimary} style={{ marginRight: s.sm }} />
+            <Text style={[styles.primaryButtonText, { color: theme.colors.onPrimary }]}>Study Now</Text>
           </Pressable>
           <Pressable
-            style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
+            style={[styles.secondaryButton, { backgroundColor: theme.colors.surface2, borderWidth: 1, borderColor: theme.colors.border }]}
             onPress={handleAddNote}
           >
-            <Ionicons name="add-circle-outline" size={20} color="#FFF" style={{ marginRight: s.sm }} />
-            <Text style={styles.primaryButtonText}>Add Note</Text>
+            <Ionicons name="add-circle-outline" size={20} color={theme.colors.textHigh} style={{ marginRight: s.sm }} />
+            <Text style={[styles.secondaryButtonText, { color: theme.colors.textHigh }]}>Add Note</Text>
           </Pressable>
         </View>
 
         {/* Secondary Actions */}
-        <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        <View style={[styles.section, { backgroundColor: theme.colors.surface2 }]}>
           <Pressable style={styles.actionRow} onPress={handleBrowseCards}>
-            <Ionicons name="search-outline" size={22} color={theme.colors.accent} />
-            <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Browse Cards</Text>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+            <Ionicons name="search-outline" size={22} color={theme.colors.textHigh} />
+            <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>Browse Cards</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
           </Pressable>
           
           <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
@@ -457,9 +457,9 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
             style={styles.actionRow} 
             onPress={() => navigation.navigate('DeckStats', { deckId, deckName: deck.name })}
           >
-            <Ionicons name="stats-chart-outline" size={22} color={theme.colors.accent} />
-            <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>View Statistics</Text>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+            <Ionicons name="stats-chart-outline" size={22} color={theme.colors.textHigh} />
+            <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>View Statistics</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
           </Pressable>
           
           <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
@@ -468,37 +468,37 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
             <Ionicons 
               name={aiHintsEnabled ? "bulb" : "bulb-outline"} 
               size={22} 
-              color={aiHintsEnabled ? theme.colors.success : theme.colors.accent} 
+              color={theme.colors.textHigh} 
             />
-            <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>
               {aiHintsEnabled ? 'Manage AI Hints' : 'Enable AI Hints'}
             </Text>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
           </Pressable>
           
           <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
           
           <Pressable style={styles.actionRow} onPress={handleRenameDeck}>
-            <Ionicons name="create-outline" size={22} color={theme.colors.accent} />
-            <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Rename Deck</Text>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+            <Ionicons name="create-outline" size={22} color={theme.colors.textHigh} />
+            <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>Rename Deck</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
           </Pressable>
           
           <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
           
           <Pressable style={styles.actionRow} onPress={handleSuspendAll}>
-            <Ionicons name="pause-outline" size={22} color={theme.colors.accent} />
-            <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Suspend All Cards</Text>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+            <Ionicons name="pause-outline" size={22} color={theme.colors.textHigh} />
+            <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>Suspend All Cards</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
           </Pressable>
           
           {suspendedCards.length > 0 && (
             <>
               <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
               <Pressable style={styles.actionRow} onPress={handleUnsuspendAll}>
-                <Ionicons name="play-outline" size={22} color={theme.colors.success} />
-                <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }]}>Unsuspend All Cards</Text>
-                <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+                <Ionicons name="play-outline" size={22} color={theme.colors.textHigh} />
+                <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>Unsuspend All Cards</Text>
+                <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
               </Pressable>
             </>
           )}
@@ -509,7 +509,7 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
               <Pressable style={styles.actionRow} onPress={handleDeleteDeck}>
                 <Ionicons name="trash-outline" size={22} color={theme.colors.danger} />
                 <Text style={[styles.actionLabel, { color: theme.colors.danger }]}>Delete Deck</Text>
-                <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+                <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
               </Pressable>
             </>
           )}
@@ -618,7 +618,17 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000',
+  },
+  secondaryButton: {
+    padding: s.lg,
+    borderRadius: r.md,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   actionRow: {
     flexDirection: 'row',

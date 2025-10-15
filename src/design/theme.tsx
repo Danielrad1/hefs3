@@ -38,6 +38,9 @@ interface ThemeColors {
   danger: string;
   info: string;
   
+  // Special purpose
+  streak: string; // Dedicated orange for streaks
+  
   // Overlays (12% alpha for consistency)
   overlay: {
     primary: string;
@@ -45,6 +48,7 @@ interface ThemeColors {
     warning: string;
     danger: string;
     info: string;
+    streak: string;
   };
   
   // Data Visualization
@@ -740,6 +744,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     danger: '#EF4444', // Red 500
     info: schemeColors.info,
     
+    // Special purpose
+    streak: '#FF8C00', // Dedicated orange for streaks
+    
     // Overlays (12% alpha - dynamically generated)
     overlay: {
       primary: schemeColors.primary + '1E',
@@ -747,6 +754,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       warning: schemeColors.warning + '1E',
       danger: '#EF44441E',
       info: schemeColors.info + '1E',
+      streak: '#FF8C001E',
     },
     
     // Data Viz (from scheme)
@@ -790,6 +798,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     danger: '#EF4444', // Red 500
     info: schemeColors.info,
     
+    // Special purpose
+    streak: '#FF8C00', // Dedicated orange for streaks
+    
     // Overlays (12% alpha - dynamically generated)
     overlay: {
       primary: schemeColors.primary + '1E',
@@ -797,6 +808,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       warning: schemeColors.warning + '1E',
       danger: '#EF44441E',
       info: schemeColors.info + '1E',
+      streak: '#FF8C001E',
     },
     
     // Data Viz (from scheme)

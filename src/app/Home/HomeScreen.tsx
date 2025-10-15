@@ -24,26 +24,32 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isCalculatingRef = React.useRef(false);
   
-  // Random motivational messages - must be before any conditional returns
+  // Contextual motivational message
   const getMotivationalMessage = React.useCallback(() => {
-    const messages = [
-      'Ready to grow?',
-      'Keep building knowledge',
-      'Your brain is ready',
-      'Make today count',
-      'Knowledge is power',
-      'Stay curious today',
-      'Every card counts',
-      'You\'re on fire!',
-      'Keep the momentum',
-      'Time to level up',
-    ];
-    const randomIndex = Math.floor(Math.random() * messages.length);
-    return messages[randomIndex];
-  }, []);
+    if (!homeStats || !globalSnapshot) return 'Keep building knowledge';
+    
+    const streak = homeStats.currentStreak;
+    const due = globalSnapshot.todayDue;
+    const hour = new Date().getHours();
+    const isEvening = hour >= 17;
+    
+    // Priority: streak protection > due-focused > time-based > default
+    if (streak > 0 && due <= 5 && due > 0) {
+      return `Protect your ${streak}-day streak`;
+    }
+    if (due > 0 && due <= 20) {
+      return `Clear ${due} to win the day`;
+    }
+    if (due > 20) {
+      return 'Small steps beat big backlogs';
+    }
+    if (isEvening) {
+      return 'Finish strong tonight';
+    }
+    return 'Keep building knowledge';
+  }, [homeStats, globalSnapshot]);
   
-  // Store motivational message so it doesn't change during the session
-  const [motivationalMessage] = React.useState(getMotivationalMessage);
+  const motivationalMessage = getMotivationalMessage();
 
   // Bootstrap sample data ONLY on first launch (empty database)
   useEffect(() => {
@@ -127,24 +133,24 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <View style={styles.headerSection}>
-          <Text style={[styles.greetingSmall, { color: theme.colors.textSecondary }]}>
-            {getGreeting}, {userName}
-          </Text>
-          <Text style={[styles.greetingLarge, { color: theme.colors.textPrimary }]}>
-            {motivationalMessage}
-          </Text>
-          
-          {/* Centered Streak Badge */}
-          {homeStats.currentStreak > 0 && (
-            <View style={styles.streakContainer}>
-              <View style={[styles.streakBadge, { backgroundColor: 'rgba(255, 165, 0, 0.15)' }]}>
-                <Ionicons name="flame" size={20} color="#FF8C00" />
-                <Text style={[styles.streakText, { color: theme.colors.textPrimary }]}>
-                  {homeStats.currentStreak} day streak
+          {/* Greeting with inline streak */}
+          <View style={styles.greetingRow}>
+            <Text style={[styles.greetingSmall, { color: theme.colors.textMed }]}>
+              {getGreeting}, {userName}
+            </Text>
+            {homeStats.currentStreak > 0 && (
+              <View style={[styles.streakBadge, { backgroundColor: theme.colors.overlay.streak }]}>
+                <Ionicons name="flame" size={20} color={theme.colors.streak} />
+                <Text style={[styles.streakText, { color: theme.colors.streak }]}>
+                  {homeStats.currentStreak}
                 </Text>
               </View>
-            </View>
-          )}
+            )}
+          </View>
+          
+          <Text style={[styles.greetingLarge, { color: theme.colors.textHigh }]} numberOfLines={2}>
+            {motivationalMessage}
+          </Text>
         </View>
 
         {/* Main CTA: Due Cards */}
@@ -163,19 +169,19 @@ export default function HomeScreen() {
                 <View style={styles.heroIconCircle}>
                   <Ionicons name="book" size={32} color={theme.colors.onPrimary} />
                 </View>
-                <Text style={[styles.heroLabel, { color: theme.colors.onPrimary }]}>Ready to Study</Text>
+                <Text style={[styles.heroLabel, { color: theme.colors.onPrimary }]}>READY TO STUDY</Text>
                 <Text style={[styles.heroCta, { color: theme.colors.onPrimary }]}>Start Now</Text>
               </View>
             </LinearGradient>
           </Pressable>
         ) : (
-          <View style={[styles.heroCard, { backgroundColor: theme.colors.surface }]}>
+          <View style={[styles.heroCard, { backgroundColor: theme.colors.surface2 }]}>
             <View style={styles.completedHero}>
               <View style={[styles.heroIconCircle, { backgroundColor: theme.colors.overlay.success }]}>
                 <Ionicons name="checkmark-circle" size={48} color={theme.colors.success} />
               </View>
-              <Text style={[styles.heroLabel, { color: theme.colors.primary }]}>All Caught Up!</Text>
-              <Text style={[styles.completedSubtext, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.heroLabel, { color: theme.colors.textHigh }]}>All Caught Up!</Text>
+              <Text style={[styles.completedSubtext, { color: theme.colors.textMed }]}>
                 Great work! Check back later for more cards
               </Text>
             </View>
@@ -184,13 +190,13 @@ export default function HomeScreen() {
 
         {/* Today's Session - Clean & Focused */}
         {globalSnapshot && (
-          <View style={[styles.sessionCard, { backgroundColor: theme.colors.surface }]}>
+          <View style={[styles.sessionCard, { backgroundColor: theme.colors.surface2 }]}>
             <View style={styles.sessionRow}>
               <View style={styles.mainStat}>
-                <Text style={[styles.mainStatLabel, { color: theme.colors.textSecondary }]}>
-                  Due Today
+                <Text style={[styles.mainStatLabel, { color: theme.colors.textMed }]}>
+                  DUE TODAY
                 </Text>
-                <Text style={[styles.mainStatValue, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.mainStatValue, { color: theme.colors.textHigh }]}>
                   {globalSnapshot.todayDue}
                 </Text>
               </View>
@@ -198,22 +204,22 @@ export default function HomeScreen() {
               <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
 
               <View style={styles.secondaryStat}>
-                <Text style={[styles.secondaryStatValue, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.secondaryStatValue, { color: theme.colors.textHigh }]}>
                   {globalSnapshot.todayLearn}
                 </Text>
-                <Text style={[styles.secondaryStatLabel, { color: theme.colors.textSecondary }]}>
-                  Learning
+                <Text style={[styles.secondaryStatLabel, { color: theme.colors.textMed }]}>
+                  LEARNING
                 </Text>
               </View>
 
               <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
 
               <View style={styles.secondaryStat}>
-                <Text style={[styles.secondaryStatValue, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.secondaryStatValue, { color: theme.colors.textHigh }]}>
                   {globalSnapshot.todayNewLimit}
                 </Text>
-                <Text style={[styles.secondaryStatLabel, { color: theme.colors.textSecondary }]}>
-                  New
+                <Text style={[styles.secondaryStatLabel, { color: theme.colors.textMed }]}>
+                  NEW
                 </Text>
               </View>
 
@@ -221,11 +227,11 @@ export default function HomeScreen() {
                 <>
                   <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
                   <View style={styles.secondaryStat}>
-                    <Text style={[styles.secondaryStatValue, { color: theme.colors.textPrimary }]}>
+                    <Text style={[styles.secondaryStatValue, { color: theme.colors.textHigh }]}>
                       {homeStats.todayAccuracy}%
                     </Text>
-                    <Text style={[styles.secondaryStatLabel, { color: theme.colors.textSecondary }]}>
-                      Done
+                    <Text style={[styles.secondaryStatLabel, { color: theme.colors.textMed }]}>
+                      DONE
                     </Text>
                   </View>
                 </>
@@ -236,29 +242,29 @@ export default function HomeScreen() {
 
         {/* Performance Stats - Minimal */}
         {globalSnapshot && homeStats.totalReviewsAllTime > 0 && (
-          <View style={[styles.performanceCard, { backgroundColor: theme.colors.surface }]}>
+          <View style={[styles.performanceCard, { backgroundColor: theme.colors.surface2 }]}>
             <View style={styles.performanceRow}>
               <View style={styles.performanceItem}>
-                <Text style={[styles.performanceLabel, { color: theme.colors.textSecondary }]}>
-                  7-Day Retention
+                <Text style={[styles.performanceLabel, { color: theme.colors.textMed }]}>
+                  7-DAY RETENTION
                 </Text>
-                <Text style={[styles.performanceValue, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.performanceValue, { color: theme.colors.textHigh }]}>
                   {Math.round(globalSnapshot.retention7)}%
                 </Text>
               </View>
               <View style={styles.performanceItem}>
-                <Text style={[styles.performanceLabel, { color: theme.colors.textSecondary }]}>
-                  Reviews
+                <Text style={[styles.performanceLabel, { color: theme.colors.textMed }]}>
+                  REVIEWS
                 </Text>
-                <Text style={[styles.performanceValue, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.performanceValue, { color: theme.colors.textHigh }]}>
                   {homeStats.totalReviewsAllTime.toLocaleString()}
                 </Text>
               </View>
               <View style={styles.performanceItem}>
-                <Text style={[styles.performanceLabel, { color: theme.colors.textSecondary }]}>
-                  Cards
+                <Text style={[styles.performanceLabel, { color: theme.colors.textMed }]}>
+                  CARDS
                 </Text>
-                <Text style={[styles.performanceValue, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.performanceValue, { color: theme.colors.textHigh }]}>
                   {homeStats.totalCardsCount}
                 </Text>
               </View>
@@ -314,44 +320,37 @@ const styles = StyleSheet.create({
   },
   // Header Section
   headerSection: {
-    gap: s.md,
-    marginBottom: s.sm,
+    paddingTop: s.lg,
+    gap: s.sm,
+    marginBottom: s.xl,
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   greetingSmall: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '600',
-    opacity: 0.5,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   greetingLarge: {
-    fontSize: 34,
+    fontSize: 36,
     fontWeight: '800',
-    letterSpacing: -1,
-    lineHeight: 38,
-    marginBottom: s.xs,
-  },
-  streakContainer: {
-    alignItems: 'center',
-    marginTop: s.xs,
+    letterSpacing: -0.5,
+    lineHeight: 42,
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s.sm,
-    paddingVertical: s.md,
-    paddingHorizontal: s.xl,
+    gap: 4,
+    height: 26,
+    paddingHorizontal: 10,
     borderRadius: r.pill,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
   },
   streakText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '800',
-    letterSpacing: 0.3,
   },
   // Hero Card
   heroCard: {

@@ -41,10 +41,9 @@ const LEVEL_INFO = {
   },
 };
 
-const HINT_COLOR = '#3B82F6'; // Darker magical blue
-
 export function MultiLevelHintDisplay({ hintL1, hintL2, hintL3, onClose, onHintRevealed }: MultiLevelHintDisplayProps) {
   const theme = useTheme();
+  const HINT_COLOR = theme.colors.primary; // Brand primary for hints
   const { selection } = useHaptics();
   const { width } = useWindowDimensions();
   
@@ -100,7 +99,7 @@ export function MultiLevelHintDisplay({ hintL1, hintL2, hintL3, onClose, onHintR
       color: theme.colors.textSecondary,
     },
     code: {
-      backgroundColor: `${HINT_COLOR}15`,
+      backgroundColor: theme.colors.overlay.primary,
       color: HINT_COLOR,
       fontFamily: 'monospace' as const,
       padding: 4,
@@ -116,31 +115,31 @@ export function MultiLevelHintDisplay({ hintL1, hintL2, hintL3, onClose, onHintR
       textDecorationLine: 'underline' as const,
     },
     mark: {
-      backgroundColor: `${HINT_COLOR}25`,
+      backgroundColor: theme.colors.overlay.primary,
       color: HINT_COLOR,
     },
   };
   
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface2 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={[styles.iconBadge, { backgroundColor: HINT_COLOR }]}>
-            <Ionicons name="bulb" size={24} color="#FFFFFF" />
+            <Ionicons name="bulb" size={24} color={theme.colors.onPrimary} />
           </View>
           <View style={styles.headerText}>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.title, { color: theme.colors.textHigh }]}>
               Hint
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.subtitle, { color: theme.colors.textMed }]}>
               {currentInfo.subtitle}
             </Text>
           </View>
         </View>
         {onClose && (
           <Pressable onPress={onClose} hitSlop={12}>
-            <Ionicons name="close-circle" size={28} color={theme.colors.textSecondary} />
+            <Ionicons name="close-circle" size={28} color={theme.colors.textMed} />
           </Pressable>
         )}
       </View>
@@ -166,11 +165,11 @@ export function MultiLevelHintDisplay({ hintL1, hintL2, hintL3, onClose, onHintR
               <Ionicons 
                 name={levelInfo.icon} 
                 size={16} 
-                color={isActive ? '#FFFFFF' : theme.colors.textSecondary} 
+                color={isActive ? theme.colors.onPrimary : theme.colors.textMed} 
               />
               <Text style={[
                 styles.pillText,
-                { color: isActive ? '#FFFFFF' : theme.colors.textSecondary }
+                { color: isActive ? theme.colors.onPrimary : theme.colors.textMed }
               ]}>
                 {levelInfo.title}
               </Text>

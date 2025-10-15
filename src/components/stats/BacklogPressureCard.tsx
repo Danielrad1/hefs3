@@ -68,7 +68,7 @@ export function BacklogPressureCard({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface2 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -76,10 +76,10 @@ export function BacklogPressureCard({
             <Ionicons name={pressure.icon as any} size={22} color={pressure.color} />
           </View>
           <View>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.title, { color: theme.colors.textHigh }]}>
               Backlog Pressure
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.subtitle, { color: theme.colors.textMed }]}>
               {pressure.level}
             </Text>
           </View>
@@ -90,10 +90,10 @@ export function BacklogPressureCard({
       {backlogCount > 0 ? (
         <>
           <View style={styles.mainMetric}>
-            <Text style={[styles.mainValue, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.mainValue, { color: theme.colors.textHigh }]}>
               {backlogCount}
             </Text>
-            <Text style={[styles.mainLabel, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.mainLabel, { color: theme.colors.textMed }]}>
               Cards Overdue
             </Text>
           </View>
@@ -101,10 +101,10 @@ export function BacklogPressureCard({
           {/* Secondary Metrics */}
           <View style={styles.metricsRow}>
             <View style={styles.metricItem}>
-              <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
+              <Text style={[styles.metricValue, { color: theme.colors.textHigh }]}>
                 {Math.round(medianDaysOverdue)}
               </Text>
-              <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.metricLabel, { color: theme.colors.textMed }]}>
                 Median Days
               </Text>
             </View>
@@ -112,10 +112,10 @@ export function BacklogPressureCard({
             <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
             <View style={styles.metricItem}>
-              <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
+              <Text style={[styles.metricValue, { color: theme.colors.textHigh }]}>
                 {overduenessIndex.toFixed(1)}
               </Text>
-              <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.metricLabel, { color: theme.colors.textMed }]}>
                 Pressure Index
               </Text>
             </View>
@@ -124,7 +124,7 @@ export function BacklogPressureCard({
           {/* Advice */}
           <View style={[styles.adviceBox, { backgroundColor: getOverlayColor() }]}>
             <Ionicons name="bulb-outline" size={16} color={pressure.color} />
-            <Text style={[styles.adviceText, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.adviceText, { color: theme.colors.textMed }]}>
               {backlogCount > 50
                 ? 'Focus on clearing overdue cards to maintain retention'
                 : backlogCount > 20
@@ -136,10 +136,10 @@ export function BacklogPressureCard({
       ) : (
         <View style={styles.emptyState}>
           <Ionicons name="checkmark-circle-outline" size={64} color={theme.colors.success} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
+          <Text style={[styles.emptyTitle, { color: theme.colors.textHigh }]}>
             All Clear!
           </Text>
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.emptyText, { color: theme.colors.textMed }]}>
             You have no overdue cards. Excellent work staying on top of reviews!
           </Text>
         </View>

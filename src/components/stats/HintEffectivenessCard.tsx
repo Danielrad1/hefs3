@@ -36,7 +36,7 @@ export function HintEffectivenessCard({
   const effectivenessDelta = successAfterHintPct - successWithoutHintPct;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface2 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -44,10 +44,10 @@ export function HintEffectivenessCard({
             <Ionicons name="bulb" size={22} color={theme.colors.warning} />
           </View>
           <View>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.title, { color: theme.colors.textHigh }]}>
               Hint Intelligence
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.subtitle, { color: theme.colors.textMed }]}>
               AI-powered learning support
             </Text>
           </View>
@@ -59,7 +59,7 @@ export function HintEffectivenessCard({
           {/* Adoption Rate */}
           <View style={styles.adoptionSection}>
             <View style={styles.adoptionHeader}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.sectionLabel, { color: theme.colors.textMed }]}>
                 Hint Adoption
               </Text>
               <Text style={[styles.adoptionValue, { color: theme.colors.warning }]}>
@@ -77,14 +77,14 @@ export function HintEffectivenessCard({
                 ]}
               />
             </View>
-            <Text style={[styles.helperText, { color: theme.colors.textTertiary }]}>
+            <Text style={[styles.helperText, { color: theme.colors.textLow }]}>
               You use hints on {Math.round(adoptionPct)}% of cards
             </Text>
           </View>
 
           {/* Effectiveness Comparison */}
           <View style={styles.comparisonSection}>
-            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.sectionLabel, { color: theme.colors.textMed }]}>
               Success Rate Comparison
             </Text>
             <View style={styles.comparisonRow}>
@@ -92,10 +92,10 @@ export function HintEffectivenessCard({
                 <View style={[styles.comparisonIcon, { backgroundColor: theme.colors.overlay.success }]}>
                   <Ionicons name="bulb" size={20} color={theme.colors.success} />
                 </View>
-                <Text style={[styles.comparisonLabel, { color: theme.colors.textSecondary }]}>
+                <Text style={[styles.comparisonLabel, { color: theme.colors.textMed }]}>
                   With Hint
                 </Text>
-                <Text style={[styles.comparisonValue, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.comparisonValue, { color: theme.colors.textHigh }]}>
                   {Math.round(successAfterHintPct)}%
                 </Text>
               </View>
@@ -112,10 +112,10 @@ export function HintEffectivenessCard({
                 <View style={[styles.comparisonIcon, { backgroundColor: theme.colors.overlay.info }]}>
                   <Ionicons name="eye-off" size={20} color={theme.colors.info} />
                 </View>
-                <Text style={[styles.comparisonLabel, { color: theme.colors.textSecondary }]}>
+                <Text style={[styles.comparisonLabel, { color: theme.colors.textMed }]}>
                   Without
                 </Text>
-                <Text style={[styles.comparisonValue, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.comparisonValue, { color: theme.colors.textHigh }]}>
                   {Math.round(successWithoutHintPct)}%
                 </Text>
               </View>
@@ -172,7 +172,7 @@ export function HintEffectivenessCard({
                   ]}
                 />
               ))}
-              <Text style={[styles.depthText, { color: theme.colors.textPrimary }]}>
+              <Text style={[styles.depthText, { color: theme.colors.textHigh }]}>
                 L{Math.round(avgDepth)} avg
               </Text>
             </View>
@@ -183,13 +183,13 @@ export function HintEffectivenessCard({
             <View style={[styles.weakConceptsSection, { backgroundColor: theme.colors.bg }]}>
               <View style={styles.weakConceptsHeader}>
                 <Ionicons name="alert-circle-outline" size={16} color={theme.colors.warning} />
-                <Text style={[styles.weakConceptsTitle, { color: theme.colors.textSecondary }]}>
+                <Text style={[styles.weakConceptsTitle, { color: theme.colors.textMed }]}>
                   Cards Needing Attention ({weakConcepts.length})
                 </Text>
               </View>
               {weakConcepts.slice(0, 3).map((concept, idx) => (
                 <View key={idx} style={styles.weakConceptItem}>
-                  <Text style={[styles.weakConceptTag, { color: theme.colors.textPrimary }]}>
+                  <Text style={[styles.weakConceptTag, { color: theme.colors.textHigh }]}>
                     {concept.tag}
                   </Text>
                   <Text style={[styles.weakConceptStat, { color: theme.colors.warning }]}>
@@ -202,11 +202,11 @@ export function HintEffectivenessCard({
         </>
       ) : (
         <View style={styles.emptyState}>
-          <Ionicons name="bulb-outline" size={64} color={theme.colors.textTertiary} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
+          <Ionicons name="bulb-outline" size={64} color={theme.colors.textLow} />
+          <Text style={[styles.emptyTitle, { color: theme.colors.textHigh }]}>
             No Hint Data Yet
           </Text>
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.emptyText, { color: theme.colors.textMed }]}>
             Enable AI hints and start studying to see effectiveness analytics
           </Text>
         </View>

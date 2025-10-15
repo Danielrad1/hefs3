@@ -63,18 +63,18 @@ export function WeeklyCoachReport({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface2 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={[styles.iconBadge, { backgroundColor: theme.colors.overlay.primary }]}>
-            <Ionicons name="clipboard-outline" size={22} color={theme.colors.accent} />
+            <Ionicons name="clipboard-outline" size={22} color={theme.colors.primary} />
           </View>
           <View>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.title, { color: theme.colors.textHigh }]}>
               Weekly Coach Report
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.subtitle, { color: theme.colors.textMed }]}>
               {formatDateRange()}
             </Text>
           </View>
@@ -83,42 +83,42 @@ export function WeeklyCoachReport({
 
       {/* Summary Stats */}
       <View style={[styles.summarySection, { backgroundColor: theme.colors.surface2 }]}>
-        <Text style={[styles.summaryTitle, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.summaryTitle, { color: theme.colors.textMed }]}>
           This Week's Performance
         </Text>
         <View style={styles.summaryGrid}>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.summaryValue, { color: theme.colors.textHigh }]}>
               {summary.totalReviews}
             </Text>
-            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMed }]}>
               Reviews
             </Text>
           </View>
 
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.summaryValue, { color: theme.colors.textHigh }]} numberOfLines={1}>
               {Math.round(summary.avgAccuracy)}%
             </Text>
-            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMed }]}>
               Accuracy
             </Text>
           </View>
 
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.summaryValue, { color: theme.colors.textHigh }]}>
               {summary.streakDays}
             </Text>
-            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMed }]}>
               Streak
             </Text>
           </View>
 
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.summaryValue, { color: theme.colors.textHigh }]}>
               {summary.cardsAdded}
             </Text>
-            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMed }]}>
               New Cards
             </Text>
           </View>
@@ -127,7 +127,7 @@ export function WeeklyCoachReport({
 
       {/* Insights */}
       <View style={styles.insightsSection}>
-        <Text style={[styles.insightsTitle, { color: theme.colors.textPrimary }]}>
+        <Text style={[styles.insightsTitle, { color: theme.colors.textHigh }]}>
           Key Insights
         </Text>
         {insights.map((insight, idx) => {
@@ -152,11 +152,11 @@ export function WeeklyCoachReport({
                 >
                   <Ionicons name={iconData.name} size={18} color={iconData.color} />
                 </View>
-                <Text style={[styles.insightTitle, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.insightTitle, { color: theme.colors.textHigh }]}>
                   {insight.title}
                 </Text>
               </View>
-              <Text style={[styles.insightMessage, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.insightMessage, { color: theme.colors.textMed }]}>
                 {insight.message}
               </Text>
               {insight.actionText && insight.onAction && (
@@ -189,8 +189,8 @@ export function WeeklyCoachReport({
 
       {/* Footer */}
       <View style={[styles.footer, { backgroundColor: theme.colors.bg }]}>
-        <Ionicons name="sparkles" size={16} color={theme.colors.accent} />
-        <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
+        <Ionicons name="sparkles" size={16} color={theme.colors.primary} />
+        <Text style={[styles.footerText, { color: theme.colors.textMed }]}>
           Your coach analyzes your study patterns weekly to provide personalized insights
         </Text>
       </View>
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   summaryValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
   },
   summaryLabel: {

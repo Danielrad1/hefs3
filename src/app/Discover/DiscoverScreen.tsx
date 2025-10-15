@@ -96,7 +96,7 @@ export default function DiscoverScreen() {
   };
 
   const getIconColor = (deck: DeckManifest): string => {
-    return deck.thumbnail?.color || '#6366F1';
+    return deck.thumbnail?.color || theme.colors.primary;
   };
 
   const handleDownload = async (deck: DeckManifest) => {

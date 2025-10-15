@@ -347,27 +347,27 @@ function SettingItem({
 
   return (
     <Pressable
-      style={[styles.settingItem, { backgroundColor: theme.colors.surface }]}
+      style={[styles.settingItem, { backgroundColor: theme.colors.surface2 }]}
       onPress={onPress}
       disabled={!onPress}
     >
-      <View style={[styles.iconContainer, { backgroundColor: iconBg || theme.colors.accent }]}>
+      <View style={[styles.iconContainer, { backgroundColor: iconBg || theme.colors.primary }]}>
         <Ionicons name={icon} size={22} color={iconColor} />
       </View>
       
       <View style={styles.settingContent}>
-        <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
+        <Text style={[styles.settingTitle, { color: theme.colors.textHigh }]}>
           {title}
         </Text>
         {subtitle && (
-          <Text style={[styles.settingSubtitle, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.settingSubtitle, { color: theme.colors.textMed }]}>
             {subtitle}
           </Text>
         )}
       </View>
 
       {rightElement || (showChevron && onPress && (
-        <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+        <Ionicons name="chevron-forward" size={20} color={theme.colors.textLow} />
       ))}
     </Pressable>
   );
@@ -381,7 +381,7 @@ function SectionHeader({ title }: SectionHeaderProps) {
   const theme = useTheme();
   
   return (
-    <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary }]}>
+    <Text style={[styles.sectionHeader, { color: theme.colors.textMed }]}>
       {title}
     </Text>
   );
@@ -439,7 +439,7 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          <Text style={[styles.title, { color: theme.colors.textHigh }]}>
             Settings
           </Text>
         </View>
@@ -470,8 +470,8 @@ export default function SettingsScreen() {
               <Switch
                 value={notificationsEnabled}
                 onValueChange={setNotificationsEnabled}
-                trackColor={{ false: theme.colors.border, true: theme.colors.accent + '80' }}
-                thumbColor={notificationsEnabled ? theme.colors.accent : theme.colors.textTertiary}
+                trackColor={{ false: theme.colors.border, true: theme.colors.overlay.primary }}
+                thumbColor={notificationsEnabled ? theme.colors.primary : theme.colors.textLow}
               />
             }
             showChevron={false}
@@ -487,8 +487,8 @@ export default function SettingsScreen() {
               <Switch
                 value={dailyReminder}
                 onValueChange={setDailyReminder}
-                trackColor={{ false: theme.colors.border, true: theme.colors.accent + '80' }}
-                thumbColor={dailyReminder ? theme.colors.accent : theme.colors.textTertiary}
+                trackColor={{ false: theme.colors.border, true: theme.colors.overlay.primary }}
+                thumbColor={dailyReminder ? theme.colors.primary : theme.colors.textLow}
               />
             }
             showChevron={false}
@@ -528,8 +528,8 @@ export default function SettingsScreen() {
         </View>
 
         <SectionHeader title="POPULAR THEMES" />
-        <View style={[styles.colorSchemeSection, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.colorSchemeTitle, { color: theme.colors.textPrimary }]}>
+        <View style={[styles.colorSchemeSection, { backgroundColor: theme.colors.surface2 }]}>
+          <Text style={[styles.colorSchemeTitle, { color: theme.colors.textHigh }]}>
             Choose Your 3-Color Palette
           </Text>
           <ScrollView
@@ -547,7 +547,7 @@ export default function SettingsScreen() {
                     isSelected && styles.colorSchemeCardSelected,
                     {
                       borderColor: isSelected ? option.colors[0] : theme.colors.border,
-                      backgroundColor: theme.colors.surface,
+                      backgroundColor: theme.colors.surface2,
                     },
                   ]}
                   onPress={() => theme.setColorScheme(option.id)}
@@ -569,14 +569,14 @@ export default function SettingsScreen() {
                   </View>
                   <View style={styles.colorSchemeInfo}>
                     <View style={styles.colorSchemeNameRow}>
-                      <Text style={[styles.colorSchemeName, { color: theme.colors.textPrimary }]}>
+                      <Text style={[styles.colorSchemeName, { color: theme.colors.textHigh }]}>
                         {option.name}
                       </Text>
                       {isSelected && (
                         <Ionicons name="checkmark-circle" size={16} color={option.colors[0]} />
                       )}
                     </View>
-                    <Text style={[styles.colorSchemeDesc, { color: theme.colors.textSecondary }]}>
+                    <Text style={[styles.colorSchemeDesc, { color: theme.colors.textMed }]}>
                       {option.description}
                     </Text>
                   </View>
@@ -587,8 +587,8 @@ export default function SettingsScreen() {
         </View>
 
         <SectionHeader title="MORE THEMES" />
-        <View style={[styles.colorSchemeSection, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.colorSchemeTitle, { color: theme.colors.textPrimary }]}>
+        <View style={[styles.colorSchemeSection, { backgroundColor: theme.colors.surface2 }]}>
+          <Text style={[styles.colorSchemeTitle, { color: theme.colors.textHigh }]}>
             Explore More Creative Palettes
           </Text>
           <ScrollView
@@ -606,7 +606,7 @@ export default function SettingsScreen() {
                     isSelected && styles.colorSchemeCardSelected,
                     {
                       borderColor: isSelected ? option.colors[0] : theme.colors.border,
-                      backgroundColor: theme.colors.surface,
+                      backgroundColor: theme.colors.surface2,
                     },
                   ]}
                   onPress={() => theme.setColorScheme(option.id)}
@@ -628,14 +628,14 @@ export default function SettingsScreen() {
                   </View>
                   <View style={styles.colorSchemeInfo}>
                     <View style={styles.colorSchemeNameRow}>
-                      <Text style={[styles.colorSchemeName, { color: theme.colors.textPrimary }]}>
+                      <Text style={[styles.colorSchemeName, { color: theme.colors.textHigh }]}>
                         {option.name}
                       </Text>
                       {isSelected && (
                         <Ionicons name="checkmark-circle" size={16} color={option.colors[0]} />
                       )}
                     </View>
-                    <Text style={[styles.colorSchemeDesc, { color: theme.colors.textSecondary }]}>
+                    <Text style={[styles.colorSchemeDesc, { color: theme.colors.textMed }]}>
                       {option.description}
                     </Text>
                   </View>
@@ -646,8 +646,8 @@ export default function SettingsScreen() {
         </View>
 
         <SectionHeader title="MONOCHROME THEMES" />
-        <View style={[styles.colorSchemeSection, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.colorSchemeTitle, { color: theme.colors.textPrimary }]}>
+        <View style={[styles.colorSchemeSection, { backgroundColor: theme.colors.surface2 }]}>
+          <Text style={[styles.colorSchemeTitle, { color: theme.colors.textHigh }]}>
             Single-Color Focused Palettes
           </Text>
           <ScrollView
@@ -665,7 +665,7 @@ export default function SettingsScreen() {
                     isSelected && styles.colorSchemeCardSelected,
                     {
                       borderColor: isSelected ? option.colors[0] : theme.colors.border,
-                      backgroundColor: theme.colors.surface,
+                      backgroundColor: theme.colors.surface2,
                     },
                   ]}
                   onPress={() => theme.setColorScheme(option.id)}
@@ -687,14 +687,14 @@ export default function SettingsScreen() {
                   </View>
                   <View style={styles.colorSchemeInfo}>
                     <View style={styles.colorSchemeNameRow}>
-                      <Text style={[styles.colorSchemeName, { color: theme.colors.textPrimary }]}>
+                      <Text style={[styles.colorSchemeName, { color: theme.colors.textHigh }]}>
                         {option.name}
                       </Text>
                       {isSelected && (
                         <Ionicons name="checkmark-circle" size={16} color={option.colors[0]} />
                       )}
                     </View>
-                    <Text style={[styles.colorSchemeDesc, { color: theme.colors.textSecondary }]}>
+                    <Text style={[styles.colorSchemeDesc, { color: theme.colors.textMed }]}>
                       {option.description}
                     </Text>
                   </View>
@@ -826,7 +826,7 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <Text style={[styles.version, { color: theme.colors.textTertiary }]}>
+        <Text style={[styles.version, { color: theme.colors.textLow }]}>
           Version 1.0.0
         </Text>
       </ScrollView>
@@ -842,10 +842,10 @@ export default function SettingsScreen() {
           onPress={() => setShowThemeModal(false)}
         >
           <View 
-            style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}
+            style={[styles.modalContent, { backgroundColor: theme.colors.surface2 }]}
             onStartShouldSetResponder={() => true}
           >
-            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.textHigh }]}>
               Choose Theme
             </Text>
             
@@ -856,10 +856,10 @@ export default function SettingsScreen() {
                   styles.themeOption,
                   {
                     backgroundColor: theme.themePreference === option.value 
-                      ? theme.colors.accent + '15'
+                      ? theme.colors.overlay.primary
                       : 'transparent',
                     borderColor: theme.themePreference === option.value
-                      ? theme.colors.accent
+                      ? theme.colors.primary
                       : theme.colors.border,
                   }
                 ]}
@@ -871,20 +871,20 @@ export default function SettingsScreen() {
                 <Ionicons 
                   name={option.icon as any} 
                   size={24} 
-                  color={theme.themePreference === option.value ? theme.colors.accent : theme.colors.textSecondary} 
+                  color={theme.themePreference === option.value ? theme.colors.primary : theme.colors.textMed} 
                 />
                 <Text style={[
                   styles.themeOptionText,
                   { 
                     color: theme.themePreference === option.value 
-                      ? theme.colors.accent
-                      : theme.colors.textPrimary 
+                      ? theme.colors.primary
+                      : theme.colors.textHigh 
                   }
                 ]}>
                   {option.label}
                 </Text>
                 {theme.themePreference === option.value && (
-                  <Ionicons name="checkmark-circle" size={24} color={theme.colors.accent} />
+                  <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
                 )}
               </Pressable>
             ))}

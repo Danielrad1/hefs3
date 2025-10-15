@@ -42,7 +42,7 @@ export function RetentionCard({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface2 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -50,10 +50,10 @@ export function RetentionCard({
             <Ionicons name="checkmark-circle-outline" size={22} color={theme.colors.success} />
           </View>
           <View>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.title, { color: theme.colors.textHigh }]}>
               Retention Rate
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.subtitle, { color: theme.colors.textMed }]}>
               Last 7 days
             </Text>
           </View>
@@ -102,28 +102,28 @@ export function RetentionCard({
       {/* Again Rate */}
       <View style={styles.statsGrid}>
         <View style={styles.gridItem}>
-          <Text style={[styles.gridValue, { color: theme.colors.danger }]}>
+          <Text style={[styles.gridValue, { color: theme.colors.textHigh }]}>
             {Math.round(againRate7)}%
           </Text>
-          <Text style={[styles.gridLabel, { color: theme.colors.textSecondary }]}>
-            Again Rate
+          <Text style={[styles.gridLabel, { color: theme.colors.textMed }]}>
+            AGAIN RATE
           </Text>
         </View>
 
         {showBothPeriods && retention30 !== undefined && (
           <View style={styles.gridItem}>
-            <Text style={[styles.gridValue, { color: getRetentionColor(retention30) }]}>
+            <Text style={[styles.gridValue, { color: theme.colors.textHigh }]}>
               {Math.round(retention30)}%
             </Text>
-            <Text style={[styles.gridLabel, { color: theme.colors.textSecondary }]}>
-              30-Day
+            <Text style={[styles.gridLabel, { color: theme.colors.textMed }]}>
+              30-DAY
             </Text>
           </View>
         )}
       </View>
 
       {/* Info Text */}
-      <Text style={[styles.infoText, { color: theme.colors.textTertiary }]}>
+      <Text style={[styles.infoText, { color: theme.colors.textLow }]}>
         {retention7 >= 85
           ? 'Great retention! Your study routine is working.'
           : retention7 >= 75

@@ -498,26 +498,26 @@ export default function DecksScreen() {
             Decks
           </Text>
           <Pressable
-            style={[styles.headerButton, { backgroundColor: theme.colors.surface }]}
+            style={[styles.headerButton, { backgroundColor: theme.colors.surface2 }]}
             onPress={() => setFolderModalVisible(true)}
           >
-            <Ionicons name="folder-outline" size={24} color={theme.colors.accent} />
+            <Ionicons name="folder-outline" size={24} color={theme.colors.primary} />
           </Pressable>
         </View>
 
         {/* Search Bar */}
-        <View style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]}>
-          <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
+        <View style={[styles.searchContainer, { backgroundColor: theme.colors.surface2 }]}>
+          <Ionicons name="search" size={20} color={theme.colors.textMed} />
           <TextInput
-            style={[styles.searchInput, { color: theme.colors.textPrimary }]}
+            style={[styles.searchInput, { color: theme.colors.textHigh }]}
             placeholder="Search decks..."
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor={theme.colors.textMed}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+              <Ionicons name="close-circle" size={20} color={theme.colors.textMed} />
             </Pressable>
           )}
         </View>
@@ -577,7 +577,7 @@ export default function DecksScreen() {
           </>
         ) : (
           <View style={styles.emptyState}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.emptyText, { color: theme.colors.textMed }]}>
               {searchQuery ? 'No decks found' : 'No decks yet'}
             </Text>
           </View>
@@ -586,10 +586,10 @@ export default function DecksScreen() {
 
       {/* Floating Add Deck Button */}
       <Pressable
-        style={[styles.fab, { backgroundColor: theme.colors.accent }]}
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
         onPress={() => setAddDeckModalVisible(true)}
       >
-        <Text style={styles.fabIcon}>+</Text>
+        <Text style={[styles.fabIcon, { color: theme.colors.onPrimary }]}>+</Text>
       </Pressable>
 
       {/* Deck Action Sheet */}
@@ -757,7 +757,6 @@ const styles = StyleSheet.create({
   fabIcon: {
     fontSize: 32,
     fontWeight: '300',
-    color: '#000',
     marginTop: -2,
   },
   searchContainer: {

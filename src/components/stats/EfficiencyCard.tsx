@@ -39,15 +39,15 @@ export function EfficiencyCard({
   const rating = getEfficiencyRating(reviewsPerMin);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface2 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={[styles.iconBadge, { backgroundColor: theme.colors.overlay.success }]}>
+          <View style={[styles.iconBadge, { backgroundColor: theme.colors.overlay.info }]}>
             <Ionicons name="flash-outline" size={22} color={rating.color} />
           </View>
           <View>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.title, { color: theme.colors.textHigh }]}>
               Study Efficiency
             </Text>
             <Text style={[styles.subtitle, { color: rating.color }]}>
@@ -63,7 +63,7 @@ export function EfficiencyCard({
           <Text style={[styles.speedValue, { color: rating.color }]}>
             {reviewsPerMin > 0 ? reviewsPerMin.toFixed(1) : '—'}
           </Text>
-          <Text style={[styles.speedUnit, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.speedUnit, { color: theme.colors.textMed }]}>
             cards/min
           </Text>
         </View>
@@ -86,22 +86,22 @@ export function EfficiencyCard({
           <View style={[styles.metricIcon, { backgroundColor: theme.colors.overlay.info }]}>
             <Ionicons name="timer-outline" size={20} color={theme.colors.info} />
           </View>
-          <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
+          <Text style={[styles.metricValue, { color: theme.colors.textHigh }]}>
             {avgSecondsPerReview > 0 ? avgSecondsPerReview.toFixed(1) : '—'}s
           </Text>
-          <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.metricLabel, { color: theme.colors.textMed }]}>
             Avg Time/Card
           </Text>
         </View>
 
         <View style={styles.metricBox}>
           <View style={[styles.metricIcon, { backgroundColor: theme.colors.overlay.primary }]}>
-            <Ionicons name="layers-outline" size={20} color={theme.colors.accent} />
+            <Ionicons name="layers-outline" size={20} color={theme.colors.primary} />
           </View>
-          <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
+          <Text style={[styles.metricValue, { color: theme.colors.textHigh }]}>
             {totalReviews}
           </Text>
-          <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.metricLabel, { color: theme.colors.textMed }]}>
             Total Reviews
           </Text>
         </View>
@@ -110,10 +110,10 @@ export function EfficiencyCard({
           <View style={[styles.metricIcon, { backgroundColor: theme.colors.overlay.warning }]}>
             <Ionicons name="time-outline" size={20} color={theme.colors.warning} />
           </View>
-          <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
+          <Text style={[styles.metricValue, { color: theme.colors.textHigh }]}>
             {totalMinutes}m
           </Text>
-          <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.metricLabel, { color: theme.colors.textMed }]}>
             Study Time
           </Text>
         </View>
@@ -122,8 +122,8 @@ export function EfficiencyCard({
       {/* Insight */}
       {reviewsPerMin > 0 && (
         <View style={[styles.insightBox, { backgroundColor: theme.colors.bg }]}>
-          <Ionicons name="information-circle-outline" size={16} color={theme.colors.textSecondary} />
-          <Text style={[styles.insightText, { color: theme.colors.textSecondary }]}>
+          <Ionicons name="information-circle-outline" size={16} color={theme.colors.textMed} />
+          <Text style={[styles.insightText, { color: theme.colors.textMed }]}>
             {reviewsPerMin >= 5
               ? 'Fast and focused! Great study habits.'
               : reviewsPerMin >= 3

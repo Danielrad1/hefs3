@@ -54,7 +54,7 @@ export function TrendMiniChart({
     : 'trending-down';
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface2 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -75,7 +75,7 @@ export function TrendMiniChart({
               color={metric === 'reviews' ? theme.colors.dataViz.reviews : theme.colors.dataViz.time}
             />
           </View>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          <Text style={[styles.title, { color: theme.colors.textHigh }]}>
             {metric === 'reviews' ? 'Review Trend' : 'Time Trend'}
           </Text>
         </View>
@@ -111,7 +111,7 @@ export function TrendMiniChart({
         >
           {currentValue}
         </Text>
-        <Text style={[styles.valueLabel, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.valueLabel, { color: theme.colors.textMed }]}>
           {metric === 'reviews' ? 'reviews today' : 'minutes today'}
         </Text>
       </View>
@@ -141,7 +141,7 @@ export function TrendMiniChart({
             );
           })}
         </View>
-        <Text style={[styles.chartLabel, { color: theme.colors.textTertiary }]}>
+        <Text style={[styles.chartLabel, { color: theme.colors.textLow }]}>
           Last 7 days
         </Text>
       </View>

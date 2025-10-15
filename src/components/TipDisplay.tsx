@@ -18,10 +18,9 @@ interface TipDisplayProps {
   onClose?: () => void;
 }
 
-const TIP_COLOR = '#EC4899'; // Pink
-
 export function TipDisplay({ tip, confusableContrast, onClose }: TipDisplayProps) {
   const theme = useTheme();
+  const TIP_COLOR = theme.colors.secondary; // Pink/fuchsia for tips
   const { width } = useWindowDimensions();
 
   // HTML renderer styles
@@ -32,7 +31,7 @@ export function TipDisplay({ tip, confusableContrast, onClose }: TipDisplayProps
       color: theme.colors.textPrimary,
     },
     strong: {
-      color: '#EC4899',
+      color: TIP_COLOR,
       fontWeight: '700' as const,
     },
     em: {
@@ -40,8 +39,8 @@ export function TipDisplay({ tip, confusableContrast, onClose }: TipDisplayProps
       color: theme.colors.textSecondary,
     },
     code: {
-      backgroundColor: 'rgba(236, 72, 153, 0.15)',
-      color: '#EC4899',
+      backgroundColor: theme.colors.overlay.danger,
+      color: TIP_COLOR,
       fontFamily: 'monospace' as const,
       padding: 4,
       borderRadius: 6,
@@ -56,31 +55,31 @@ export function TipDisplay({ tip, confusableContrast, onClose }: TipDisplayProps
       textDecorationLine: 'underline' as const,
     },
     mark: {
-      backgroundColor: 'rgba(236, 72, 153, 0.25)',
-      color: '#EC4899',
+      backgroundColor: theme.colors.overlay.danger,
+      color: TIP_COLOR,
     },
   };
   
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface2 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={[styles.iconBadge, { backgroundColor: TIP_COLOR }]}>
-            <Ionicons name="sparkles" size={24} color="#FFFFFF" />
+            <Ionicons name="sparkles" size={24} color={theme.colors.onPrimary} />
           </View>
           <View style={styles.headerText}>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.title, { color: theme.colors.textHigh }]}>
               Memory Tip
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.subtitle, { color: theme.colors.textMed }]}>
               Post-reveal elaboration
             </Text>
           </View>
         </View>
         {onClose && (
           <Pressable onPress={onClose} hitSlop={12}>
-            <Ionicons name="close-circle" size={28} color={theme.colors.textSecondary} />
+            <Ionicons name="close-circle" size={28} color={theme.colors.textMed} />
           </Pressable>
         )}
       </View>
@@ -96,8 +95,8 @@ export function TipDisplay({ tip, confusableContrast, onClose }: TipDisplayProps
         {/* Optional confusable contrast */}
         {confusableContrast && (
           <View style={[styles.contrastBadge, { backgroundColor: TIP_COLOR }]}>
-            <Ionicons name="swap-horizontal" size={16} color="#FFFFFF" />
-            <Text style={styles.contrastText}>
+            <Ionicons name="swap-horizontal" size={16} color={theme.colors.onPrimary} />
+            <Text style={[styles.contrastText, { color: theme.colors.onPrimary }]}>
               {confusableContrast}
             </Text>
           </View>
@@ -177,6 +176,5 @@ const styles = StyleSheet.create({
   contrastText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
 });
