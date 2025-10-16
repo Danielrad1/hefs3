@@ -31,7 +31,7 @@ export function SurvivalCurves({
 }: SurvivalCurvesProps) {
   const theme = useTheme();
 
-  // Normalize data for visualization (max 100 days)
+  // Normalize data for visualization (max 100 days).
   const maxInterval = 100;
   const chartWidth = 280;
   const chartHeight = 140;
@@ -43,7 +43,7 @@ export function SurvivalCurves({
       .filter((p) => p.interval <= maxInterval)
       .map((p) => ({
         x: (p.interval / maxInterval) * chartWidth,
-        y: chartHeight - (p.survivalRate / 100) * chartHeight,
+        y: chartHeight - (Math.min(p.survivalRate, 100) / 100) * chartHeight,
       }));
 
     // Create SVG-like path with View components
@@ -88,10 +88,10 @@ export function SurvivalCurves({
           </View>
           <View>
             <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-              Retention Curves
+              Retention Over Time
             </Text>
             <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-              Approximate survival model
+              % cards remembered vs days since review
             </Text>
           </View>
         </View>
@@ -99,29 +99,29 @@ export function SurvivalCurves({
 
       {/* Half-Life Stats */}
       <View style={styles.halfLifeSection}>
-        <View style={styles.halfLifeItem}>
-          <View style={[styles.halfLifeDot, { backgroundColor: theme.colors.dataViz.young }]} />
-          <View style={styles.halfLifeContent}>
+        <View style={styles.halfLifeRow}>
+          <View style={styles.halfLifeItem}>
+            <View style={[styles.halfLifeDot, { backgroundColor: theme.colors.dataViz.young }]} />
             <Text style={[styles.halfLifeLabel, { color: theme.colors.textSecondary }]}>
-              Young Cards Half-Life
+              Young Cards
             </Text>
             <Text style={[styles.halfLifeValue, { color: theme.colors.textPrimary }]}>
-              {halfLifeYoung} days
+              {halfLifeYoung}d
+            </Text>
+          </View>
+          <View style={styles.halfLifeItem}>
+            <View style={[styles.halfLifeDot, { backgroundColor: theme.colors.dataViz.mature }]} />
+            <Text style={[styles.halfLifeLabel, { color: theme.colors.textSecondary }]}>
+              Mature Cards
+            </Text>
+            <Text style={[styles.halfLifeValue, { color: theme.colors.textPrimary }]}>
+              {halfLifeMature}d
             </Text>
           </View>
         </View>
-
-        <View style={styles.halfLifeItem}>
-          <View style={[styles.halfLifeDot, { backgroundColor: theme.colors.dataViz.mature }]} />
-          <View style={styles.halfLifeContent}>
-            <Text style={[styles.halfLifeLabel, { color: theme.colors.textSecondary }]}>
-              Mature Cards Half-Life
-            </Text>
-            <Text style={[styles.halfLifeValue, { color: theme.colors.textPrimary }]}>
-              {halfLifeMature} days
-            </Text>
-          </View>
-        </View>
+        <Text style={[styles.halfLifeCaption, { color: theme.colors.textLow }]}>
+          Half-life: Days until 50% retention
+        </Text>
       </View>
 
       {/* Chart */}
@@ -140,15 +140,29 @@ export function SurvivalCurves({
 
         {/* Chart area */}
         <View style={[styles.chartArea, { width: chartWidth, height: chartHeight }]}>
-          {/* Grid lines */}
+          {/* Horizontal grid lines */}
           {[0, 25, 50, 75, 100].map((val) => (
             <View
-              key={val}
+              key={`h-${val}`}
               style={[
                 styles.gridLine,
                 {
                   top: chartHeight - (val / 100) * chartHeight,
                   backgroundColor: theme.colors.border + '40',
+                },
+              ]}
+            />
+          ))}
+
+          {/* Vertical grid lines (X-axis ticks) */}
+          {[0, 20, 40, 60, 80, 100].map((val) => (
+            <View
+              key={`v-${val}`}
+              style={[
+                styles.gridLineVertical,
+                {
+                  left: (val / maxInterval) * chartWidth,
+                  backgroundColor: theme.colors.border + '20',
                 },
               ]}
             />
@@ -168,7 +182,7 @@ export function SurvivalCurves({
                   styles.dataPoint,
                   {
                     left: (p.interval / maxInterval) * chartWidth - 3,
-                    top: chartHeight - (p.survivalRate / 100) * chartHeight - 3,
+                    top: chartHeight - (Math.min(p.survivalRate, 100) / 100) * chartHeight - 3,
                     backgroundColor: theme.colors.dataViz.young,
                   },
                 ]}
@@ -183,7 +197,7 @@ export function SurvivalCurves({
                   styles.dataPoint,
                   {
                     left: (p.interval / maxInterval) * chartWidth - 3,
-                    top: chartHeight - (p.survivalRate / 100) * chartHeight - 3,
+                    top: chartHeight - (Math.min(p.survivalRate, 100) / 100) * chartHeight - 3,
                     backgroundColor: theme.colors.dataViz.mature,
                   },
                 ]}
@@ -193,24 +207,22 @@ export function SurvivalCurves({
       </View>
 
       {/* X-axis */}
-      <View style={styles.xAxis}>
-        <Text style={[styles.axisLabel, { color: theme.colors.textTertiary }]}>0</Text>
-        <Text style={[styles.axisLabel, { color: theme.colors.textTertiary }]}>
-          {maxInterval} days
+      <View style={styles.xAxisContainer}>
+        <View style={styles.xAxis}>
+          <Text style={[styles.axisLabel, { color: theme.colors.textTertiary }]}>0</Text>
+          <Text style={[styles.axisLabel, { color: theme.colors.textTertiary }]}>20</Text>
+          <Text style={[styles.axisLabel, { color: theme.colors.textTertiary }]}>40</Text>
+          <Text style={[styles.axisLabel, { color: theme.colors.textTertiary }]}>60</Text>
+          <Text style={[styles.axisLabel, { color: theme.colors.textTertiary }]}>80</Text>
+          <Text style={[styles.axisLabel, { color: theme.colors.textTertiary }]}>
+            {maxInterval}
+          </Text>
+        </View>
+        <Text style={[styles.axisTitle, { color: theme.colors.textMed, textAlign: 'center', marginTop: 4 }]}>
+          Days Since Review
         </Text>
       </View>
 
-      {/* Insight */}
-      <View style={[styles.insightBox, { backgroundColor: theme.colors.overlay.info }]}>
-        <Ionicons name="information-circle-outline" size={16} color={theme.colors.info} />
-        <Text style={[styles.insightText, { color: theme.colors.textSecondary }]}>
-          {halfLifeMature > halfLifeYoung * 2
-            ? `Mature cards last ${(halfLifeMature / halfLifeYoung).toFixed(
-                1
-              )}x longer than young cards. Great retention!`
-            : 'Focus on mastering young cards to improve long-term retention.'}
-        </Text>
-      </View>
     </View>
   );
 }
@@ -253,12 +265,16 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   halfLifeSection: {
-    gap: s.md,
+    gap: s.sm,
+  },
+  halfLifeRow: {
+    flexDirection: 'row',
+    gap: s.xl,
   },
   halfLifeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s.sm,
+    gap: s.xs,
   },
   halfLifeDot: {
     width: 12,
@@ -279,6 +295,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  halfLifeCaption: {
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   chartContainer: {
     flexDirection: 'row',
     padding: s.md,
@@ -295,6 +316,9 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
+  xAxisContainer: {
+    gap: 4,
+  },
   chartArea: {
     position: 'relative',
   },
@@ -303,6 +327,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 1,
+  },
+  gridLineVertical: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
   },
   curveLine: {
     position: 'absolute',

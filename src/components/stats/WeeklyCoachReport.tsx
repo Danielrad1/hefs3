@@ -187,13 +187,6 @@ export function WeeklyCoachReport({
         })}
       </View>
 
-      {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: theme.colors.bg }]}>
-        <Ionicons name="sparkles" size={16} color={theme.colors.primary} />
-        <Text style={[styles.footerText, { color: theme.colors.textMed }]}>
-          Your coach analyzes your study patterns weekly to provide personalized insights
-        </Text>
-      </View>
     </View>
   );
 }

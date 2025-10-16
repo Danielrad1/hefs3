@@ -21,7 +21,7 @@ import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { db } from '../../services/anki/InMemoryDb';
 import { StatsService, DeckSnapshot, HintStats } from '../../services/anki/StatsService';
-import { DeckHealthCard, DeckCountsBar, HintEffectivenessCard, SurvivalCurves } from '../../components/stats';
+import { DeckHealthCard, DeckCountsBar, HintEffectivenessCard, SurvivalCurves, ForecastChart, AnswerButtonsDistribution, LeechesList } from '../../components/stats';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 
 type DeckStatsScreenRouteProp = RouteProp<
@@ -46,6 +46,9 @@ export default function DeckStatsScreen() {
     halfLifeYoung: number;
     halfLifeMature: number;
   } | null>(null);
+  const [forecastData, setForecastData] = useState<any[]>([]);
+  const [answerDistribution, setAnswerDistribution] = useState<any[]>([]);
+  const [leeches, setLeeches] = useState<any[]>([]);
 
   useEffect(() => {
     loadStats();
@@ -59,9 +62,54 @@ export default function DeckStatsScreen() {
       const data = statsService.getDeckSnapshot(deckId, { windowDays });
       const hints = statsService.getHintStats({ deckId, days: windowDays });
       const survival = statsService.getSurvivalCurves(deckId);
+      const forecast = statsService.getForecast({ days: windowDays === 7 ? 7 : 30, deckId });
+      const leechesData = statsService.getLeeches({ deckId, limit: 10 });
+      
+      // Calculate answer button distribution
+      const revlog = db.getAllRevlog().filter(r => {
+        const card = db.getCard(r.cid);
+        return card?.did === deckId;
+      });
+      const windowStart = Date.now() - windowDays * 86400000;
+      const windowRevlog = revlog.filter(r => parseInt(r.id, 10) >= windowStart);
+      
+      // Group by state (Learn=type 0/2, Young=ivl<21, Mature=ivl>=21)
+      // NOTE: "New" is not a revlog type - cards appear as Learn on first review
+      const distributions = [
+        { state: 'Learn' as const, again: 0, hard: 0, good: 0, easy: 0, total: 0 },
+        { state: 'Young' as const, again: 0, hard: 0, good: 0, easy: 0, total: 0 },
+        { state: 'Mature' as const, again: 0, hard: 0, good: 0, easy: 0, total: 0 },
+      ];
+      
+      for (const r of windowRevlog) {
+        let stateIdx = 0;
+        // Learn: revlog.type 0 (Learn) or 2 (Relearn)
+        if (r.type === 0 || r.type === 2) {
+          stateIdx = 0; // Learn
+        }
+        // Review entries split by interval
+        else if (r.type === 1) {
+          if (r.lastIvl < 21) {
+            stateIdx = 1; // Young
+          } else {
+            stateIdx = 2; // Mature
+          }
+        }
+        
+        const dist = distributions[stateIdx];
+        dist.total++;
+        if (r.ease === 1) dist.again++;
+        else if (r.ease === 2) dist.hard++;
+        else if (r.ease === 3) dist.good++;
+        else if (r.ease === 4) dist.easy++;
+      }
+      
       setSnapshot(data);
       setHintStats(hints);
       setSurvivalData(survival);
+      setForecastData(forecast);
+      setAnswerDistribution(distributions.filter(d => d.total > 0));
+      setLeeches(leechesData);
       setLoading(false);
     }, 0);
   };
@@ -256,6 +304,11 @@ export default function DeckStatsScreen() {
 
         <DeckCountsBar counts={snapshot.counts} />
 
+        {/* Answer Buttons Distribution - Premium */}
+        {answerDistribution.length > 0 && (
+          <AnswerButtonsDistribution distributions={answerDistribution} />
+        )}
+
         {/* Survival Curves */}
         {survivalData && survivalData.youngSurvival.length > 0 && (
           <SurvivalCurves
@@ -263,6 +316,18 @@ export default function DeckStatsScreen() {
             matureSurvival={survivalData.matureSurvival}
             halfLifeYoung={survivalData.halfLifeYoung}
             halfLifeMature={survivalData.halfLifeMature}
+          />
+        )}
+
+        {/* Leeches List - Premium */}
+        {leeches.length > 0 && <LeechesList leeches={leeches} />}
+
+        {/* Forecast Chart - Premium */}
+        {forecastData.length > 0 && (
+          <ForecastChart
+            points={forecastData}
+            stacked={true}
+            days={windowDays === 7 ? 7 : 30}
           />
         )}
 

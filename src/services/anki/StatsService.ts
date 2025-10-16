@@ -262,6 +262,22 @@ export class StatsService {
   }
 
   /**
+   * Get card creation date (use note ID as timestamp, fallback to mod)
+   */
+  private getCardCreationDate(c: AnkiCard): Date | null {
+    // Try note ID first (typically creation timestamp)
+    const nidNum = parseInt(c.nid, 10);
+    if (!isNaN(nidNum) && nidNum > 0) {
+      return new Date(nidNum);
+    }
+    // Fallback to card mod (last modified)
+    if (c.mod > 0) {
+      return new Date(c.mod * 1000); // mod is in seconds
+    }
+    return null;
+  }
+
+  /**
    * Calculate daily statistics from revlog - FIXED to use local timezone
    */
   private calculateDailyStats(revlog: AnkiRevlog[]): DailyStats[] {
@@ -548,36 +564,25 @@ export class StatsService {
     const streaks = this.calculateStreaks(dailyStats);
     
     // Adds over time (FIXED: use note ID as creation timestamp, fallback to mod)
-    const getCardCreationDate = (c: AnkiCard): string | null => {
-      // Try note ID first (typically creation timestamp)
-      const nidNum = parseInt(c.nid, 10);
-      if (!isNaN(nidNum) && nidNum > 0) {
-        return this.timestampToDateString(nidNum);
-      }
-      // Fallback to card mod (last modified)
-      if (c.mod > 0) {
-        return this.timestampToDateString(c.mod * 1000); // mod is in seconds
-      }
-      return null;
-    };
-    
     const addsToday = allCards.filter(c => {
-      const cardDate = getCardCreationDate(c);
-      return cardDate === today;
+      const cardDate = this.getCardCreationDate(c);
+      return cardDate !== null && this.dateToString(cardDate) === today;
     }).length;
     
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoStr = this.dateToString(weekAgo);
     const addsWeek = allCards.filter(c => {
-      const cardDate = getCardCreationDate(c);
-      return cardDate !== null && cardDate >= this.dateToString(weekAgo);
+      const cardDate = this.getCardCreationDate(c);
+      return cardDate !== null && this.dateToString(cardDate) >= weekAgoStr;
     }).length;
     
     const monthAgo = new Date();
     monthAgo.setDate(monthAgo.getDate() - 30);
+    const monthAgoStr = this.dateToString(monthAgo);
     const addsMonth = allCards.filter(c => {
-      const cardDate = getCardCreationDate(c);
-      return cardDate !== null && cardDate >= this.dateToString(monthAgo);
+      const cardDate = this.getCardCreationDate(c);
+      return cardDate !== null && this.dateToString(cardDate) >= monthAgoStr;
     }).length;
     
     // Efficiency metrics (today's throughput)
@@ -1060,6 +1065,120 @@ export class StatsService {
       const scoreB = b.retentionPct * Math.log(b.reviewCount);
       return scoreB - scoreA;
     });
+  }
+
+  /**
+   * Get leeches (cards with high lapses)
+   * Premium feature for identifying problem cards
+   */
+  getLeeches(opts: { deckId?: string; limit?: number; threshold?: number } = {}): Array<{
+    cardId: string;
+    lapses: number;
+    factor: number;
+    reps: number;
+    question: string;
+  }> {
+    const threshold = opts.threshold || 8;
+    const limit = opts.limit || 20;
+    
+    // Get cards, filter by deck if specified
+    let cards = opts.deckId
+      ? this.db.getCardsByDeck(opts.deckId)
+      : this.db.getAllCards();
+    
+    // Filter to leeches (lapses >= threshold)
+    const leeches = cards
+      .filter(c => c.lapses >= threshold)
+      .map(c => {
+        const note = this.db.getNote(c.nid);
+        const question = note?.flds?.split('\x1f')[0] || 'Unknown';
+        
+        return {
+          cardId: c.id,
+          lapses: c.lapses,
+          factor: c.factor,
+          reps: c.reps,
+          question: question.substring(0, 100), // Limit to 100 chars
+        };
+      })
+      .sort((a, b) => b.lapses - a.lapses)
+      .slice(0, limit);
+    
+    return leeches;
+  }
+
+  /**
+   * Get adds timeline (cards added over time)
+   * Free tier feature for learning velocity tracking
+   */
+  getAddsTimeline(opts: { days?: number } = {}): Array<{ date: string; count: number }> {
+    const days = opts.days || 30;
+    const allCards = this.db.getAllCards();
+    
+    // Create date map
+    const dateMap = new Map<string, number>();
+    
+    // Initialize all dates with 0
+    const endDate = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(endDate);
+      date.setDate(date.getDate() - i);
+      dateMap.set(this.dateToString(date), 0);
+    }
+    
+    // Count cards by creation date
+    for (const card of allCards) {
+      const creationDate = this.getCardCreationDate(card);
+      if (creationDate) {
+        const dateStr = this.dateToString(creationDate);
+        if (dateMap.has(dateStr)) {
+          dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + 1);
+        }
+      }
+    }
+    
+    // Convert to sorted array
+    return Array.from(dateMap.entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /**
+   * Get recent daily average review activity
+   * Used for backlog clear-by projection
+   */
+  getRecentDailyAverage(opts: { days?: number } = {}): {
+    avgReviewsPerDay: number;
+    avgMinutesPerDay: number;
+  } {
+    const days = opts.days || 7;
+    const revlog = this.db.getAllRevlog();
+    
+    // Filter to last N days
+    const windowStart = new Date();
+    windowStart.setDate(windowStart.getDate() - days);
+    const windowStartStr = this.dateToString(windowStart);
+    
+    const recentRevlog = revlog.filter(r => {
+      const date = this.timestampToDateString(parseInt(r.id, 10));
+      return date >= windowStartStr;
+    });
+    
+    // Calculate daily stats
+    const dailyStats = this.calculateDailyStats(recentRevlog);
+    
+    if (dailyStats.length === 0) {
+      return { avgReviewsPerDay: 0, avgMinutesPerDay: 0 };
+    }
+    
+    // Calculate averages
+    const totalReviews = dailyStats.reduce((sum, d) => sum + d.reviewCount, 0);
+    const totalMinutes = dailyStats.reduce((sum, d) => sum + d.totalTimeMs, 0) / 60000;
+    
+    return {
+      avgReviewsPerDay: totalReviews / days,
+      avgMinutesPerDay: totalMinutes / days,
+    };
   }
 
   // ============================================================================

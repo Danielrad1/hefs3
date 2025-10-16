@@ -258,10 +258,10 @@ export default function AIDeckCreatorScreen() {
             <TextInput
               style={[
                 styles.mainInput,
-                { backgroundColor: theme.colors.surface, color: theme.colors.textPrimary },
+                { backgroundColor: theme.colors.surface2, color: theme.colors.textHigh, borderWidth: 1, borderColor: theme.colors.border },
               ]}
               placeholder={EXAMPLE_PROMPTS[placeholderIndex]}
-              placeholderTextColor={theme.colors.textSecondary}
+              placeholderTextColor={theme.colors.textMed}
               value={prompt || notesText}
               onChangeText={(text) => {
                 if (notesText) {
@@ -286,27 +286,22 @@ export default function AIDeckCreatorScreen() {
             
             {!notesText && (
               <Pressable
-                style={[styles.importFileButton, { borderColor: '#8B5CF6' }]}
+                style={[styles.importFileButton, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface2 }]}
                 onPress={handleImportFile}
                 disabled={isParsing}
               >
-                <LinearGradient
-                  colors={['#8B5CF6', '#EC4899']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.importIconGradient}
-                >
+                <View style={[styles.importIconCircle, { backgroundColor: theme.colors.overlay.primary }]}>
                   {isParsing ? (
-                    <ActivityIndicator size="small" color="#FFF" />
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
                   ) : (
-                    <Ionicons name="cloud-upload" size={20} color="#FFF" />
+                    <Ionicons name="cloud-upload" size={20} color={theme.colors.primary} />
                   )}
-                </LinearGradient>
+                </View>
                 <View style={styles.importFileContent}>
-                  <Text style={[styles.importFileText, { color: theme.colors.textPrimary }]}>
+                  <Text style={[styles.importFileText, { color: theme.colors.textHigh }]}>
                     {isParsing ? 'Parsing file...' : 'Choose File'}
                   </Text>
-                  <Text style={[styles.importFileHint, { color: theme.colors.textSecondary }]}>
+                  <Text style={[styles.importFileHint, { color: theme.colors.textMed }]}>
                     {isParsing ? 'Please wait...' : '.txt, .pdf, .doc, .docx'}
                   </Text>
                 </View>
@@ -315,13 +310,13 @@ export default function AIDeckCreatorScreen() {
             
             {/* Notes preview (when imported) */}
             {notesText && importedFileName && (
-              <View style={styles.fileTag}>
-                <Ionicons name="document-text" size={14} color="#8B5CF6" />
-                <Text style={[styles.fileTagText, { color: theme.colors.textSecondary }]}>
+              <View style={[styles.fileTag, { backgroundColor: theme.colors.overlay.primary }]}>
+                <Ionicons name="document-text" size={14} color={theme.colors.primary} />
+                <Text style={[styles.fileTagText, { color: theme.colors.textMed }]}>
                   {importedFileName}
                 </Text>
                 <Pressable onPress={() => { setNotesText(''); setImportedFileName(null); setPrompt(''); }}>
-                  <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+                  <Ionicons name="close-circle" size={16} color={theme.colors.textMed} />
                 </Pressable>
               </View>
             )}
@@ -338,16 +333,23 @@ export default function AIDeckCreatorScreen() {
                   key={count}
                   style={[
                     styles.countOption,
-                    { 
-                      backgroundColor: itemLimit === count ? 'rgba(139, 92, 246, 0.15)' : theme.colors.surface,
-                      borderColor: itemLimit === count ? '#8B5CF6' : theme.colors.border,
-                    },
+                    itemLimit === count
+                      ? {
+                          backgroundColor: theme.colors.overlay.primary,
+                          borderColor: theme.colors.primary,
+                        }
+                      : {
+                          backgroundColor: theme.colors.surface2,
+                          borderColor: theme.colors.border,
+                        },
                   ]}
                   onPress={() => setItemLimit(count)}
                 >
                   <Text style={[
                     styles.countText,
-                    { color: itemLimit === count ? '#8B5CF6' : theme.colors.textPrimary }
+                    itemLimit === count
+                      ? { color: theme.colors.primary }
+                      : { color: theme.colors.textHigh },
                   ]}>
                     {count}
                   </Text>
@@ -358,8 +360,8 @@ export default function AIDeckCreatorScreen() {
                   styles.countOption,
                   styles.customCountOption,
                   { 
-                    backgroundColor: !['25', '50', '75', '100'].includes(itemLimit) ? 'rgba(139, 92, 246, 0.15)' : theme.colors.surface,
-                    borderColor: !['25', '50', '75', '100'].includes(itemLimit) ? '#8B5CF6' : theme.colors.border,
+                    backgroundColor: !['25', '50', '75', '100'].includes(itemLimit) ? theme.colors.overlay.primary : theme.colors.surface2,
+                    borderColor: !['25', '50', '75', '100'].includes(itemLimit) ? theme.colors.primary : theme.colors.border,
                   },
                 ]}
                 onPress={() => {
@@ -388,7 +390,7 @@ export default function AIDeckCreatorScreen() {
               >
                 <Text style={[
                   styles.countText,
-                  { color: !['25', '50', '75', '100'].includes(itemLimit) ? '#8B5CF6' : theme.colors.textPrimary }
+                  { color: !['25', '50', '75', '100'].includes(itemLimit) ? theme.colors.primary : theme.colors.textHigh }
                 ]}>
                   {!['25', '50', '75', '100'].includes(itemLimit) ? itemLimit : 'Custom'}
                 </Text>
@@ -405,27 +407,22 @@ export default function AIDeckCreatorScreen() {
               <Pressable
                 style={[
                   styles.pill,
-                  { borderColor: noteModel === 'basic' ? '#8B5CF6' : theme.colors.border },
+                  { 
+                    borderColor: noteModel === 'basic' ? theme.colors.primary : theme.colors.border,
+                    backgroundColor: noteModel === 'basic' ? theme.colors.overlay.primary : theme.colors.surface2,
+                  },
                 ]}
                 onPress={() => setNoteModel('basic')}
               >
-                {noteModel === 'basic' && (
-                  <LinearGradient
-                    colors={['#8B5CF6', '#EC4899']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.pillGradient}
-                  />
-                )}
                 <View style={styles.pillContent}>
                   <Ionicons 
                     name="swap-horizontal" 
                     size={20} 
-                    color={noteModel === 'basic' ? '#FFF' : theme.colors.textPrimary} 
+                    color={noteModel === 'basic' ? theme.colors.primary : theme.colors.textHigh} 
                   />
                   <Text style={[
                     styles.pillText,
-                    { color: noteModel === 'basic' ? '#FFF' : theme.colors.textPrimary }
+                    { color: noteModel === 'basic' ? theme.colors.primary : theme.colors.textHigh }
                   ]}>
                     Front & Back
                   </Text>
@@ -435,27 +432,22 @@ export default function AIDeckCreatorScreen() {
               <Pressable
                 style={[
                   styles.pill,
-                  { borderColor: noteModel === 'cloze' ? '#8B5CF6' : theme.colors.border },
+                  { 
+                    borderColor: noteModel === 'cloze' ? theme.colors.primary : theme.colors.border,
+                    backgroundColor: noteModel === 'cloze' ? theme.colors.overlay.primary : theme.colors.surface2,
+                  },
                 ]}
                 onPress={() => setNoteModel('cloze')}
               >
-                {noteModel === 'cloze' && (
-                  <LinearGradient
-                    colors={['#8B5CF6', '#EC4899']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.pillGradient}
-                  />
-                )}
                 <View style={styles.pillContent}>
                   <Ionicons 
                     name="remove-circle-outline" 
                     size={20} 
-                    color={noteModel === 'cloze' ? '#FFF' : theme.colors.textPrimary} 
+                    color={noteModel === 'cloze' ? theme.colors.primary : theme.colors.textHigh} 
                   />
                   <Text style={[
                     styles.pillText,
-                    { color: noteModel === 'cloze' ? '#FFF' : theme.colors.textPrimary }
+                    { color: noteModel === 'cloze' ? theme.colors.primary : theme.colors.textHigh }
                   ]}>
                     Fill-in-Blank
                   </Text>
@@ -726,7 +718,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     gap: s.md,
   },
-  importIconGradient: {
+  importIconCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -750,7 +742,6 @@ const styles = StyleSheet.create({
     gap: s.xs,
     paddingHorizontal: s.md,
     paddingVertical: s.sm,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     borderRadius: r.pill,
     alignSelf: 'flex-start',
   },

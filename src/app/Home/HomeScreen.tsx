@@ -8,7 +8,7 @@ import { useScheduler } from '../../context/SchedulerProvider';
 import { sampleCards } from '../../mocks/sampleCards';
 import { db } from '../../services/anki/InMemoryDb';
 import { StatsService, HomeStats, GlobalSnapshot, WeeklyCoachReport as WeeklyCoachReportType } from '../../services/anki/StatsService';
-import { BacklogPressureCard, EfficiencyCard, StreakCalendarCard, WeeklyCoachReport } from '../../components/stats';
+import { BacklogPressureCard, EfficiencyCard, StreakCalendarCard, WeeklyCoachReport, BestHoursCard, AddsTimelineMini, BacklogClearByCard } from '../../components/stats';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +21,9 @@ export default function HomeScreen() {
   const [homeStats, setHomeStats] = useState<HomeStats | null>(null);
   const [globalSnapshot, setGlobalSnapshot] = useState<GlobalSnapshot | null>(null);
   const [weeklyCoachReport, setWeeklyCoachReport] = useState<WeeklyCoachReportType | null>(null);
+  const [bestHoursData, setBestHoursData] = useState<any[]>([]);
+  const [addsTimelineData, setAddsTimelineData] = useState<any[]>([]);
+  const [avgReviewsPerDay, setAvgReviewsPerDay] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isCalculatingRef = React.useRef(false);
   
@@ -75,9 +78,15 @@ export default function HomeScreen() {
       const stats = statsService.getHomeStats();
       const snapshot = statsService.getGlobalSnapshot({ windowDays: 7 });
       const coachReport = statsService.getWeeklyCoachReport();
+      const bestHours = statsService.getBestHours({ days: 30, minReviews: 20 });
+      const addsTimeline = statsService.getAddsTimeline({ days: 7 });
+      const dailyAverage = statsService.getRecentDailyAverage({ days: 7 });
       setHomeStats(stats);
       setGlobalSnapshot(snapshot);
       setWeeklyCoachReport(coachReport);
+      setBestHoursData(bestHours);
+      setAddsTimelineData(addsTimeline);
+      setAvgReviewsPerDay(dailyAverage.avgReviewsPerDay);
       isCalculatingRef.current = false;
       setIsRefreshing(false);
     }, 0);
@@ -188,68 +197,84 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Today's Session - Clean & Focused */}
+        {/* Today's Session - 4-Column Grid */}
         {globalSnapshot && (
           <View style={[styles.sessionCard, { backgroundColor: theme.colors.surface2 }]}>
             <View style={styles.sessionRow}>
-              <View style={styles.mainStat}>
-                <Text style={[styles.mainStatLabel, { color: theme.colors.textMed }]}>
-                  DUE TODAY
-                </Text>
-                <Text style={[styles.mainStatValue, { color: theme.colors.textHigh }]}>
+              <View style={styles.todayColumn}>
+                <Text style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}>
                   {globalSnapshot.todayDue}
+                </Text>
+                <Text style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}>
+                  DUE
                 </Text>
               </View>
 
               <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
 
-              <View style={styles.secondaryStat}>
-                <Text style={[styles.secondaryStatValue, { color: theme.colors.textHigh }]}>
+              <View style={styles.todayColumn}>
+                <Text style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}>
                   {globalSnapshot.todayLearn}
                 </Text>
-                <Text style={[styles.secondaryStatLabel, { color: theme.colors.textMed }]}>
+                <Text 
+                  style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
                   LEARNING
                 </Text>
               </View>
 
               <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
 
-              <View style={styles.secondaryStat}>
-                <Text style={[styles.secondaryStatValue, { color: theme.colors.textHigh }]}>
+              <View style={styles.todayColumn}>
+                <Text style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}>
                   {globalSnapshot.todayNewLimit}
                 </Text>
-                <Text style={[styles.secondaryStatLabel, { color: theme.colors.textMed }]}>
+                <Text style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}>
                   NEW
                 </Text>
               </View>
 
-              {homeStats.todayReviewCount > 0 && (
-                <>
-                  <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
-                  <View style={styles.secondaryStat}>
-                    <Text style={[styles.secondaryStatValue, { color: theme.colors.textHigh }]}>
-                      {homeStats.todayAccuracy}%
-                    </Text>
-                    <Text style={[styles.secondaryStatLabel, { color: theme.colors.textMed }]}>
-                      DONE
-                    </Text>
-                  </View>
-                </>
-              )}
+              <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
+
+              <View style={styles.todayColumn}>
+                <Text 
+                  style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {homeStats.todayReviewCount > 0 ? `${homeStats.todayAccuracy}%` : '—'}
+                </Text>
+                <Text style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}>
+                  DONE
+                </Text>
+              </View>
             </View>
           </View>
         )}
 
-        {/* Performance Stats - Minimal */}
+        {/* Performance & Pace - Merged Card */}
         {globalSnapshot && homeStats.totalReviewsAllTime > 0 && (
           <View style={[styles.performanceCard, { backgroundColor: theme.colors.surface2 }]}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textHigh }]}>
+              Performance & Pace (7-Day)
+            </Text>
             <View style={styles.performanceRow}>
               <View style={styles.performanceItem}>
                 <Text style={[styles.performanceLabel, { color: theme.colors.textMed }]}>
-                  7-DAY RETENTION
+                  RETENTION
                 </Text>
                 <Text style={[styles.performanceValue, { color: theme.colors.textHigh }]}>
                   {Math.round(globalSnapshot.retention7)}%
+                </Text>
+              </View>
+              <View style={styles.performanceItem}>
+                <Text style={[styles.performanceLabel, { color: theme.colors.textMed }]}>
+                  RPM
+                </Text>
+                <Text style={[styles.performanceValue, { color: theme.colors.textHigh }]}>
+                  {globalSnapshot.reviewsPerMin.toFixed(1)}
                 </Text>
               </View>
               <View style={styles.performanceItem}>
@@ -272,16 +297,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Study Efficiency - Speed metrics */}
-        {globalSnapshot && homeStats.totalReviewsAllTime > 0 && (
-          <EfficiencyCard
-            reviewsPerMin={globalSnapshot.reviewsPerMin}
-            avgSecondsPerReview={globalSnapshot.avgSecondsPerReview}
-            totalReviews={homeStats.totalReviewsAllTime}
-            totalMinutes={Math.round(globalSnapshot.minutesToday)}
-          />
-        )}
-
         {/* Activity Calendar - Full Month View */}
         {globalSnapshot && (
           <StreakCalendarCard
@@ -294,16 +309,32 @@ export default function HomeScreen() {
           />
         )}
 
-        {/* =================================================================== */}
-        {/* INSIGHTS & RECOMMENDATIONS */}
-        {/* =================================================================== */}
+        {/* Premium Analytics - Inline */}
+        {bestHoursData.length > 0 && homeStats.totalReviewsAllTime > 50 && (
+          <BestHoursCard data={bestHoursData} variant="compact" />
+        )}
 
-        {globalSnapshot && (
-          <BacklogPressureCard
-            backlogCount={globalSnapshot.backlogCount}
-            medianDaysOverdue={globalSnapshot.backlogMedianDays}
-            overduenessIndex={globalSnapshot.overduenessIndex}
-          />
+        {addsTimelineData.length > 0 && addsTimelineData.some(d => d.count > 0) && (
+          <AddsTimelineMini points={addsTimelineData} days={7} />
+        )}
+
+        {/* Backlog Management */}
+        {globalSnapshot && globalSnapshot.backlogCount > 0 ? (
+          avgReviewsPerDay > 0 && (
+            <BacklogClearByCard
+              backlogCount={globalSnapshot.backlogCount}
+              avgReviewsPerDay={avgReviewsPerDay}
+              todayNewLimit={globalSnapshot.todayNewLimit}
+            />
+          )
+        ) : (
+          globalSnapshot && (
+            <BacklogPressureCard
+              backlogCount={globalSnapshot.backlogCount}
+              medianDaysOverdue={globalSnapshot.backlogMedianDays}
+              overduenessIndex={globalSnapshot.overduenessIndex}
+            />
+          )
         )}
 
         {weeklyCoachReport && homeStats.totalReviewsAllTime > 0 && (
@@ -442,33 +473,20 @@ const styles = StyleSheet.create({
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  mainStat: {
-    flex: 2,
-  },
-  mainStatLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  mainStatValue: {
-    fontSize: 36,
-    fontWeight: '800',
-    lineHeight: 36,
-  },
-  secondaryStat: {
+  todayColumn: {
     flex: 1,
     alignItems: 'center',
+    paddingHorizontal: s.xs,
   },
-  secondaryStatValue: {
-    fontSize: 24,
+  todayColumnValue: {
+    fontSize: 22,
     fontWeight: '800',
     lineHeight: 24,
     marginBottom: 2,
   },
-  secondaryStatLabel: {
+  todayColumnLabel: {
     fontSize: 10,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -488,6 +506,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
+    gap: s.md,
   },
   performanceRow: {
     flexDirection: 'row',
@@ -505,9 +524,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   performanceValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '800',
-    lineHeight: 24,
+    lineHeight: 20,
   },
   // Activity Card
   activityCard: {
