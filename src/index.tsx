@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNav from './navigation';
 import { SchedulerProvider } from './context/SchedulerProvider';
 import { AuthProvider } from './context/AuthContext';
@@ -48,14 +49,16 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <AuthProvider>
-          <SchedulerProvider>
-            <RootNav />
-            <StatusBar style="auto" />
-          </SchedulerProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <SchedulerProvider>
+              <RootNav />
+              <StatusBar style="auto" />
+            </SchedulerProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

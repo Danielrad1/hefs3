@@ -5,6 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { useScheduler } from '../../context/SchedulerProvider';
+import { useAuth } from '../../context/AuthContext';
+import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
 import { sampleCards } from '../../mocks/sampleCards';
 import { db } from '../../services/anki/InMemoryDb';
 import { StatsService, HomeStats, GlobalSnapshot, WeeklyCoachReport as WeeklyCoachReportType } from '../../services/anki/StatsService';
@@ -17,6 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 export default function HomeScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const { user } = useAuth();
   const { bootstrap } = useScheduler();
   const [homeStats, setHomeStats] = useState<HomeStats | null>(null);
   const [globalSnapshot, setGlobalSnapshot] = useState<GlobalSnapshot | null>(null);
@@ -25,6 +28,7 @@ export default function HomeScreen() {
   const [addsTimelineData, setAddsTimelineData] = useState<any[]>([]);
   const [avgReviewsPerDay, setAvgReviewsPerDay] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [userName, setUserName] = useState<string>('there');
   const isCalculatingRef = React.useRef(false);
   
   // Contextual motivational message
@@ -104,16 +108,31 @@ export default function HomeScreen() {
     }, [refreshStats])
   );
 
-  // User name (TODO: pull from settings/profile)
-  const userName = 'Daniel';
+  // Load user profile on mount
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (user?.uid) {
+        try {
+          const profile = await UserPrefsService.getUserProfile(user.uid);
+          if (profile?.firstName) {
+            setUserName(profile.firstName);
+          }
+        } catch (error) {
+          console.log('[HomeScreen] Error loading user profile:', error);
+        }
+      }
+    };
+    loadUserProfile();
+  }, [user]);
 
-  // Get greeting based on time of day - memoize to update properly
-  const getGreeting = React.useMemo(() => {
+  // Get greeting based on time of day - updates every render to be accurate
+  const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
-  }, []); // Empty deps means it calculates once per mount
+    if (hour >= 5 && hour < 12) return 'Good Morning';
+    if (hour >= 12 && hour < 17) return 'Good Afternoon';
+    if (hour >= 17 && hour < 21) return 'Good Evening';
+    return 'Good Night';
+  };
 
   // Show loading state while stats are being calculated
   if (!homeStats) {
@@ -145,7 +164,7 @@ export default function HomeScreen() {
           {/* Greeting with inline streak */}
           <View style={styles.greetingRow}>
             <Text style={[styles.greetingSmall, { color: theme.colors.textMed }]}>
-              {getGreeting}, {userName}
+              {getGreeting()}, {userName}
             </Text>
             {homeStats.currentStreak > 0 && (
               <View style={[styles.streakBadge, { backgroundColor: theme.colors.overlay.streak }]}>

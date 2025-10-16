@@ -458,6 +458,15 @@ export default function SettingsScreen() {
         <SectionHeader title="ACCOUNT" />
         <View style={styles.section}>
           <AccountSection SettingItem={SettingItem} />
+          
+          <SettingItem
+            icon="person"
+            title="Display Name"
+            subtitle="Update your profile name"
+            onPress={() => Alert.alert('Edit Name', 'Name editing coming soon!')}
+            iconColor="#FFFFFF"
+            iconBg="#6C5CE7"
+          />
         </View>
 
         <SectionHeader title="STUDY" />
@@ -497,10 +506,10 @@ export default function SettingsScreen() {
           />
 
           <SettingItem
-            icon="calendar"
-            title="Study Schedule"
-            subtitle="Set your study times"
-            onPress={() => Alert.alert('Coming Soon', 'Study schedule feature coming soon!')}
+            icon="time"
+            title="Daily Goal"
+            subtitle="Change your study goal"
+            onPress={() => Alert.alert('Daily Goal', 'Study goal editing coming soon!')}
             iconColor="#FFFFFF"
             iconBg="#00B894"
           />

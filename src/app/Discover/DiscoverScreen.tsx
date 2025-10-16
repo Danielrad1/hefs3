@@ -8,6 +8,8 @@ import { r } from '../../design/radii';
 import { DiscoverService, DeckManifest } from '../../services/discover/DiscoverService';
 import { DeckDetailModal } from './DeckDetailModal';
 import { useScheduler } from '../../context/SchedulerProvider';
+import GuideBanner from '../../components/GuideBanner';
+import { FirstRunGuide } from '../../guided/FirstRunGuide';
 
 export default function DiscoverScreen() {
   const theme = useTheme();
@@ -19,9 +21,17 @@ export default function DiscoverScreen() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState('');
+  const [showDiscoverBanner, setShowDiscoverBanner] = useState(false);
 
   useEffect(() => {
     loadDecks();
+  }, []);
+
+  // Show discover banner on first run
+  useEffect(() => {
+    FirstRunGuide.shouldShowDiscover()
+      .then(setShowDiscoverBanner)
+      .catch(() => setShowDiscoverBanner(false));
   }, []);
 
   const loadDecks = async () => {
@@ -85,6 +95,9 @@ export default function DiscoverScreen() {
         `Imported ${parsed.cards.length} cards from "${deck.name}"`,
         [{ text: 'OK' }]
       );
+      
+      // Return parsed for signal
+      return parsed;
     } catch (error: any) {
       setImporting(false);
       setImportProgress('');
@@ -110,10 +123,14 @@ export default function DiscoverScreen() {
       });
       
       // Import the downloaded file
-      await importDeckFile(localUri, deck);
+      const parsed = await importDeckFile(localUri, deck);
+
+      // Mark guide complete
+      try { await FirstRunGuide.completeDiscover(); } catch {}
       
     } catch (error: any) {
       console.error('Download/Import failed:', error);
+      
       Alert.alert('Failed', error.message || 'Failed to download or import deck');
     } finally {
       setDownloadingId(null);
@@ -146,8 +163,22 @@ export default function DiscoverScreen() {
         </Text>
       </View>
 
+      {showDiscoverBanner && decks.length > 0 && (
+        <GuideBanner
+          title="Add Your First Deck"
+          body="Pick a curated deck to start right now."
+          primaryLabel="Open First Deck"
+          onPrimary={() => {
+            setShowDiscoverBanner(false);
+            setSelectedDeck(decks[0]);
+          }}
+          secondaryLabel="Skip"
+          onSecondary={() => setShowDiscoverBanner(false)}
+        />
+      )}
+
       <ScrollView style={styles.content} contentContainerStyle={styles.grid}>
-        {decks.map((deck) => {
+        {decks.map((deck, index) => {
           const isDownloading = downloadingId === deck.id;
           const difficultyColor = deck.difficulty === 'beginner' ? '#10B981' : deck.difficulty === 'intermediate' ? '#F59E0B' : '#EF4444';
           const icon = getIconForDeck(deck);
@@ -157,13 +188,16 @@ export default function DiscoverScreen() {
             <Pressable
               key={deck.id}
               style={[styles.card, { backgroundColor: theme.colors.surface }]}
-              onPress={() => setSelectedDeck(deck)}
+              onPress={async () => {
+                setShowDiscoverBanner(false);
+                try { await FirstRunGuide.markDiscoverShown(); } catch {}
+                setSelectedDeck(deck);
+              }}
               disabled={isDownloading || importing}
             >
               <View style={[styles.iconContainer, { backgroundColor: iconColor + '20' }]}>
                 <Ionicons name={icon} size={32} color={iconColor} />
               </View>
-              
               <View style={styles.cardContent}>
                 <Text style={[styles.deckName, { color: theme.colors.textPrimary }]}>
                   {deck.name}
