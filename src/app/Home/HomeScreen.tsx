@@ -75,14 +75,20 @@ export default function HomeScreen() {
       let active = true;
       (async () => {
         try {
-          const should = await FirstRunGuide.shouldShowDiscover();
-          if (active && should) {
-            setShowWelcomeModal(true);
+          if (!user?.uid) {
+            if (active) setShowWelcomeModal(false);
+            return;
           }
-        } catch {}
+          const should = await FirstRunGuide.shouldShowWelcome(user.uid);
+          if (active) {
+            setShowWelcomeModal(should);
+          }
+        } catch {
+          if (active) setShowWelcomeModal(false);
+        }
       })();
       return () => { active = false; };
-    }, [navigation])
+    }, [navigation, user?.uid])
   );
 
   // Function to refresh stats
@@ -394,11 +400,17 @@ export default function HomeScreen() {
         icon="hand-left-outline"
         helper="Takes ~1 minute"
         title="Welcome to Memorize"
-        body="Let’s do a quick guided start. Tap the Discover tab below to browse curated decks, then import one to begin. You can skip anytime."
+        body="Let’s do a quick guided start. Tap the Discover tab below to browse curated decks, then import one to begin."
         primaryLabel="Let’s Go"
-        onPrimary={() => setShowWelcomeModal(false)}
-        secondaryLabel="Skip"
-        onSecondary={() => setShowWelcomeModal(false)}
+        onPrimary={async () => {
+          if (user?.uid) {
+            try {
+              await FirstRunGuide.markWelcomeShown(user.uid);
+            } catch {}
+          }
+          setShowWelcomeModal(false);
+          (navigation as any).navigate?.('Discover');
+        }}
       />
     </>
   );

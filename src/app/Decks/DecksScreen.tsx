@@ -5,6 +5,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { useScheduler } from '../../context/SchedulerProvider';
+import { useAuth } from '../../context/AuthContext';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import DeckActionSheet, { DeckAction } from '../../components/DeckActionSheet';
@@ -32,6 +33,8 @@ export default function DecksScreen() {
   const theme = useTheme();
   const navigation = useNavigation<any>();
   const { decks, setDeck: setCurrentDeck, currentDeckId, reload } = useScheduler();
+  const { user } = useAuth();
+  const uid = user?.uid || null;
   const [expandedDecks, setExpandedDecks] = useState<Set<string>>(new Set());
   const [isCreatingDeck, setIsCreatingDeck] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
@@ -82,10 +85,14 @@ export default function DecksScreen() {
     React.useCallback(() => {
       reload();
       loadMetadata();
-      FirstRunGuide.shouldShowStudy()
+      if (!uid) {
+        setShowStudyModal(false);
+        return;
+      }
+      FirstRunGuide.shouldShowStudy(uid)
         .then(setShowStudyModal)
         .catch(() => setShowStudyModal(false));
-    }, [reload, loadMetadata])
+    }, [reload, loadMetadata, uid])
   );
 
   const handleDeckPress = (deckId: string) => {

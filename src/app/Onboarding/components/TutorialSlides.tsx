@@ -15,26 +15,26 @@ interface TutorialSlidesProps {
 const SLIDES = [
   {
     icon: 'library' as const,
-    title: 'Create Your Decks',
-    description: 'Organize flashcards into decks by topic. Import from Anki or create from scratch with AI assistance.',
+    title: 'Master Anything—Faster',
+    description: 'Less time, less effort, more retained—vs. typical flashcard apps.',
     color: '#6EE7F2',
   },
   {
     icon: 'trending-up' as const,
-    title: 'Spaced Repetition',
-    description: 'Our algorithm shows you cards right before you forget them, maximizing retention with minimal effort.',
+    title: 'Remember 2–3× Longer',
+    description: 'Proprietary scheduling + AI timing outperforms generic SRS.',
     color: '#9D7FF5',
   },
   {
     icon: 'flash' as const,
-    title: 'Study Smart',
-    description: 'Swipe through cards and rate difficulty. Again, Hard, Good, or Easy - the algorithm adapts to you.',
+    title: 'Consistency Without Burnout',
+    description: 'A daily plan with fewer reviews than most apps.',
     color: '#FFD166',
   },
   {
     icon: 'stats-chart' as const,
-    title: 'Track Progress',
-    description: 'View detailed analytics, retention curves, and streaks. Watch your knowledge compound over time.',
+    title: 'Proof You’re Winning',
+    description: 'Modern analytics others miss: retention, streaks, time saved.',
     color: '#06D6A0',
   },
 ];

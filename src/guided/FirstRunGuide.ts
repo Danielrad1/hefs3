@@ -1,45 +1,60 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const K = {
-  DISCOVER_SHOWN: '@firstRun:discover:shown',
-  DISCOVER_DONE: '@firstRun:discover:done',
-  STUDY_SCHEDULED: '@firstRun:study:scheduled',
-  STUDY_SHOWN: '@firstRun:study:shown',
-  STUDY_DONE: '@firstRun:study:done',
-};
+const hasUid = (uid?: string | null): uid is string => typeof uid === 'string' && uid.length > 0;
+const key = (uid: string, suffix: string) => `@firstRun:${uid}:${suffix}`;
 
 export const FirstRunGuide = {
-  async shouldShowDiscover(): Promise<boolean> {
-    const done = await AsyncStorage.getItem(K.DISCOVER_DONE);
-    const shown = await AsyncStorage.getItem(K.DISCOVER_SHOWN);
+  async shouldShowWelcome(uid?: string | null): Promise<boolean> {
+    if (!hasUid(uid)) return false;
+    const shown = await AsyncStorage.getItem(key(uid, 'welcome:shown'));
+    return shown !== 'true';
+  },
+  async markWelcomeShown(uid?: string | null): Promise<void> {
+    if (!hasUid(uid)) return;
+    await AsyncStorage.setItem(key(uid, 'welcome:shown'), 'true');
+  },
+  async shouldShowDiscover(uid?: string | null): Promise<boolean> {
+    if (!hasUid(uid)) return false;
+    const done = await AsyncStorage.getItem(key(uid, 'discover:done'));
+    const shown = await AsyncStorage.getItem(key(uid, 'discover:shown'));
     return done !== 'true' && shown !== 'true';
   },
-  async markDiscoverShown(): Promise<void> {
-    await AsyncStorage.setItem(K.DISCOVER_SHOWN, 'true');
+  async markDiscoverShown(uid?: string | null): Promise<void> {
+    if (!hasUid(uid)) return;
+    await AsyncStorage.setItem(key(uid, 'discover:shown'), 'true');
   },
-  async completeDiscover(): Promise<void> {
+  async completeDiscover(uid?: string | null): Promise<void> {
+    if (!hasUid(uid)) return;
     await AsyncStorage.multiSet([
-      [K.DISCOVER_DONE, 'true'],
-      [K.STUDY_SCHEDULED, 'true'],
-      [K.STUDY_SHOWN, 'false'],
+      [key(uid, 'discover:done'), 'true'],
+      [key(uid, 'study:scheduled'), 'true'],
+      [key(uid, 'study:shown'), 'false'],
     ]);
   },
-  async shouldShowStudy(): Promise<boolean> {
-    const scheduled = await AsyncStorage.getItem(K.STUDY_SCHEDULED);
-    const done = await AsyncStorage.getItem(K.STUDY_DONE);
-    const shown = await AsyncStorage.getItem(K.STUDY_SHOWN);
+  async shouldShowStudy(uid?: string | null): Promise<boolean> {
+    if (!hasUid(uid)) return false;
+    const scheduled = await AsyncStorage.getItem(key(uid, 'study:scheduled'));
+    const done = await AsyncStorage.getItem(key(uid, 'study:done'));
+    const shown = await AsyncStorage.getItem(key(uid, 'study:shown'));
     return scheduled === 'true' && done !== 'true' && shown !== 'true';
   },
-  async markStudyShown(): Promise<void> {
-    await AsyncStorage.setItem(K.STUDY_SHOWN, 'true');
+  async markStudyShown(uid?: string | null): Promise<void> {
+    if (!hasUid(uid)) return;
+    await AsyncStorage.setItem(key(uid, 'study:shown'), 'true');
   },
-  async completeStudy(): Promise<void> {
-    await AsyncStorage.setItem(K.STUDY_DONE, 'true');
+  async completeStudy(uid?: string | null): Promise<void> {
+    if (!hasUid(uid)) return;
+    await AsyncStorage.setItem(key(uid, 'study:done'), 'true');
   },
-  async resetAll(): Promise<void> {
+  async resetAll(uid?: string | null): Promise<void> {
+    if (!hasUid(uid)) return;
     await AsyncStorage.multiRemove([
-      K.DISCOVER_SHOWN, K.DISCOVER_DONE, K.STUDY_SCHEDULED, K.STUDY_SHOWN, K.STUDY_DONE,
+      key(uid, 'welcome:shown'),
+      key(uid, 'discover:shown'),
+      key(uid, 'discover:done'),
+      key(uid, 'study:scheduled'),
+      key(uid, 'study:shown'),
+      key(uid, 'study:done'),
     ]);
   },
 };
-

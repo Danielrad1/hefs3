@@ -11,11 +11,14 @@ import { DeckDetailModal } from './DeckDetailModal';
 import { useScheduler } from '../../context/SchedulerProvider';
 import OnboardingModal from '../../components/OnboardingModal';
 import { FirstRunGuide } from '../../guided/FirstRunGuide';
+import { useAuth } from '../../context/AuthContext';
 
 export default function DiscoverScreen() {
   const theme = useTheme();
   const navigation = useNavigation<any>();
   const { reload } = useScheduler(); // Refresh deck list after import
+  const { user } = useAuth();
+  const uid = user?.uid || null;
   const [decks, setDecks] = useState<DeckManifest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDeck, setSelectedDeck] = useState<DeckManifest | null>(null);
@@ -32,10 +35,14 @@ export default function DiscoverScreen() {
 
   // Show import modal on first run
   useEffect(() => {
-    FirstRunGuide.shouldShowDiscover()
+    if (!uid) {
+      setShowImportModal(false);
+      return;
+    }
+    FirstRunGuide.shouldShowDiscover(uid)
       .then((should) => setShowImportModal(should))
       .catch(() => setShowImportModal(false));
-  }, []);
+  }, [uid]);
 
   const loadDecks = async () => {
     try {
@@ -129,7 +136,7 @@ export default function DiscoverScreen() {
       const parsed = await importDeckFile(localUri, deck);
 
       // Mark guide complete and schedule study
-      try { await FirstRunGuide.completeDiscover(); } catch {}
+      try { await FirstRunGuide.completeDiscover(uid); } catch {}
 
       // Prompt user to go to Decks next
       setShowPostImportModal(true);
@@ -182,7 +189,7 @@ export default function DiscoverScreen() {
               style={[styles.card, { backgroundColor: theme.colors.surface }]}
               onPress={async () => {
                 setShowImportModal(false);
-                try { await FirstRunGuide.markDiscoverShown(); } catch {}
+                try { await FirstRunGuide.markDiscoverShown(uid); } catch {}
                 setSelectedDeck(deck);
               }}
               disabled={isDownloading || importing}
@@ -259,7 +266,7 @@ export default function DiscoverScreen() {
         primaryLabel="Let's do it"
         onPrimary={async () => {
           setShowImportModal(false);
-          try { await FirstRunGuide.markDiscoverShown(); } catch {}
+          try { await FirstRunGuide.markDiscoverShown(uid); } catch {}
         }}
       />
 

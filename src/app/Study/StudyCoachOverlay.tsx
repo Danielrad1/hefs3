@@ -11,10 +11,9 @@ type Props = {
   visible: boolean;
   step: Step;
   onNext: () => void;
-  onSkip: () => void;
 };
 
-export default function StudyCoachOverlay({ visible, step, onNext, onSkip }: Props) {
+export default function StudyCoachOverlay({ visible, step, onNext }: Props) {
   const theme = useTheme();
   if (!visible) return null;
 
@@ -28,9 +27,6 @@ export default function StudyCoachOverlay({ visible, step, onNext, onSkip }: Pro
             <Ionicons name="sparkles-outline" size={16} color={theme.colors.accent} />
             <Text style={[styles.badgeText, { color: theme.colors.accent }]}>Quick Guide</Text>
           </View>
-          <Pressable onPress={onSkip} hitSlop={8} style={styles.skipBtn}>
-            <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Skip</Text>
-          </Pressable>
         </View>
 
         {isReveal ? (
@@ -100,14 +96,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  skipBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  skipText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
   title: {
     fontSize: 18,
     fontWeight: '800',
@@ -149,4 +137,3 @@ const legendStyles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

@@ -24,8 +24,7 @@ export default function AuthNavigator() {
 
   // Feature flag: Always show tutorial + onboarding on app launch (for development/testing)
   // Set to false to use normal "only new users" behavior
-  const SHOW_TUTORIAL_ON_LAUNCH = true;
-  const SHOW_FIRST_RUN_GUIDE_ON_SIGNIN = true; // dev: force quickstart (discover/study) on each sign-in
+  const SHOW_TUTORIAL_ON_LAUNCH = false;
 
   // Check tutorial status when user changes (only runs once per user change)
   useEffect(() => {
@@ -43,10 +42,6 @@ export default function AuthNavigator() {
         console.log('[AuthNavigator] SHOW_TUTORIAL_ON_LAUNCH enabled - forcing tutorial + onboarding');
         setTutorialCompleted(false);
         setOnboardingCompleted(false);
-        // Also reset quickstart guide flags for discover/study so debug runs every time
-        if (SHOW_FIRST_RUN_GUIDE_ON_SIGNIN) {
-          try { await FirstRunGuide.resetAll(); } catch {}
-        }
         setChecking(false);
         return;
       }
@@ -71,9 +66,17 @@ export default function AuthNavigator() {
         setTutorialCompleted(tutorial);
         setOnboardingCompleted(onboarding);
 
-        // Debug: always reset quickstart guide on sign-in so user sees it
-        if (SHOW_FIRST_RUN_GUIDE_ON_SIGNIN) {
-          try { await FirstRunGuide.resetAll(); } catch {}
+        // For existing users (already completed onboarding), mark quickstart guides as done
+        if (tutorial && onboarding && user.uid) {
+          try {
+            await FirstRunGuide.markWelcomeShown(user.uid);
+            await FirstRunGuide.markDiscoverShown(user.uid);
+            await FirstRunGuide.completeDiscover(user.uid);
+            await FirstRunGuide.markStudyShown(user.uid);
+            await FirstRunGuide.completeStudy(user.uid);
+          } catch (err) {
+            console.warn('[AuthNavigator] Failed to pre-complete quickstart guides:', err);
+          }
         }
       } catch (error) {
         console.error('[AuthNavigator] Error checking status:', error);

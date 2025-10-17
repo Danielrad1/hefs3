@@ -17,6 +17,7 @@ import { hintEventsRepository } from '../../services/anki/db/HintEventsRepositor
 import AIHintsPromoModal from './AIHintsPromoModal';
 import StudyCoachOverlay from './StudyCoachOverlay';
 import { FirstRunGuide } from '../../guided/FirstRunGuide';
+import { useAuth } from '../../context/AuthContext';
 
 interface StudyScreenProps {
   navigation?: any;
@@ -27,6 +28,8 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const haptics = useHaptics();
   const confettiRef = useRef<ConfettiCannon>(null);
   const { current, next, cardType, answer, bootstrap, currentDeckId, decks } = useScheduler();
+  const { user } = useAuth();
+  const uid = user?.uid || null;
   
   const [isCurrentRevealed, setIsCurrentRevealed] = useState(false);
   const [responseStartTime, setResponseStartTime] = useState(Date.now());
@@ -85,11 +88,12 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     let mounted = true;
     const check = async () => {
       try {
-        const should = await FirstRunGuide.shouldShowStudy();
+        if (!uid) return;
+        const should = await FirstRunGuide.shouldShowStudy(uid);
         if (mounted && should && current) {
           setCoachStep('reveal');
           setShowCoach(true);
-          try { await FirstRunGuide.markStudyShown(); } catch {}
+          try { await FirstRunGuide.markStudyShown(uid); } catch {}
         }
       } catch {
         // no-op
@@ -97,7 +101,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     };
     check();
     return () => { mounted = false; };
-  }, [current]);
+  }, [current, uid]);
 
   // Reload hints when screen comes into focus (e.g., after generating hints)
   useFocusEffect(
@@ -191,7 +195,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     // Mark study coach complete on first rating
     if (!coachCompletedRef.current) {
       coachCompletedRef.current = true;
-      FirstRunGuide.completeStudy().catch(() => {});
+      FirstRunGuide.completeStudy(uid).catch(() => {});
       setShowCoach(false);
     }
 
@@ -503,9 +507,6 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
           } else {
             setShowCoach(false);
           }
-        }}
-        onSkip={() => {
-          setShowCoach(false);
         }}
       />
     </View>
