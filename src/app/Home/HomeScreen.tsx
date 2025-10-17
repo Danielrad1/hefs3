@@ -133,22 +133,28 @@ export default function HomeScreen() {
     }, [refreshStats])
   );
 
-  // Load user profile on mount
-  useEffect(() => {
-    const loadUserProfile = async () => {
-      if (user?.uid) {
-        try {
-          const profile = await UserPrefsService.getUserProfile(user.uid);
-          if (profile?.firstName) {
-            setUserName(profile.firstName);
+  // Load user profile when screen is focused (updates when returning from settings)
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadUserProfile = async () => {
+        if (user?.uid) {
+          try {
+            const profile = await UserPrefsService.getUserProfile(user.uid);
+            if (profile?.displayName) {
+              setUserName(profile.displayName);
+            } else if (profile?.firstName) {
+              setUserName(profile.firstName);
+            } else if (user.displayName) {
+              setUserName(user.displayName.split(' ')[0]);
+            }
+          } catch (error) {
+            console.log('[HomeScreen] Error loading user profile:', error);
           }
-        } catch (error) {
-          console.log('[HomeScreen] Error loading user profile:', error);
         }
-      }
-    };
-    loadUserProfile();
-  }, [user]);
+      };
+      loadUserProfile();
+    }, [user])
+  );
 
   // Get greeting based on time of day - updates every render to be accurate
   const getGreeting = () => {
