@@ -30,6 +30,13 @@ export class DeckRepository {
     this.usn = usn;
   }
 
+  /**
+   * Update USN (needed after database restore)
+   */
+  setUsn(usn: number): void {
+    this.usn = usn;
+  }
+
   // Deck operations
   getDeck(id: string): Deck | undefined {
     return this.decks.get(id);

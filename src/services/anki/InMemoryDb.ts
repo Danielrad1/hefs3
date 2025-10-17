@@ -607,8 +607,11 @@ export class InMemoryDb {
       this.colConfig = snapshot.colConfig;
       this.usn = snapshot.usn;
       
-      // Note: USN propagation to repos would require adding setUsn methods to repositories
-      // For now, repos will use stale USN until next update. This is a known limitation.
+      // Propagate USN to all repositories to prevent stale USN values
+      this.cardRepo.setUsn(this.usn);
+      this.noteRepo.setUsn(this.usn);
+      this.deckRepo.setUsn(this.usn);
+      this.modelRepo.setUsn(this.usn);
       
       // Cleanup orphaned cards after loading
       const orphanedCount = this.cleanupOrphanedCards();

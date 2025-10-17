@@ -191,6 +191,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       reviewTimestamp: Date.now(),
       ease,
       wasSuccessful: ease >= 2,
+      reviewTime: responseTimeMs,
     });
     
     // Mark study coach complete on first rating

@@ -20,6 +20,7 @@ export interface HintReviewLink {
   reviewTimestamp: number;
   ease: number; // 1-4
   wasSuccessful: boolean; // ease >= 2
+  reviewTime: number; // time taken in milliseconds (from revlog.time)
 }
 
 export class HintEventsRepository {
@@ -98,11 +99,12 @@ export class HintEventsRepository {
 
   /**
    * Calculate success rate after hint vs without hint
+   * Also calculates median time difference (positive = hints save time, negative = hints cost time)
    */
   getHintEffectiveness(deckId?: string, days: number = 7): {
     successWithHint: number;
     successWithoutHint: number;
-    timeDelta: number; // seconds saved/lost
+    timeDelta: number; // seconds saved/lost (median)
   } {
     const since = Date.now() - days * 86400000;
     
@@ -121,11 +123,43 @@ export class HintEventsRepository {
       ? (withoutHint.filter(r => r.wasSuccessful).length / withoutHint.length) * 100
       : 0;
     
+    // Calculate median time delta (median time without hint - median time with hint)
+    // Positive value means hints save time, negative means hints cost time
+    let timeDelta = 0;
+    
+    if (withHint.length > 0 && withoutHint.length > 0) {
+      const timesWithHint = withHint.map(r => r.reviewTime).sort((a, b) => a - b);
+      const timesWithoutHint = withoutHint.map(r => r.reviewTime).sort((a, b) => a - b);
+      
+      const medianWithHint = this.calculateMedian(timesWithHint);
+      const medianWithoutHint = this.calculateMedian(timesWithoutHint);
+      
+      // Convert to seconds and calculate delta
+      timeDelta = (medianWithoutHint - medianWithHint) / 1000;
+    }
+    
     return {
       successWithHint,
       successWithoutHint,
-      timeDelta: 0, // TODO: Link to revlog.time to calculate time saved/lost with hints
+      timeDelta,
     };
+  }
+
+  /**
+   * Calculate median from sorted array
+   */
+  private calculateMedian(sortedValues: number[]): number {
+    if (sortedValues.length === 0) return 0;
+    
+    const mid = Math.floor(sortedValues.length / 2);
+    
+    if (sortedValues.length % 2 === 0) {
+      // Even number of values: average of two middle values
+      return (sortedValues[mid - 1] + sortedValues[mid]) / 2;
+    } else {
+      // Odd number of values: middle value
+      return sortedValues[mid];
+    }
   }
 
   /**

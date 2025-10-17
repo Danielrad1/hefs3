@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Switch, Alert, Modal, TextInput } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -299,39 +300,24 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               <Ionicons name="trophy" size={40} color={theme.colors.primary} />
             </View>
             <Text style={[styles.goalModalTitle, { color: theme.colors.textHigh }]}>Daily Study Goal</Text>
-            <Text style={[styles.goalModalSubtitle, { color: theme.colors.textMed }]}>Choose your daily target</Text>
-            
-            <Text style={[styles.currentValue, { color: theme.colors.primary }]}>{tempGoal} minutes</Text>
-            
-            <View style={styles.optionsGrid}>
-              {[5, 10, 15, 20, 30, 45, 60, 90, 120, 180].map((minutes) => (
-                <Pressable
-                  key={minutes}
-                  style={[
-                    styles.optionButton,
-                    { 
-                      backgroundColor: tempGoal === minutes.toString() 
-                        ? theme.colors.primary 
-                        : theme.colors.surface,
-                      borderColor: tempGoal === minutes.toString()
-                        ? theme.colors.primary
-                        : theme.colors.border,
-                    }
-                  ]}
-                  onPress={() => setTempGoal(minutes.toString())}
-                >
-                  <Text style={[
-                    styles.optionText,
-                    { 
-                      color: tempGoal === minutes.toString() 
-                        ? '#FFFFFF' 
-                        : theme.colors.textHigh 
-                    }
-                  ]}>
-                    {minutes}
-                  </Text>
-                </Pressable>
-              ))}
+            <Text style={[styles.goalModalSubtitle, { color: theme.colors.textMed }]}>How many minutes do you want to study each day?</Text>
+            <View style={styles.sliderContainer}>
+              <Text style={[styles.sliderValue, { color: theme.colors.primary }]}>{tempGoal} minutes</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={5}
+                maximumValue={180}
+                step={5}
+                value={parseInt(tempGoal || '15', 10)}
+                onValueChange={(value: number) => setTempGoal(value.toString())}
+                minimumTrackTintColor={theme.colors.primary}
+                maximumTrackTintColor={theme.colors.border}
+                thumbTintColor={theme.colors.primary}
+              />
+              <View style={styles.sliderLabels}>
+                <Text style={[styles.sliderLabel, { color: theme.colors.textLow }]}>5 min</Text>
+                <Text style={[styles.sliderLabel, { color: theme.colors.textLow }]}>180 min</Text>
+              </View>
             </View>
             <View style={styles.modalButtons}>
               <Pressable style={[styles.modalButton, { backgroundColor: theme.colors.surface }]} onPress={() => setShowGoalModal(false)}>
@@ -408,10 +394,11 @@ const styles = StyleSheet.create({
   goalIconContainer: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: s.sm },
   goalModalTitle: { fontSize: 24, fontWeight: '700', textAlign: 'center' },
   goalModalSubtitle: { fontSize: 15, textAlign: 'center', marginBottom: s.md },
-  currentValue: { fontSize: 56, fontWeight: '800', textAlign: 'center', marginVertical: s.lg },
-  optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: s.sm, width: '100%', marginBottom: s.md },
-  optionButton: { width: '30%', aspectRatio: 1.5, borderRadius: r.md, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
-  optionText: { fontSize: 20, fontWeight: '700' },
+  sliderContainer: { width: '100%', gap: s.md, marginBottom: s.md },
+  sliderValue: { fontSize: 48, fontWeight: '800', textAlign: 'center' },
+  slider: { width: '100%', height: 40 },
+  sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: s.xs },
+  sliderLabel: { fontSize: 12, fontWeight: '500' },
   modalButtons: { flexDirection: 'row', gap: s.sm, width: '100%' },
   modalButton: { flex: 1, padding: s.md, borderRadius: r.md, alignItems: 'center' },
   modalButtonText: { fontSize: 16, fontWeight: '600' },

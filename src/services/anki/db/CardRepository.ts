@@ -18,6 +18,13 @@ export class CardRepository {
     this.usn = usn;
   }
 
+  /**
+   * Update USN (needed after database restore)
+   */
+  setUsn(usn: number): void {
+    this.usn = usn;
+  }
+
   get(id: string): AnkiCard | undefined {
     return this.cards.get(id);
   }

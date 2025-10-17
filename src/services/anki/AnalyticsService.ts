@@ -290,7 +290,9 @@ export class AnalyticsService {
     
     const allCards = this.db.getAllCards();
     const weekCards = allCards.filter(c => {
-      const cardDate = this.core.timestampToDateString(c.id as any);
+      const creationDate = this.core.getCardCreationDate(c);
+      if (!creationDate) return false;
+      const cardDate = this.core.dateToString(creationDate);
       return cardDate >= weekStartStr && cardDate <= weekEndStr;
     });
     

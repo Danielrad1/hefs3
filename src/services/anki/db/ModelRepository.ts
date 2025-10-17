@@ -17,6 +17,13 @@ export class ModelRepository {
     this.usn = usn;
   }
 
+  /**
+   * Update USN (needed after database restore)
+   */
+  setUsn(usn: number): void {
+    this.usn = usn;
+  }
+
   get(id: string | number): Model | undefined {
     // Accept both string and number, convert to number (Anki uses numbers)
     const numericId = typeof id === 'string' ? parseInt(id, 10) : id;

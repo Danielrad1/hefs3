@@ -95,22 +95,16 @@ export class SearchIndex {
 
     const results: Array<{ noteId: string; score: number }> = [];
 
+    // Pre-compute deck hierarchy for filtering
+    let targetDeckIds: Set<string> | null = null;
+    if (options?.deckId) {
+      targetDeckIds = this.getDeckAndChildren(options.deckId);
+    }
+
     this.index.forEach((indexed) => {
-      // Filter by deck if specified
-      if (options?.deckId) {
-        const deck = this.db.getDeck(options.deckId);
-        if (deck) {
-          // Check if any of this note's cards are in the deck or its children
-          const deckName = deck.name;
-          const matchesDeck = indexed.deckIds.some((deckId) => {
-            const cardDeck = this.db.getDeck(deckId);
-            return (
-              cardDeck &&
-              (cardDeck.name === deckName || cardDeck.name.startsWith(deckName + '::'))
-            );
-          });
-          if (!matchesDeck) return;
-        }
+      // Filter by deck if specified (using deck ID hierarchy)
+      if (targetDeckIds && !indexed.deckIds.some(deckId => targetDeckIds!.has(deckId))) {
+        return;
       }
 
       // Filter by tag if specified
@@ -194,6 +188,28 @@ export class SearchIndex {
       .replace(/[^\w\s]/g, ' ') // Remove punctuation
       .split(/\s+/)
       .filter((token) => token.length > 1); // Filter out single chars
+  }
+
+  /**
+   * Get deck and all its children IDs
+   * Uses deck hierarchy (parent::child) to find descendants
+   */
+  private getDeckAndChildren(deckId: string): Set<string> {
+    const deck = this.db.getDeck(deckId);
+    if (!deck) return new Set([deckId]);
+    
+    const deckIds = new Set<string>([deckId]);
+    const allDecks = this.db.getAllDecks();
+    
+    // Find all decks that are children of this deck
+    // A child deck's name starts with "parent::child"
+    allDecks.forEach((d) => {
+      if (d.id !== deckId && d.name.startsWith(deck.name + '::')) {
+        deckIds.add(d.id);
+      }
+    });
+    
+    return deckIds;
   }
 
   /**
