@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { getAuth } from 'firebase-admin/auth';
 import { DecodedToken } from '../types';
 import { errorCodes } from '../config/constants';
+import { logger } from '../utils/logger';
 
 export interface AuthenticatedRequest extends Request {
   user: DecodedToken;
@@ -35,7 +36,7 @@ export async function authenticate(
     (req as AuthenticatedRequest).user = decodedToken as DecodedToken;
     next();
   } catch (error) {
-    console.error('[Auth] Token verification failed:', error);
+    logger.error('[Auth] Token verification failed:', error);
     res.status(401).json({
       success: false,
       error: {

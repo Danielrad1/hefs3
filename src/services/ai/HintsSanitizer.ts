@@ -3,6 +3,8 @@
  * Strips HTML, validates content, and prepares clean text for AI
  */
 
+import { logger } from '../../utils/logger';
+
 export interface SanitizedItem {
   id: string;
   model: 'basic' | 'cloze';
@@ -155,7 +157,7 @@ export function sanitizeHintsInput(
         });
       }
     } catch (error) {
-      console.error('[HintsSanitizer] Error sanitizing item:', item.id, error);
+      logger.error('[HintsSanitizer] Error sanitizing item:', item.id, error);
       skipped.push({
         id: item.id,
         reason: 'invalid-html',
@@ -163,14 +165,14 @@ export function sanitizeHintsInput(
     }
   }
   
-  console.log('[HintsSanitizer] Sanitization complete:', {
+  logger.info('[HintsSanitizer] Sanitization complete:', {
     total: items.length,
     valid: valid.length,
     skipped: skipped.length,
   });
   
   if (skipped.length > 0) {
-    console.log('[HintsSanitizer] Skipped items:', skipped);
+    logger.info('[HintsSanitizer] Skipped items:', skipped);
   }
   
   return { valid, skipped };

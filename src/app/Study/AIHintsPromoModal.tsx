@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
+import { logger } from '../../utils/logger';
 
 interface AIHintsPromoModalProps {
   visible: boolean;
@@ -16,7 +17,7 @@ export default function AIHintsPromoModal({ visible, onClose, onEnable }: AIHint
 
   React.useEffect(() => {
     if (visible) {
-      console.log('[AIHintsPromoModal] Modal is now visible');
+      logger.info('[AIHintsPromoModal] Modal is now visible');
     }
   }, [visible]);
 
@@ -132,7 +133,7 @@ export default function AIHintsPromoModal({ visible, onClose, onEnable }: AIHint
             <Pressable
               style={[styles.enableButton, { backgroundColor: theme.colors.accent }]}
               onPress={() => {
-                console.log('[AIHintsPromoModal] Enable button pressed');
+                logger.info('[AIHintsPromoModal] Enable button pressed');
                 onEnable();
               }}
             >

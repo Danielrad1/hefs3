@@ -12,13 +12,13 @@ import { bootstrapFromSeed, toViewCard } from '../services/anki/Adapter';
 import { RevlogEase, CardType } from '../services/anki/schema';
 import { isDue } from '../services/anki/time';
 import { PersistenceService } from '../services/anki/PersistenceService';
+import { logger } from '../utils/logger';
 
 interface SchedulerContextValue {
   current: Card | null;
   next: Card | null;
   cardType: CardType | null;
   currentDeckId: string | null;
-  nextCardDueInSeconds: number | null; // Seconds until next card is due (for learning cards)
   answer: (difficulty: Difficulty, responseTimeMs: number) => void;
   bootstrap: (cards: Card[]) => void;
   setDeck: (deckId: string | null) => void;
@@ -47,7 +47,6 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     totalCards: 0,
   });
   const [decks, setDecks] = useState<Array<{ id: string; name: string; cardCount: number; dueCount: number }>>([]);
-  const [nextCardDueInSeconds, setNextCardDueInSeconds] = useState<number | null>(null);
   
   // Debounced save timer
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -61,9 +60,8 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
       try {
         setCurrent(toViewCard(currentAnkiCard, db));
         setCardType(currentAnkiCard.type);
-        setNextCardDueInSeconds(null); // Card available now
       } catch (error) {
-        console.error('[SchedulerProvider] Error loading current card:', error);
+        logger.error('[SchedulerProvider] Error loading current card:', error);
         // Skip this card and try to get next one
         setCurrent(null);
         setCardType(null);
@@ -71,14 +69,13 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     } else {
       setCurrent(null);
       setCardType(null);
-      setNextCardDueInSeconds(null);
     }
 
     if (nextAnkiCard && nextAnkiCard.id !== currentAnkiCard?.id) {
       try {
         setNext(toViewCard(nextAnkiCard, db));
       } catch (error) {
-        console.error('[SchedulerProvider] Error loading next card:', error);
+        logger.error('[SchedulerProvider] Error loading next card:', error);
         setNext(null);
       }
     } else {
@@ -133,7 +130,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
   // Answer current card
   const answer = useCallback((difficulty: Difficulty, responseTimeMs: number) => {
     if (!current) {
-      console.warn('No current card to answer');
+      logger.warn('No current card to answer');
       return;
     }
 
@@ -194,7 +191,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     }
     saveTimerRef.current = setTimeout(() => {
       PersistenceService.save(db).catch((error) => {
-        console.error('[SchedulerProvider] Error saving after review:', error);
+        logger.error('[SchedulerProvider] Error saving after review:', error);
       });
     }, 500);
 
@@ -240,7 +237,6 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     next,
     cardType,
     currentDeckId,
-    nextCardDueInSeconds,
     answer,
     bootstrap,
     setDeck,

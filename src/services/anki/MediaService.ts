@@ -7,6 +7,7 @@ import { InMemoryDb } from './InMemoryDb';
 import { Media } from './schema';
 import { nowSeconds, generateId } from './time';
 import { getMediaUri, MEDIA_DIR, sanitizeMediaFilename } from '../../utils/mediaHelpers';
+import { logger } from '../../utils/logger';
 
 export class MediaService {
   constructor(private db: InMemoryDb) {
@@ -52,7 +53,7 @@ export class MediaService {
     // Check if media with same hash already exists (deduplication)
     const existing = this.db.getMediaByHash(hash);
     if (existing) {
-      console.log('[MediaService] Media with same hash already exists, deduplicating:', existing.filename);
+      logger.info('[MediaService] Media with same hash already exists, deduplicating:', existing.filename);
       return existing;
     }
 
@@ -100,7 +101,7 @@ export class MediaService {
     // Check if file exists
     const fileInfo = await FileSystem.getInfoAsync(localUri);
     if (!fileInfo.exists) {
-      console.warn('[MediaService] File does not exist:', localUri);
+      logger.warn('[MediaService] File does not exist:', localUri);
       return null;
     }
 
@@ -159,7 +160,7 @@ export class MediaService {
             const fileInfo = await FileSystem.getInfoAsync(localUri);
             
             if (!fileInfo.exists) {
-              console.warn('[MediaService] File does not exist:', localUri);
+              logger.warn('[MediaService] File does not exist:', localUri);
               return { filename, media: null };
             }
 
@@ -181,7 +182,7 @@ export class MediaService {
             this.db.addMedia(media);
             return { filename, media };
           } catch (error) {
-            console.error('[MediaService] Error registering media:', filename, error);
+            logger.error('[MediaService] Error registering media:', filename, error);
             return { filename, media: null };
           }
         })
@@ -214,7 +215,7 @@ export class MediaService {
     // Check if media already exists (by filename or hash)
     const existing = this.db.getMediaByFilename(filename) || this.db.getMediaByHash(hash);
     if (existing) {
-      console.log('[MediaService] Media already exists, deduplicating:', filename);
+      logger.info('[MediaService] Media already exists, deduplicating:', filename);
       return existing;
     }
 
@@ -273,7 +274,7 @@ export class MediaService {
     try {
       await FileSystem.deleteAsync(media.localUri, { idempotent: true });
     } catch (error) {
-      console.error('[MediaService] Error deleting file:', error);
+      logger.error('[MediaService] Error deleting file:', error);
     }
 
     // Delete record
@@ -316,7 +317,7 @@ export class MediaService {
       }
     }
 
-    console.log(`[MediaService] Garbage collected ${deletedCount} unused media files`);
+    logger.info(`[MediaService] Garbage collected ${deletedCount} unused media files`);
     return deletedCount;
   }
 
@@ -363,7 +364,7 @@ export class MediaService {
       
       return hash;
     } catch (error) {
-      console.error('[MediaService] Error calculating hash:', error);
+      logger.error('[MediaService] Error calculating hash:', error);
       // Fallback: use file info as hash (still better than random)
       try {
         const fileInfo = await FileSystem.getInfoAsync(uri);

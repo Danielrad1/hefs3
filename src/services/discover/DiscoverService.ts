@@ -2,6 +2,8 @@
  * Service for fetching curated deck catalog from Firebase Hosting
  */
 
+import { logger } from '../../utils/logger';
+
 const HOSTING_BASE = 'https://hefs-b3e45.web.app';
 
 export interface DeckManifest {
@@ -45,12 +47,12 @@ export class DiscoverService {
     
     // Return cached if still valid
     if (this.cache.data && now - this.cache.timestamp < this.CACHE_TTL) {
-      console.log('[DiscoverService] Returning cached catalog');
+      logger.info('[DiscoverService] Returning cached catalog');
       return this.cache.data;
     }
 
     try {
-      console.log('[DiscoverService] Fetching catalog from hosting...');
+      logger.info('[DiscoverService] Fetching catalog from hosting...');
       const response = await fetch(`${HOSTING_BASE}/decks/decks.json`);
       
       if (!response.ok) {
@@ -60,14 +62,14 @@ export class DiscoverService {
       const data: DiscoverCatalog = await response.json();
       this.cache = { data, timestamp: now };
       
-      console.log('[DiscoverService] Catalog loaded:', data.decks.length, 'decks');
+      logger.info('[DiscoverService] Catalog loaded:', data.decks.length, 'decks');
       return data;
     } catch (error) {
-      console.error('[DiscoverService] Failed to fetch catalog:', error);
+      logger.error('[DiscoverService] Failed to fetch catalog:', error);
       
       // Return cached data even if expired, or throw
       if (this.cache.data) {
-        console.log('[DiscoverService] Using stale cache due to error');
+        logger.info('[DiscoverService] Using stale cache due to error');
         return this.cache.data;
       }
       throw error;
@@ -84,7 +86,7 @@ export class DiscoverService {
     const FileSystem = require('expo-file-system/legacy');
     
     try {
-      console.log('[DiscoverService] Downloading deck:', deck.name);
+      logger.info('[DiscoverService] Downloading deck:', deck.name);
       
       // Create a local file path in cache
       const filename = `${deck.id}.apkg`;
@@ -107,10 +109,10 @@ export class DiscoverService {
         throw new Error('Download failed');
       }
       
-      console.log('[DiscoverService] Download complete:', result.uri);
+      logger.info('[DiscoverService] Download complete:', result.uri);
       return result.uri;
     } catch (error) {
-      console.error('[DiscoverService] Deck download failed:', error);
+      logger.error('[DiscoverService] Deck download failed:', error);
       throw error;
     }
   }
@@ -120,6 +122,6 @@ export class DiscoverService {
    */
   static clearCache(): void {
     this.cache = { data: null, timestamp: 0 };
-    console.log('[DiscoverService] Cache cleared');
+    logger.info('[DiscoverService] Cache cleared');
   }
 }

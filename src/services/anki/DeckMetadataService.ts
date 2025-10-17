@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../../utils/logger';
 
 /**
  * Deck customization metadata
@@ -48,7 +49,7 @@ export class DeckMetadataService {
       }
       this.loaded = true;
     } catch (error) {
-      console.error('[DeckMetadata] Failed to load:', error);
+      logger.error('[DeckMetadata] Failed to load:', error);
       this.cache = new Map();
       this.loaded = true;
     }
@@ -63,7 +64,7 @@ export class DeckMetadataService {
       }
       this.foldersLoaded = true;
     } catch (error) {
-      console.error('[FolderMetadata] Failed to load:', error);
+      logger.error('[FolderMetadata] Failed to load:', error);
       this.folderCache = new Map();
       this.foldersLoaded = true;
     }
@@ -239,7 +240,7 @@ export class DeckMetadataService {
       }
       await AsyncStorage.setItem(DECK_METADATA_KEY, JSON.stringify(data));
     } catch (error) {
-      console.error('[DeckMetadata] Failed to save:', error);
+      logger.error('[DeckMetadata] Failed to save:', error);
     }
   }
 
@@ -254,7 +255,7 @@ export class DeckMetadataService {
       }
       await AsyncStorage.setItem(FOLDER_METADATA_KEY, JSON.stringify(data));
     } catch (error) {
-      console.error('[FolderMetadata] Failed to save:', error);
+      logger.error('[FolderMetadata] Failed to save:', error);
     }
   }
 }

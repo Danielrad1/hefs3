@@ -9,6 +9,7 @@ import { db } from '../../services/anki/InMemoryDb';
 import { cardHintsService } from '../../services/anki/CardHintsService';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { HintsInputItem } from '../../services/ai/types';
+import { logger } from '../../utils/logger';
 
 interface ManageHintsScreenProps {
   route: {
@@ -43,7 +44,7 @@ export default function ManageHintsScreen({ route, navigation }: ManageHintsScre
       const count = hints.size;
       setCardsWithHints(count);
     } catch (error) {
-      console.error('[ManageHints] Error loading metadata:', error);
+      logger.error('[ManageHints] Error loading metadata:', error);
     } finally {
       setLoading(false);
     }
@@ -118,7 +119,7 @@ export default function ManageHintsScreen({ route, navigation }: ManageHintsScre
                 items,
               });
             } catch (error) {
-              console.error('[ManageHints] Error preparing regeneration:', error);
+              logger.error('[ManageHints] Error preparing regeneration:', error);
               Alert.alert('Error', 'Failed to prepare hints regeneration');
             }
           },
@@ -146,7 +147,7 @@ export default function ManageHintsScreen({ route, navigation }: ManageHintsScre
               
               navigation.goBack();
             } catch (error) {
-              console.error('[ManageHints] Error deleting hints:', error);
+              logger.error('[ManageHints] Error deleting hints:', error);
               Alert.alert('Error', 'Failed to delete hints');
             }
           },

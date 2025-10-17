@@ -970,10 +970,10 @@ describe('StatsService', () => {
     it('should calculate throughput (RPM, sec/review)', () => {
       const today = new Date(fixedNow).setHours(0, 0, 0, 0);
 
-      // 12 reviews at 5 seconds each
+      // 12 reviews at 5 seconds each (TODAY, not yesterday)
       for (let i = 0; i < 12; i++) {
         db.addRevlog({
-          id: String(today - (1 * 86400000) + i * 1000),
+          id: String(today + i * 1000), // Fixed: use today, not yesterday
           cid: `card${i}`,
           usn: -1,
           ease: RevlogEase.Good,

@@ -18,17 +18,18 @@
 // Import Firebase modules
 import firebase from '@react-native-firebase/app';
 import auth from '@react-native-firebase/auth';
+import { logger } from '../utils/logger';
 
 // Check if Firebase app is initialized (auto-initializes from GoogleService-Info.plist)
 try {
   // Access the default app to ensure it's initialized
   if (firebase.apps && firebase.apps.length > 0) {
-    console.log('[Firebase] App already initialized:', firebase.app().name);
+    logger.info('[Firebase] App already initialized:', firebase.app().name);
   } else {
-    console.log('[Firebase] Waiting for auto-initialization from GoogleService-Info.plist');
+    logger.info('[Firebase] Waiting for auto-initialization from GoogleService-Info.plist');
   }
 } catch (error) {
-  console.error('[Firebase] Initialization check failed:', error);
+  logger.error('[Firebase] Initialization check failed:', error);
 }
 
 // Export Firebase services

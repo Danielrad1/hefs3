@@ -9,6 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 const JSZip = require('jszip');
 import { ApkgParseOptions, StreamingUnzipResult } from './types';
 import { ProgressReporter } from './ProgressReporter';
+import { logger } from '../../../utils/logger';
 
 export class UnzipStrategy {
   private tempDir: string;
@@ -40,7 +41,7 @@ export class UnzipStrategy {
     try {
       const expoZip = this.safeRequire('expo-zip');
       if (expoZip && typeof expoZip.unzipAsync === 'function') {
-        console.log('[UnzipStrategy] Using expo-zip for streaming unzip');
+        logger.info('[UnzipStrategy] Using expo-zip for streaming unzip');
         progress.report('Unzipping with expo-zip…');
         await expoZip.unzipAsync(srcUri, extractedDir);
         const collectionPath = await this.resolveCollectionPath(extractedDir);
@@ -48,14 +49,14 @@ export class UnzipStrategy {
         return { collectionPath, extractedDir };
       }
     } catch (e) {
-      console.warn('[UnzipStrategy] expo-zip unavailable or failed:', e);
+      logger.warn('[UnzipStrategy] expo-zip unavailable or failed:', e);
     }
 
     // Try react-native-zip-archive next
     try {
       const rnza = this.safeRequire('react-native-zip-archive');
       if (rnza && typeof rnza.unzip === 'function') {
-        console.log('[UnzipStrategy] Using react-native-zip-archive for streaming unzip');
+        logger.info('[UnzipStrategy] Using react-native-zip-archive for streaming unzip');
         progress.report('Unzipping with rn-zip-archive…');
         const destFsPath = this.stripFileScheme(extractedDir);
         let unsubscribe: any = null;
@@ -77,7 +78,7 @@ export class UnzipStrategy {
         return { collectionPath, extractedDir };
       }
     } catch (e) {
-      console.warn('[UnzipStrategy] react-native-zip-archive unavailable or failed:', e);
+      logger.warn('[UnzipStrategy] react-native-zip-archive unavailable or failed:', e);
     }
 
     // Cleanup created directory if nothing worked
@@ -92,39 +93,39 @@ export class UnzipStrategy {
    * Works for files up to ~100MB depending on device
    */
   async readAndUnzipWithJSZip(fileUri: string, fileSizeMB: number): Promise<any> {
-    console.log('[UnzipStrategy] Reading file...');
+    logger.info('[UnzipStrategy] Reading file...');
 
     // Use different strategies based on file size to handle large files
     if (fileSizeMB > 100) {
-      console.log('[UnzipStrategy] Using chunked reading for large file...');
+      logger.info('[UnzipStrategy] Using chunked reading for large file...');
       return this.readLargeFileAsZip(fileUri, fileSizeMB);
     }
 
     // Prefer ArrayBuffer path even for medium files to avoid huge strings
     try {
-      console.log('[UnzipStrategy] Reading via fetch -> ArrayBuffer...');
+      logger.info('[UnzipStrategy] Reading via fetch -> ArrayBuffer...');
       const res = await fetch(fileUri);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
       const blob = await res.blob();
-      console.log('[UnzipStrategy] Converting to ArrayBuffer...');
+      logger.info('[UnzipStrategy] Converting to ArrayBuffer...');
       const arrayBuffer = await blob.arrayBuffer();
-      console.log(
+      logger.info(
         '[UnzipStrategy] Calling JSZip.loadAsync(ArrayBuffer) byteLength=',
         (arrayBuffer as any)?.byteLength || 'unknown'
       );
       const zip = await JSZip.loadAsync(arrayBuffer);
-      console.log('[UnzipStrategy] JSZip.loadAsync(ArrayBuffer) finished');
+      logger.info('[UnzipStrategy] JSZip.loadAsync(ArrayBuffer) finished');
       return zip;
     } catch (e) {
-      console.warn('[UnzipStrategy] ArrayBuffer read failed, falling back to base64', e);
+      logger.warn('[UnzipStrategy] ArrayBuffer read failed, falling back to base64', e);
       const base64Fallback = await FileSystem.readAsStringAsync(fileUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      console.log('[UnzipStrategy] Calling JSZip.loadAsync(base64) length=', base64Fallback.length);
+      logger.info('[UnzipStrategy] Calling JSZip.loadAsync(base64) length=', base64Fallback.length);
       const zip = await JSZip.loadAsync(base64Fallback, { base64: true });
-      console.log('[UnzipStrategy] JSZip.loadAsync(base64) finished');
+      logger.info('[UnzipStrategy] JSZip.loadAsync(base64) finished');
       return zip;
     }
   }
@@ -134,11 +135,11 @@ export class UnzipStrategy {
    * Unfortunately, React Native/JavaScript has fundamental limits for very large files
    */
   private async readLargeFileAsZip(fileUri: string, fileSizeMB: number): Promise<any> {
-    console.log('[UnzipStrategy] Attempting to read large file with memory management...');
+    logger.info('[UnzipStrategy] Attempting to read large file with memory management...');
 
     // Try ArrayBuffer path first to avoid giant strings
     try {
-      console.log('[UnzipStrategy] Reading large file using fetch API...');
+      logger.info('[UnzipStrategy] Reading large file using fetch API...');
       const res: any = await fetch(fileUri);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -146,12 +147,12 @@ export class UnzipStrategy {
       // Prefer Response.arrayBuffer if available in this RN runtime
       let arrayBuffer: ArrayBuffer;
       if (typeof res.arrayBuffer === 'function') {
-        console.log('[UnzipStrategy] Using Response.arrayBuffer()');
+        logger.info('[UnzipStrategy] Using Response.arrayBuffer()');
         arrayBuffer = await res.arrayBuffer();
       } else if (typeof res.blob === 'function') {
         const blob: any = await res.blob();
         if (blob && typeof blob.arrayBuffer === 'function') {
-          console.log('[UnzipStrategy] Converting Blob to ArrayBuffer...');
+          logger.info('[UnzipStrategy] Converting Blob to ArrayBuffer...');
           arrayBuffer = await blob.arrayBuffer();
         } else {
           throw new Error('Blob.arrayBuffer not supported in this environment');
@@ -159,25 +160,25 @@ export class UnzipStrategy {
       } else {
         throw new Error('Response.arrayBuffer/Blob not supported in this environment');
       }
-      console.log('[UnzipStrategy] Loading ZIP from ArrayBuffer...');
+      logger.info('[UnzipStrategy] Loading ZIP from ArrayBuffer...');
       const zip = await JSZip.loadAsync(arrayBuffer);
-      console.log('[UnzipStrategy] Large file loaded successfully (ArrayBuffer path)');
+      logger.info('[UnzipStrategy] Large file loaded successfully (ArrayBuffer path)');
       return zip;
     } catch (arrayBufferErr) {
-      console.warn('[UnzipStrategy] ArrayBuffer path failed, trying base64 fallback...', arrayBufferErr);
+      logger.warn('[UnzipStrategy] ArrayBuffer path failed, trying base64 fallback...', arrayBufferErr);
 
       try {
-        console.log('[UnzipStrategy] Reading as base64 fallback...');
+        logger.info('[UnzipStrategy] Reading as base64 fallback...');
         const base64 = await FileSystem.readAsStringAsync(fileUri, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        console.log('[UnzipStrategy] Base64 length:', (base64.length / (1024 * 1024)).toFixed(2), 'MB');
-        console.log('[UnzipStrategy] Loading ZIP from base64...');
+        logger.info('[UnzipStrategy] Base64 length:', (base64.length / (1024 * 1024)).toFixed(2), 'MB');
+        logger.info('[UnzipStrategy] Loading ZIP from base64...');
         const zip = await JSZip.loadAsync(base64, { base64: true });
-        console.log('[UnzipStrategy] Large file loaded successfully (base64 fallback)');
+        logger.info('[UnzipStrategy] Large file loaded successfully (base64 fallback)');
         return zip;
       } catch (error) {
-        console.error('[UnzipStrategy] Error reading large file:', error);
+        logger.error('[UnzipStrategy] Error reading large file:', error);
 
         if (
           error instanceof Error &&
@@ -202,52 +203,52 @@ export class UnzipStrategy {
    */
   async extractCollectionFromZip(zip: any): Promise<string> {
     // Try collection.anki21 first (newer format), fall back to collection.anki2
-    console.log('[UnzipStrategy] Checking for collection files...');
+    logger.info('[UnzipStrategy] Checking for collection files...');
     let collectionFile = zip.file('collection.anki21');
     if (collectionFile) {
-      console.log('[UnzipStrategy] Using collection.anki21 (Anki 2.1 format)');
+      logger.info('[UnzipStrategy] Using collection.anki21 (Anki 2.1 format)');
     } else {
-      console.log('[UnzipStrategy] collection.anki21 not found, trying collection.anki2');
+      logger.info('[UnzipStrategy] collection.anki21 not found, trying collection.anki2');
       collectionFile = zip.file('collection.anki2');
       if (!collectionFile) {
         throw new Error('No collection file found in .apkg');
       }
-      console.log('[UnzipStrategy] Using collection.anki2 (legacy format)');
+      logger.info('[UnzipStrategy] Using collection.anki2 (legacy format)');
     }
 
     // Extract as base64 directly (avoids ZIP-wide string, but still creates a large string for the DB)
     let collectionBase64: string;
     try {
-      console.log('[UnzipStrategy] Extracting collection as base64…');
+      logger.info('[UnzipStrategy] Extracting collection as base64…');
       collectionBase64 = await collectionFile.async('base64');
-      console.log('[UnzipStrategy] Extracted base64 length:', collectionBase64.length);
+      logger.info('[UnzipStrategy] Extracted base64 length:', collectionBase64.length);
     } catch (e) {
-      console.error('[UnzipStrategy] Error extracting collection as base64:', e);
+      logger.error('[UnzipStrategy] Error extracting collection as base64:', e);
       throw new Error(
         'Failed to extract collection from archive. On very large decks, enable streaming unzip (expo-zip or react-native-zip-archive) to avoid huge base64 strings.'
       );
     }
 
     const collectionPath = `${this.tempDir}collection.anki2`;
-    console.log('[UnzipStrategy] Writing to:', collectionPath);
+    logger.info('[UnzipStrategy] Writing to:', collectionPath);
 
     // Write SQLite file from base64
     await FileSystem.writeAsStringAsync(collectionPath, collectionBase64, {
       encoding: FileSystem.EncodingType.Base64,
     });
-    console.log('[UnzipStrategy] Write complete');
+    logger.info('[UnzipStrategy] Write complete');
 
     // Verify file was written
     const writtenInfo = await FileSystem.getInfoAsync(collectionPath);
-    console.log('[UnzipStrategy] File written, exists:', writtenInfo.exists);
+    logger.info('[UnzipStrategy] File written, exists:', writtenInfo.exists);
 
     // Decode first 16 bytes using the already available base64 string to verify SQLite header
     // SQLite files start with "SQLite format 3\0" (hex: 53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00)
-    console.log('[UnzipStrategy] First 50 chars of base64:', collectionBase64.substring(0, 50));
+    logger.info('[UnzipStrategy] First 50 chars of base64:', collectionBase64.substring(0, 50));
     const headerBase64 = collectionBase64.substring(0, 24); // ~16 bytes in base64
     const headerBinary = this.base64DecodeHeader(headerBase64);
-    console.log('[UnzipStrategy] First 16 bytes as string:', headerBinary);
-    console.log('[UnzipStrategy] Expected: "SQLite format 3"');
+    logger.info('[UnzipStrategy] First 16 bytes as string:', headerBinary);
+    logger.info('[UnzipStrategy] Expected: "SQLite format 3"');
 
     return collectionPath;
   }
@@ -264,7 +265,7 @@ export class UnzipStrategy {
       }
       return null;
     } catch (e) {
-      console.log('[UnzipStrategy] Failed to require', moduleId, ':', e);
+      logger.info('[UnzipStrategy] Failed to require', moduleId, ':', e);
       return null;
     }
   }

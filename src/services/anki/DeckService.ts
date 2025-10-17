@@ -6,6 +6,7 @@ import { InMemoryDb } from './InMemoryDb';
 import { Deck, DEFAULT_DECK_ID } from './schema';
 import { nowSeconds, generateId } from './time';
 import { MediaService } from './MediaService';
+import { logger } from '../../utils/logger';
 
 export class DeckService {
   private mediaService: MediaService;
@@ -172,9 +173,9 @@ export class DeckService {
     
     // Clean up orphaned media files
     if (options?.deleteCards) {
-      console.log('[DeckService] Cleaning up orphaned media files...');
+      logger.info('[DeckService] Cleaning up orphaned media files...');
       const deletedCount = await this.mediaService.gcUnused();
-      console.log(`[DeckService] Deleted ${deletedCount} orphaned media files`);
+      logger.info(`[DeckService] Deleted ${deletedCount} orphaned media files`);
     }
   }
 

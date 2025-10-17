@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { logger } from '../utils/logger';
 
 const NOTIFICATION_SETTINGS_KEY = '@notificationSettings';
 const NOTIFICATION_ID_KEY = '@dailyNotificationId';
@@ -44,7 +45,7 @@ export class NotificationService {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('[Notifications] Permission denied');
+        logger.info('[Notifications] Permission denied');
         return false;
       }
 
@@ -65,10 +66,10 @@ export class NotificationService {
         });
       }
 
-      console.log('[Notifications] Permission granted');
+      logger.info('[Notifications] Permission granted');
       return true;
     } catch (error) {
-      console.error('[Notifications] Error requesting permissions:', error);
+      logger.error('[Notifications] Error requesting permissions:', error);
       return false;
     }
   }
@@ -81,7 +82,7 @@ export class NotificationService {
       const { status } = await Notifications.getPermissionsAsync();
       return status === 'granted';
     } catch (error) {
-      console.error('[Notifications] Error checking permissions:', error);
+      logger.error('[Notifications] Error checking permissions:', error);
       return false;
     }
   }
@@ -97,7 +98,7 @@ export class NotificationService {
       }
       return { ...DEFAULT_SETTINGS };
     } catch (error) {
-      console.error('[Notifications] Error loading settings:', error);
+      logger.error('[Notifications] Error loading settings:', error);
       return { ...DEFAULT_SETTINGS };
     }
   }
@@ -109,7 +110,7 @@ export class NotificationService {
     try {
       await AsyncStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(settings));
     } catch (error) {
-      console.error('[Notifications] Error saving settings:', error);
+      logger.error('[Notifications] Error saving settings:', error);
       throw error;
     }
   }
@@ -138,7 +139,7 @@ export class NotificationService {
 
       return true;
     } catch (error) {
-      console.error('[Notifications] Error setting notifications enabled:', error);
+      logger.error('[Notifications] Error setting notifications enabled:', error);
       return false;
     }
   }
@@ -169,7 +170,7 @@ export class NotificationService {
 
       return true;
     } catch (error) {
-      console.error('[Notifications] Error setting daily reminder:', error);
+      logger.error('[Notifications] Error setting daily reminder:', error);
       return false;
     }
   }
@@ -187,7 +188,7 @@ export class NotificationService {
         await this.scheduleDailyReminder({ hour, minute });
       }
     } catch (error) {
-      console.error('[Notifications] Error setting reminder time:', error);
+      logger.error('[Notifications] Error setting reminder time:', error);
       throw error;
     }
   }
@@ -220,9 +221,9 @@ export class NotificationService {
       // Save the notification ID
       await AsyncStorage.setItem(NOTIFICATION_ID_KEY, identifier);
 
-      console.log('[Notifications] Daily reminder scheduled for', `${time.hour}:${String(time.minute).padStart(2, '0')}`);
+      logger.info('[Notifications] Daily reminder scheduled for', `${time.hour}:${String(time.minute).padStart(2, '0')}`);
     } catch (error) {
-      console.error('[Notifications] Error scheduling daily reminder:', error);
+      logger.error('[Notifications] Error scheduling daily reminder:', error);
       throw error;
     }
   }
@@ -236,10 +237,10 @@ export class NotificationService {
       if (notificationId) {
         await Notifications.cancelScheduledNotificationAsync(notificationId);
         await AsyncStorage.removeItem(NOTIFICATION_ID_KEY);
-        console.log('[Notifications] Daily reminder cancelled');
+        logger.info('[Notifications] Daily reminder cancelled');
       }
     } catch (error) {
-      console.error('[Notifications] Error cancelling daily reminder:', error);
+      logger.error('[Notifications] Error cancelling daily reminder:', error);
     }
   }
 
@@ -250,9 +251,9 @@ export class NotificationService {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
       await AsyncStorage.removeItem(NOTIFICATION_ID_KEY);
-      console.log('[Notifications] All notifications cancelled');
+      logger.info('[Notifications] All notifications cancelled');
     } catch (error) {
-      console.error('[Notifications] Error cancelling all notifications:', error);
+      logger.error('[Notifications] Error cancelling all notifications:', error);
     }
   }
 
@@ -263,7 +264,7 @@ export class NotificationService {
     try {
       const hasPermission = await this.hasPermissions();
       if (!hasPermission) {
-        console.log('[Notifications] No permission to send notification');
+        logger.info('[Notifications] No permission to send notification');
         return;
       }
 
@@ -276,7 +277,7 @@ export class NotificationService {
         trigger: null, // Send immediately
       });
     } catch (error) {
-      console.error('[Notifications] Error sending notification:', error);
+      logger.error('[Notifications] Error sending notification:', error);
     }
   }
 
@@ -287,7 +288,7 @@ export class NotificationService {
     try {
       return await Notifications.getAllScheduledNotificationsAsync();
     } catch (error) {
-      console.error('[Notifications] Error getting scheduled notifications:', error);
+      logger.error('[Notifications] Error getting scheduled notifications:', error);
       return [];
     }
   }

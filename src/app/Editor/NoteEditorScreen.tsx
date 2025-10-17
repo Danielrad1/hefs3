@@ -18,6 +18,7 @@ import { useScheduler } from '../../context/SchedulerProvider';
 import WYSIWYGEditor, { WYSIWYGEditorRef } from '../../components/WYSIWYGEditor';
 import MediaPickerSheet, { MediaType } from '../../components/MediaPickerSheet';
 import { FIELD_SEPARATOR, MODEL_TYPE_CLOZE } from '../../services/anki/schema';
+import { logger } from '../../utils/logger';
 
 interface NoteEditorScreenProps {
   route?: {
@@ -150,7 +151,7 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
         }
       }
     } catch (error) {
-      console.error('[NoteEditor] Error adding media:', error);
+      logger.error('[NoteEditor] Error adding media:', error);
       Alert.alert('Error', `Failed to add media: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -210,7 +211,7 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
         },
       ]);
     } catch (error) {
-      console.error('[NoteEditor] Error saving:', error);
+      logger.error('[NoteEditor] Error saving:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save note');
     } finally {
       setIsSaving(false);

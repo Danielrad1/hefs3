@@ -4,6 +4,7 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { InMemoryDb } from './InMemoryDb';
+import { logger } from '../../utils/logger';
 
 const DB_FILE = `${FileSystem.documentDirectory}anki-db.json`;
 
@@ -23,7 +24,7 @@ export class PersistenceService {
       const json = db.toJSON();
       await FileSystem.writeAsStringAsync(DB_FILE, json);
     } catch (error) {
-      console.error('[PersistenceService] Error saving database:', error);
+      logger.error('[PersistenceService] Error saving database:', error);
       throw error;
     }
   }
@@ -36,16 +37,16 @@ export class PersistenceService {
       const fileInfo = await FileSystem.getInfoAsync(DB_FILE);
       
       if (!fileInfo.exists) {
-        console.log('[PersistenceService] No saved database found');
+        logger.info('[PersistenceService] No saved database found');
         return false;
       }
 
       const json = await FileSystem.readAsStringAsync(DB_FILE);
       db.fromJSON(json);
-      console.log('[PersistenceService] Database loaded successfully');
+      logger.info('[PersistenceService] Database loaded successfully');
       return true;
     } catch (error) {
-      console.error('[PersistenceService] Error loading database:', error);
+      logger.error('[PersistenceService] Error loading database:', error);
       return false;
     }
   }
@@ -64,9 +65,9 @@ export class PersistenceService {
   static async clear(): Promise<void> {
     try {
       await FileSystem.deleteAsync(DB_FILE, { idempotent: true });
-      console.log('[PersistenceService] Database file deleted');
+      logger.info('[PersistenceService] Database file deleted');
     } catch (error) {
-      console.error('[PersistenceService] Error deleting database:', error);
+      logger.error('[PersistenceService] Error deleting database:', error);
     }
   }
 }

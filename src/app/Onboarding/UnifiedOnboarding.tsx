@@ -16,6 +16,7 @@ import ProfileStep from './components/ProfileStep';
 import StudyGoalStep from './components/StudyGoalStep';
 import ThemeStep from './components/ThemeStep';
 import NotificationsStep from './components/NotificationsStep';
+import { logger } from '../../utils/logger';
 
 const { width } = Dimensions.get('window');
 
@@ -92,7 +93,7 @@ export default function UnifiedOnboarding({ onComplete }: UnifiedOnboardingProps
 
       onComplete();
     } catch (error) {
-      console.error('[UnifiedOnboarding] Error saving:', error);
+      logger.error('[UnifiedOnboarding] Error saving:', error);
       onComplete(); // Complete anyway
     }
   };

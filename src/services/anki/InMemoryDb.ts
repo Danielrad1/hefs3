@@ -20,6 +20,7 @@ import {
   MODEL_TYPE_CLOZE,
 } from './schema';
 import { nowSeconds, nowMillis, generateId } from './time';
+import { logger } from '../../utils/logger';
 import {
   CardRepository,
   NoteRepository,
@@ -466,7 +467,7 @@ export class InMemoryDb {
   // ==========================================================================
 
   clear(): void {
-    console.log('[InMemoryDb] Clearing all data...');
+    logger.info('[InMemoryDb] Clearing all data...');
     this.cards.clear();
     this.notes.clear();
     this.decks.clear();
@@ -480,7 +481,7 @@ export class InMemoryDb {
     
     // Reinitialize with defaults
     this.initializeCollection();
-    console.log('[InMemoryDb] Database cleared and reinitialized');
+    logger.info('[InMemoryDb] Database cleared and reinitialized');
   }
 
   /**
@@ -493,14 +494,14 @@ export class InMemoryDb {
     allCards.forEach(card => {
       const note = this.notes.get(card.nid);
       if (!note) {
-        console.warn('[InMemoryDb] Removing orphaned card:', card.id, 'missing note:', card.nid);
+        logger.warn('[InMemoryDb] Removing orphaned card:', card.id, 'missing note:', card.nid);
         this.cards.delete(card.id);
         removedCount++;
       }
     });
     
     if (removedCount > 0) {
-      console.log('[InMemoryDb] Removed', removedCount, 'orphaned cards');
+      logger.info('[InMemoryDb] Removed', removedCount, 'orphaned cards');
     }
     
     return removedCount;
@@ -571,7 +572,7 @@ export class InMemoryDb {
       throw new Error('Invalid snapshot: col must be an object');
     }
 
-    console.log('[InMemoryDb] Restoring snapshot from', snapshot.timestamp ? new Date(snapshot.timestamp).toISOString() : 'unknown time');
+    logger.info('[InMemoryDb] Restoring snapshot from', snapshot.timestamp ? new Date(snapshot.timestamp).toISOString() : 'unknown time');
 
     // Clear existing data
     this.cards.clear();
@@ -606,16 +607,19 @@ export class InMemoryDb {
       this.colConfig = snapshot.colConfig;
       this.usn = snapshot.usn;
       
+      // Note: USN propagation to repos would require adding setUsn methods to repositories
+      // For now, repos will use stale USN until next update. This is a known limitation.
+      
       // Cleanup orphaned cards after loading
       const orphanedCount = this.cleanupOrphanedCards();
       if (orphanedCount > 0) {
-        console.log('[InMemoryDb] Cleaned up', orphanedCount, 'orphaned cards after loading');
+        logger.info('[InMemoryDb] Cleaned up', orphanedCount, 'orphaned cards after loading');
       }
       
-      console.log('[InMemoryDb] Snapshot restored successfully');
+      logger.info('[InMemoryDb] Snapshot restored successfully');
     } catch (restoreError) {
       // If restoration fails, reinitialize to prevent corrupted state
-      console.error('[InMemoryDb] Failed to restore snapshot, reinitializing:', restoreError);
+      logger.error('[InMemoryDb] Failed to restore snapshot, reinitializing:', restoreError);
       this.clear();
       throw new Error(`Failed to restore database snapshot: ${restoreError instanceof Error ? restoreError.message : 'Unknown error'}`);
     }

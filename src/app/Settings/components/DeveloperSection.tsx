@@ -4,6 +4,7 @@ import PrimaryButton from '../../../components/PrimaryButton';
 import { ApiService, UserInfo } from '../../../services/cloud';
 import { useTheme } from '../../../design/theme';
 import { useAuth } from '../../../context/AuthContext';
+import { logger } from '../../../utils/logger';
 
 /**
  * Developer section for testing backend connection
@@ -19,7 +20,7 @@ export const DeveloperSection: React.FC = () => {
     try {
       setTesting(true);
       const apiUrl = ApiService.getBaseUrl();
-      console.log('[Developer] Testing health check:', apiUrl);
+      logger.info('[Developer] Testing health check:', apiUrl);
       
       const isHealthy = await ApiService.checkHealth();
       
@@ -31,7 +32,7 @@ export const DeveloperSection: React.FC = () => {
         Alert.alert('Error', 'Backend health check failed');
       }
     } catch (error: any) {
-      console.error('[Developer] Health check error:', error);
+      logger.error('[Developer] Health check error:', error);
       setLastTest(`❌ Error: ${error.message}`);
       Alert.alert('Error', error.message);
     } finally {
@@ -42,7 +43,7 @@ export const DeveloperSection: React.FC = () => {
   const testAuthenticatedEndpoint = async () => {
     try {
       setTesting(true);
-      console.log('[Developer] Testing authenticated endpoint');
+      logger.info('[Developer] Testing authenticated endpoint');
       
       const userInfo = await ApiService.get<UserInfo>('/user/me');
       
@@ -52,7 +53,7 @@ export const DeveloperSection: React.FC = () => {
         `Authenticated as: ${userInfo.email}\nUID: ${userInfo.uid}\nPremium: ${userInfo.premium}`
       );
     } catch (error: any) {
-      console.error('[Developer] Auth test error:', error);
+      logger.error('[Developer] Auth test error:', error);
       setLastTest(`❌ Error: ${error.message}`);
       Alert.alert('Error', error.message);
     } finally {
@@ -64,7 +65,7 @@ export const DeveloperSection: React.FC = () => {
     try {
       const token = await getIdToken(true);
       if (token) {
-        console.log('[Developer] Firebase Token:', token);
+        logger.info('[Developer] Firebase Token:', token);
         Alert.alert('Token', `Token logged to console (${token.substring(0, 20)}...)`);
       } else {
         Alert.alert('Error', 'No token available');
@@ -77,7 +78,7 @@ export const DeveloperSection: React.FC = () => {
   const showApiUrl = () => {
     const url = ApiService.getBaseUrl();
     Alert.alert('API Base URL', url);
-    console.log('[Developer] API URL:', url);
+    logger.info('[Developer] API URL:', url);
   };
 
   return (

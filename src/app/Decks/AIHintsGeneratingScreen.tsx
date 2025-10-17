@@ -11,6 +11,7 @@ import { HintsInputItem } from '../../services/ai/types';
 import HintsSuccessModal from '../../components/HintsSuccessModal';
 import { db } from '../../services/anki/InMemoryDb';
 import { useScheduler } from '../../context/SchedulerProvider';
+import { logger } from '../../utils/logger';
 
 interface AIHintsGeneratingScreenProps {
   route: {
@@ -120,7 +121,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
   const generateHints = useCallback(async () => {
     // Prevent multiple simultaneous executions
     if (isGenerating) {
-      console.log('[AIHintsGenerating] Already generating, skipping duplicate call');
+      logger.info('[AIHintsGenerating] Already generating, skipping duplicate call');
       return;
     }
 
@@ -134,7 +135,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       });
 
       if (skipped.length > 0) {
-        console.warn('[AIHintsGenerating] Skipped', skipped.length, 'cards:', skipped);
+        logger.warn('[AIHintsGenerating] Skipped', skipped.length, 'cards:', skipped);
       }
 
       // If all cards were skipped, show helpful message
@@ -157,7 +158,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       setStatus('Saving hints...');
 
       // Convert results to CardHint format and save
-      console.log('[AIHintsGenerating] ===== GENERATED HINTS =====');
+      logger.info('[AIHintsGenerating] ===== GENERATED HINTS =====');
       const hintsToSave = hints.map(result => {
         const inputItem = items.find(i => i.id === result.id);
         const contentHash = CardHintsService.generateContentHash({
@@ -167,18 +168,18 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         });
 
         // Log each card with its hints
-        console.log(`\n[Card ${result.id}]`);
-        console.log('Front:', inputItem?.front?.substring(0, 100) + (inputItem?.front && inputItem.front.length > 100 ? '...' : ''));
-        console.log('Back:', inputItem?.back?.substring(0, 100) + (inputItem?.back && inputItem.back.length > 100 ? '...' : ''));
+        logger.info(`\n[Card ${result.id}]`);
+        logger.info('Front:', inputItem?.front?.substring(0, 100) + (inputItem?.front && inputItem.front.length > 100 ? '...' : ''));
+        logger.info('Back:', inputItem?.back?.substring(0, 100) + (inputItem?.back && inputItem.back.length > 100 ? '...' : ''));
         if (inputItem?.cloze) {
-          console.log('Cloze:', inputItem.cloze.substring(0, 100) + (inputItem.cloze.length > 100 ? '...' : ''));
+          logger.info('Cloze:', inputItem.cloze.substring(0, 100) + (inputItem.cloze.length > 100 ? '...' : ''));
         }
-        console.log('🎯 Obstacle:', result.obstacle || 'not specified');
-        console.log('💡 Hint L1:', result.hintL1);
-        console.log('💡 Hint L2:', result.hintL2);
-        console.log('💡 Hint L3:', result.hintL3);
-        console.log('✨ Tip:', result.tip);
-        console.log('---');
+        logger.info('🎯 Obstacle:', result.obstacle || 'not specified');
+        logger.info('💡 Hint L1:', result.hintL1);
+        logger.info('💡 Hint L2:', result.hintL2);
+        logger.info('💡 Hint L3:', result.hintL3);
+        logger.info('✨ Tip:', result.tip);
+        logger.info('---');
 
         return {
           cardId: result.id,
@@ -195,7 +196,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
           contentHash,
         };
       });
-      console.log('[AIHintsGenerating] ===== END HINTS =====');
+      logger.info('[AIHintsGenerating] ===== END HINTS =====');
 
       await cardHintsService.setMany(deckId, hintsToSave);
       
@@ -210,7 +211,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         setShowSuccessModal(true);
       }, 500);
     } catch (error) {
-      console.error('[AIHintsGenerating] Generation failed:', error);
+      logger.error('[AIHintsGenerating] Generation failed:', error);
       setStatus('Generation failed. Please try again.');
       setIsGenerating(false);
       

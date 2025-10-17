@@ -10,6 +10,7 @@ import { r } from '../design/radii';
 import * as Haptics from 'expo-haptics';
 import { ImageCache } from '../utils/ImageCache';
 import { getMediaUri } from '../utils/mediaHelpers';
+import { logger } from '../utils/logger';
 
 interface CardContentRendererProps {
   html: string;
@@ -349,7 +350,7 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
         // Use canonical media URI helper
         const mediaPath = getMediaUri(filename);
         
-        console.log('[AudioPlayer] Loading audio:', filename, '→', mediaPath);
+        logger.info('[AudioPlayer] Loading audio:', filename, '→', mediaPath);
         
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: mediaPath },
@@ -369,9 +370,9 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
         );
 
         setSound(newSound);
-        console.log('[AudioPlayer] Audio loaded successfully:', filename);
+        logger.info('[AudioPlayer] Audio loaded successfully:', filename);
       } catch (error) {
-        console.error('[AudioPlayer] Error loading audio:', filename, error);
+        logger.error('[AudioPlayer] Error loading audio:', filename, error);
       }
     };
 
@@ -384,7 +385,7 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
       if (sound) {
         sound.stopAsync()
           .then(() => sound.unloadAsync())
-          .catch((e) => console.error('[AudioPlayer] Cleanup error:', e));
+          .catch((e) => logger.error('[AudioPlayer] Cleanup error:', e));
       }
     };
   }, [filename, sound, cardId]);
@@ -409,7 +410,7 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
         }
       }
     } catch (error) {
-      console.error('[AudioPlayer] Error toggling playback:', error);
+      logger.error('[AudioPlayer] Error toggling playback:', error);
     }
   };
 
@@ -424,7 +425,7 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
       await sound.playAsync();
       setIsPlaying(true);
     } catch (error) {
-      console.error('[AudioPlayer] Error replaying:', error);
+      logger.error('[AudioPlayer] Error replaying:', error);
     }
   };
 

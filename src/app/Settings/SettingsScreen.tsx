@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Switch, Alert, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Switch, Alert, Modal, TextInput } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +11,7 @@ import { r } from '../../design/radii';
 import { useAuth } from '../../context/AuthContext';
 import { NotificationService } from '../../services/NotificationService';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
+import { logger } from '../../utils/logger';
 
 type ColorScheme = 'sunset' | 'ocean' | 'forest' | 'neon';
 
@@ -94,7 +96,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         }
       }
     } catch (error) {
-      console.error('[Settings] Error loading settings:', error);
+      logger.error('[Settings] Error loading settings:', error);
     }
   };
 
@@ -162,7 +164,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('⭐ Memorize Pro', 'Unlock unlimited decks, advanced analytics, cloud sync, and priority support!\n\n• Unlimited flashcard decks\n• Advanced statistics & insights\n• Automatic cloud backup\n• Priority email support\n• Ad-free experience\n\nOnly $4.99/month or $39.99/year', [
       { text: 'Maybe Later', style: 'cancel' },
-      { text: 'Subscribe Now', onPress: () => console.log('Subscribe pressed') },
+      { text: 'Subscribe Now', onPress: () => logger.info('Subscribe pressed') },
     ]);
   };
 
@@ -299,19 +301,24 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             </View>
             <Text style={[styles.goalModalTitle, { color: theme.colors.textHigh }]}>Daily Study Goal</Text>
             <Text style={[styles.goalModalSubtitle, { color: theme.colors.textMed }]}>How many minutes do you want to study each day?</Text>
-            <View style={styles.goalInputContainer}>
-              <TextInput 
-                style={[styles.goalInput, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, color: theme.colors.textHigh }]} 
-                value={tempGoal} 
-                onChangeText={setTempGoal} 
-                keyboardType="number-pad" 
-                autoFocus 
-                maxLength={3}
-                selectTextOnFocus
+            <View style={styles.sliderContainer}>
+              <Text style={[styles.sliderValue, { color: theme.colors.primary }]}>{tempGoal} minutes</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={5}
+                maximumValue={180}
+                step={5}
+                value={parseInt(tempGoal || '15', 10)}
+                onValueChange={(value) => setTempGoal(value.toString())}
+                minimumTrackTintColor={theme.colors.primary}
+                maximumTrackTintColor={theme.colors.border}
+                thumbTintColor={theme.colors.primary}
               />
-              <Text style={[styles.goalInputLabel, { color: theme.colors.textMed }]}>minutes</Text>
+              <View style={styles.sliderLabels}>
+                <Text style={[styles.sliderLabel, { color: theme.colors.textLow }]}>5 min</Text>
+                <Text style={[styles.sliderLabel, { color: theme.colors.textLow }]}>180 min</Text>
+              </View>
             </View>
-            <Text style={[styles.goalHint, { color: theme.colors.textLow }]}>Choose between 1-180 minutes</Text>
             <View style={styles.modalButtons}>
               <Pressable style={[styles.modalButton, { backgroundColor: theme.colors.surface }]} onPress={() => setShowGoalModal(false)}>
                 <Text style={[styles.modalButtonText, { color: theme.colors.textHigh }]}>Cancel</Text>
@@ -391,6 +398,11 @@ const styles = StyleSheet.create({
   goalInput: { width: 100, borderWidth: 2, borderRadius: r.md, padding: s.lg, fontSize: 32, fontWeight: '700', textAlign: 'center' },
   goalInputLabel: { fontSize: 18, fontWeight: '600' },
   goalHint: { fontSize: 13, marginBottom: s.lg },
+  sliderContainer: { width: '100%', gap: s.md, marginBottom: s.md },
+  sliderValue: { fontSize: 48, fontWeight: '800', textAlign: 'center' },
+  slider: { width: '100%', height: 40 },
+  sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: s.xs },
+  sliderLabel: { fontSize: 12, fontWeight: '500' },
   modalButtons: { flexDirection: 'row', gap: s.sm, width: '100%' },
   modalButton: { flex: 1, padding: s.md, borderRadius: r.md, alignItems: 'center' },
   modalButtonText: { fontSize: 16, fontWeight: '600' },

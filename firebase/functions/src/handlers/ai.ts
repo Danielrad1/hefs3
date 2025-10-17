@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { GenerateDeckRequestSchema, ModelInfo } from '../types/ai';
 import { OpenAIProvider } from '../services/ai/OpenAIProvider';
 import { AI_CONFIG } from '../config/ai';
+import { logger } from '../utils/logger';
 
 /**
  * POST /ai/deck/generate
@@ -26,7 +27,7 @@ export const generateDeck = async (req: Request, res: Response) => {
     // Get API key from environment
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      console.error('[AI] OPENAI_API_KEY environment variable not configured');
+      logger.error('[AI] OPENAI_API_KEY environment variable not configured');
       return res.status(500).json({
         success: false,
         error: {
@@ -45,7 +46,7 @@ export const generateDeck = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error) {
-    console.error('[AI] Generate deck error:', error);
+    logger.error('[AI] Generate deck error:', error);
     return res.status(500).json({
       success: false,
       error: {

@@ -12,7 +12,7 @@ export default ({ config }) => ({
     // Feature Flags
     enableCloudBackup: process.env.ENABLE_CLOUD_BACKUP !== 'false',
     enableAiFeatures: process.env.ENABLE_AI_FEATURES === 'true',
-    alwaysShowTutorial: process.env.ALWAYS_SHOW_TUTORIAL === 'true' || true, // Default ON - set to false later
+    alwaysShowTutorial: process.env.ALWAYS_SHOW_TUTORIAL === 'true' ? true : false, // Proper default handling
     
     // Environment
     environment: process.env.APP_ENV || 'development',

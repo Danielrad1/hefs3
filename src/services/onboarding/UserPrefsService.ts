@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../../config/firebase';
+import { logger } from '../../utils/logger';
 
 /**
  * User profile information collected during onboarding
@@ -58,7 +59,7 @@ export class UserPrefsService {
       const value = await AsyncStorage.getItem(this.getOnboardingKey(uid));
       return value === 'true';
     } catch (error) {
-      console.error('[UserPrefs] Error getting onboarding status:', error);
+      logger.error('[UserPrefs] Error getting onboarding status:', error);
       return false;
     }
   }
@@ -67,7 +68,7 @@ export class UserPrefsService {
     try {
       await AsyncStorage.setItem(this.getOnboardingKey(uid), completed ? 'true' : 'false');
     } catch (error) {
-      console.error('[UserPrefs] Error setting onboarding status:', error);
+      logger.error('[UserPrefs] Error setting onboarding status:', error);
       throw error;
     }
   }
@@ -78,7 +79,7 @@ export class UserPrefsService {
       const value = await AsyncStorage.getItem(this.getTutorialKey(uid));
       return value === 'true';
     } catch (error) {
-      console.error('[UserPrefs] Error getting tutorial status:', error);
+      logger.error('[UserPrefs] Error getting tutorial status:', error);
       return false;
     }
   }
@@ -87,7 +88,7 @@ export class UserPrefsService {
     try {
       await AsyncStorage.setItem(this.getTutorialKey(uid), completed ? 'true' : 'false');
     } catch (error) {
-      console.error('[UserPrefs] Error setting tutorial status:', error);
+      logger.error('[UserPrefs] Error setting tutorial status:', error);
       throw error;
     }
   }
@@ -115,7 +116,7 @@ export class UserPrefsService {
 
       return createdAt > fiveMinutesAgo;
     } catch (error) {
-      console.error('[UserPrefs] Error checking if new user:', error);
+      logger.error('[UserPrefs] Error checking if new user:', error);
       return false; // Default to not new (skip onboarding on error)
     }
   }
@@ -126,7 +127,7 @@ export class UserPrefsService {
       const value = await AsyncStorage.getItem(this.getProfileKey(uid));
       return value ? JSON.parse(value) : null;
     } catch (error) {
-      console.error('[UserPrefs] Error getting user profile:', error);
+      logger.error('[UserPrefs] Error getting user profile:', error);
       return null;
     }
   }
@@ -135,7 +136,7 @@ export class UserPrefsService {
     try {
       await AsyncStorage.setItem(this.getProfileKey(uid), JSON.stringify(profile));
     } catch (error) {
-      console.error('[UserPrefs] Error setting user profile:', error);
+      logger.error('[UserPrefs] Error setting user profile:', error);
       throw error;
     }
   }
@@ -146,7 +147,7 @@ export class UserPrefsService {
       const value = await AsyncStorage.getItem(this.getPrefsKey(uid));
       return value ? JSON.parse(value) : { ...DEFAULT_PREFERENCES };
     } catch (error) {
-      console.error('[UserPrefs] Error getting user preferences:', error);
+      logger.error('[UserPrefs] Error getting user preferences:', error);
       return { ...DEFAULT_PREFERENCES };
     }
   }
@@ -158,7 +159,7 @@ export class UserPrefsService {
       const updated = { ...existing, ...prefs };
       await AsyncStorage.setItem(this.getPrefsKey(uid), JSON.stringify(updated));
     } catch (error) {
-      console.error('[UserPrefs] Error setting user preferences:', error);
+      logger.error('[UserPrefs] Error setting user preferences:', error);
       throw error;
     }
   }
@@ -173,7 +174,7 @@ export class UserPrefsService {
         this.getPrefsKey(uid),
       ]);
     } catch (error) {
-      console.error('[UserPrefs] Error clearing user data:', error);
+      logger.error('[UserPrefs] Error clearing user data:', error);
       throw error;
     }
   }

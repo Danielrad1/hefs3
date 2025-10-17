@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { GenerateHintsRequestSchema } from '../types/ai';
 import { OpenAIProvider } from '../services/ai/OpenAIProvider';
 import { AI_CONFIG } from '../config/ai';
+import { logger } from '../utils/logger';
 
 /**
  * Handler for AI hints generation endpoints
@@ -13,7 +14,7 @@ import { AI_CONFIG } from '../config/ai';
  */
 export async function generateHints(req: Request, res: Response): Promise<void> {
   try {
-    console.log('[aiHints] Generate hints request:', {
+    logger.info('[aiHints] Generate hints request:', {
       itemsCount: req.body?.items?.length || 0,
       deckName: req.body?.options?.deckName,
     });
@@ -21,7 +22,7 @@ export async function generateHints(req: Request, res: Response): Promise<void> 
     // Validate request
     const validationResult = GenerateHintsRequestSchema.safeParse(req.body);
     if (!validationResult.success) {
-      console.error('[aiHints] Validation failed:', validationResult.error.errors);
+      logger.error('[aiHints] Validation failed:', validationResult.error.errors);
       res.status(400).json({
         success: false,
         error: {
@@ -37,7 +38,7 @@ export async function generateHints(req: Request, res: Response): Promise<void> 
     // Get API key from environment
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      console.error('[aiHints] OpenAI API key not configured');
+      logger.error('[aiHints] OpenAI API key not configured');
       res.status(500).json({
         success: false,
         error: {
@@ -51,10 +52,10 @@ export async function generateHints(req: Request, res: Response): Promise<void> 
     // Use default model from config (GPT-5 Nano)
     const provider = new OpenAIProvider(apiKey, AI_CONFIG.defaultModel);
     
-    console.log('[aiHints] Starting generation with provider:', provider.getName());
+    logger.info('[aiHints] Starting generation with provider:', provider.getName());
     const response = await provider.generateHints(request);
     
-    console.log('[aiHints] Generation successful:', {
+    logger.info('[aiHints] Generation successful:', {
       totalItems: response.metadata.totalItems,
       successfulItems: response.metadata.successfulItems,
     });
@@ -64,7 +65,7 @@ export async function generateHints(req: Request, res: Response): Promise<void> 
       data: response,
     });
   } catch (error) {
-    console.error('[aiHints] Generate hints error:', error);
+    logger.error('[aiHints] Generate hints error:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({

@@ -18,6 +18,7 @@ import { r } from '../../design/radii';
 import PrimaryButton from '../../components/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
+import { logger } from '../../utils/logger';
 
 const { width } = Dimensions.get('window');
 
@@ -105,7 +106,7 @@ export default function TutorialScreen({ onComplete }: TutorialScreenProps) {
       // Notify parent (AuthNavigator) that tutorial is complete
       onComplete?.();
     } catch (error) {
-      console.error('[Tutorial] Error completing tutorial:', error);
+      logger.error('[Tutorial] Error completing tutorial:', error);
       Alert.alert('Error', 'Failed to save tutorial progress. Please try again.');
       setSaving(false);
     }

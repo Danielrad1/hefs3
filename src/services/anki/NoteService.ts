@@ -8,6 +8,7 @@ import { nowSeconds, generateId } from './time';
 import { generateGuid } from './guid';
 import { calculateChecksum } from './checksum';
 import { MediaService } from './MediaService';
+import { logger } from '../../utils/logger';
 
 export interface CreateNoteParams {
   modelId: string | number;  // Accept both for flexibility
@@ -137,9 +138,9 @@ export class NoteService {
     this.db.deleteNote(noteId);
     
     // Clean up orphaned media files
-    console.log('[NoteService] Cleaning up orphaned media files...');
+    logger.info('[NoteService] Cleaning up orphaned media files...');
     const deletedCount = await this.mediaService.gcUnused();
-    console.log(`[NoteService] Deleted ${deletedCount} orphaned media files`);
+    logger.info(`[NoteService] Deleted ${deletedCount} orphaned media files`);
   }
 
   /**

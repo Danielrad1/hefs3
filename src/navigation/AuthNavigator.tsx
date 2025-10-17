@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { UserPrefsService } from '../services/onboarding/UserPrefsService';
 import WelcomeScreen from '../app/Auth/WelcomeScreen';
@@ -9,6 +8,7 @@ import SignInScreen from '../app/Auth/SignInScreen';
 import UnifiedOnboarding from '../app/Onboarding/UnifiedOnboarding';
 import Tabs from './Tabs';
 import { FirstRunGuide } from '../guided/FirstRunGuide';
+import { logger } from '../utils/logger';
 
 type AuthScreen = 'welcome' | 'signup' | 'signin';
 
@@ -39,7 +39,7 @@ export default function AuthNavigator() {
       
       // If flag is enabled, force tutorial + onboarding by setting both to false
       if (SHOW_TUTORIAL_ON_LAUNCH) {
-        console.log('[AuthNavigator] SHOW_TUTORIAL_ON_LAUNCH enabled - forcing tutorial + onboarding');
+        logger.info('[AuthNavigator] SHOW_TUTORIAL_ON_LAUNCH enabled - forcing tutorial + onboarding');
         setTutorialCompleted(false);
         setOnboardingCompleted(false);
         setChecking(false);
@@ -75,11 +75,11 @@ export default function AuthNavigator() {
             await FirstRunGuide.markStudyShown(user.uid);
             await FirstRunGuide.completeStudy(user.uid);
           } catch (err) {
-            console.warn('[AuthNavigator] Failed to pre-complete quickstart guides:', err);
+            logger.warn('[AuthNavigator] Failed to pre-complete quickstart guides:', err);
           }
         }
       } catch (error) {
-        console.error('[AuthNavigator] Error checking status:', error);
+        logger.error('[AuthNavigator] Error checking status:', error);
         // Default to skipping everything on error (safer for returning users)
         setTutorialCompleted(true);
         setOnboardingCompleted(true);
@@ -132,7 +132,7 @@ export default function AuthNavigator() {
   
   // Show unified onboarding (tutorial + setup) if not completed
   if (tutorialCompleted !== true || onboardingCompleted !== true) {
-    console.log('[AuthNavigator] Showing unified onboarding for user:', user.uid);
+    logger.info('[AuthNavigator] Showing unified onboarding for user:', user.uid);
     return (
       <UnifiedOnboarding 
         onComplete={() => {
@@ -144,6 +144,6 @@ export default function AuthNavigator() {
   }
 
   // Everything completed -> Main App
-  console.log('[AuthNavigator] All onboarding completed, showing main app');
+  logger.info('[AuthNavigator] All onboarding completed, showing main app');
   return <Tabs />;
 }

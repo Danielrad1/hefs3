@@ -24,7 +24,15 @@ import {
 } from './time';
 
 export class SchedulerV2 {
-  constructor(private db: InMemoryDb) {}
+  /**
+   * @param db - The in-memory database
+   * @param rng - Random number generator function (0-1). Defaults to Math.random.
+   *              Inject a seeded RNG for deterministic tests.
+   */
+  constructor(
+    private db: InMemoryDb,
+    private rng: () => number = Math.random
+  ) {}
 
   // ==========================================================================
   // QUEUE SELECTION
@@ -340,9 +348,10 @@ export class SchedulerV2 {
 
     if (ease === RevlogEase.Again) {
       // Lapse - go to relearning
+      // Always apply ease penalty on lapse (clamped to MIN_EASE_FACTOR)
       const newFactor = Math.max(
         MIN_EASE_FACTOR,
-        card.factor - (config.lapse.mult === 0 ? 200 : 0)
+        card.factor - 200
       );
       
       return {
@@ -464,6 +473,7 @@ export class SchedulerV2 {
 
   /**
    * Apply fuzz to interval (±5%)
+   * Uses injected RNG for deterministic testing
    */
   private applyFuzz(ivl: number, fuzzFactor: number): number {
     if (ivl < 2) return ivl;
@@ -472,8 +482,8 @@ export class SchedulerV2 {
     const minIvl = ivl - fuzz;
     const maxIvl = ivl + fuzz;
     
-    // Random between min and max
-    return Math.floor(Math.random() * (maxIvl - minIvl + 1) + minIvl);
+    // Random between min and max (using injected RNG)
+    return Math.floor(this.rng() * (maxIvl - minIvl + 1) + minIvl);
   }
 
   /**

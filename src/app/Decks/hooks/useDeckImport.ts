@@ -6,6 +6,7 @@ import { ApkgParser } from '../../../services/anki/ApkgParser';
 import { MediaService } from '../../../services/anki/MediaService';
 import { db } from '../../../services/anki/InMemoryDb';
 import { PersistenceService } from '../../../services/anki/PersistenceService';
+import { logger } from '../../../utils/logger';
 
 export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
   const [importing, setImporting] = useState(false);
@@ -73,7 +74,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         await performImport(file.uri, file.name, false);
       }
     } catch (error: any) {
-      console.error('[DeckImport] Import error:', error);
+      logger.error('[DeckImport] Import error:', error);
       Alert.alert('Import Failed', error.message || 'Failed to import deck');
     }
   };
@@ -92,9 +93,9 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       setImportProgress('Reading file...');
       
       // **CREATE SNAPSHOT BEFORE IMPORT** for safe rollback
-      console.log('[DeckImport] Creating database snapshot before import...');
+      logger.info('[DeckImport] Creating database snapshot before import...');
       dbSnapshot = db.toJSON();
-      console.log('[DeckImport] Snapshot created successfully');
+      logger.info('[DeckImport] Snapshot created successfully');
       
       // Parse .apkg with streaming fallback for large files
       const parser = new ApkgParser();
@@ -118,7 +119,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       };
       
       // Import models from collection
-      console.log('[DeckImport] Importing models...');
+      logger.info('[DeckImport] Importing models...');
       if (parsed.col.models) {
         const modelsObj = typeof parsed.col.models === 'string' 
           ? JSON.parse(parsed.col.models) 
@@ -135,7 +136,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       }
 
       // Import deck configs
-      console.log('[DeckImport] Importing deck configs...');
+      logger.info('[DeckImport] Importing deck configs...');
       if (parsed.deckConfigs && parsed.deckConfigs.size > 0) {
         const confs = Array.from(parsed.deckConfigs.values());
         for (let i = 0; i < confs.length; i++) {
@@ -148,7 +149,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       }
 
       // Import decks (chunked)
-      console.log('[DeckImport] Importing', parsed.decks.size, 'decks:');
+      logger.info('[DeckImport] Importing', parsed.decks.size, 'decks:');
       const decksArr = Array.from(parsed.decks.values());
       for (let i = 0; i < decksArr.length; i++) {
         db.addDeck(decksArr[i]);
@@ -159,7 +160,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       }
 
       // Import notes (chunked)
-      console.log('[DeckImport] Importing', parsed.notes.length, 'notes');
+      logger.info('[DeckImport] Importing', parsed.notes.length, 'notes');
       const NOTES_BATCH = 500;
       for (let i = 0; i < parsed.notes.length; i += NOTES_BATCH) {
         const batch = parsed.notes.slice(i, i + NOTES_BATCH);
@@ -169,7 +170,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       }
 
       // Import cards (chunked)
-      console.log('[DeckImport] Importing', parsed.cards.length, 'cards');
+      logger.info('[DeckImport] Importing', parsed.cards.length, 'cards');
       const CARDS_BATCH = 1000;
       for (let i = 0; i < parsed.cards.length; i += CARDS_BATCH) {
         const batch = parsed.cards.slice(i, i + CARDS_BATCH);
@@ -179,7 +180,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       }
 
       // Register media files in database (batch processing for performance)
-      console.log('[DeckImport] Registering', parsed.mediaFiles.size, 'media files in DB...');
+      logger.info('[DeckImport] Registering', parsed.mediaFiles.size, 'media files in DB...');
       const mediaService = new MediaService(db);
       const filenames = Array.from(parsed.mediaFiles.values());
       
@@ -188,23 +189,23 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
           if (cancelRef.current) throw new Error('Import cancelled by user');
           updateProgress(`Registering media… (${current}/${total})`);
         });
-        console.log('[DeckImport] Registered', filenames.length, 'media files');
+        logger.info('[DeckImport] Registered', filenames.length, 'media files');
       }
 
       // Import review history if preserving progress
       if (preserveProgress && parsed.revlog && parsed.revlog.length > 0) {
-        console.log('[DeckImport] Importing', parsed.revlog.length, 'review history entries');
+        logger.info('[DeckImport] Importing', parsed.revlog.length, 'review history entries');
         updateProgress(`Importing progress… (${parsed.revlog.length} reviews)`);
         parsed.revlog.forEach((entry) => db.addRevlog(entry));
-        console.log('[DeckImport] Progress imported successfully');
+        logger.info('[DeckImport] Progress imported successfully');
       }
       
       // Verify what's in the database after import
       const allDecks = db.getAllDecks();
-      console.log('[DeckImport] After import, database has', allDecks.length, 'decks:');
+      logger.info('[DeckImport] After import, database has', allDecks.length, 'decks:');
       allDecks.forEach(d => {
         const deckCards = db.getCardsByDeck(d.id);
-        console.log('[DeckImport] -', d.name, ':', deckCards.length, 'cards');
+        logger.info('[DeckImport] -', d.name, ':', deckCards.length, 'cards');
       });
 
       updateProgress('Saving...');
@@ -231,7 +232,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       );
 
     } catch (error) {
-      console.error('[DeckImport] Import error:', error);
+      logger.error('[DeckImport] Import error:', error);
       
       // Reset loading state first
       setImporting(false);
@@ -239,17 +240,17 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       
       // Handle cancellation - rollback imported data using snapshot
       if (error instanceof Error && error.message.includes('cancelled')) {
-        console.log('[DeckImport] Import cancelled, rolling back to snapshot...');
+        logger.info('[DeckImport] Import cancelled, rolling back to snapshot...');
         
         // Restore database from snapshot
         try {
           if (dbSnapshot) {
-            console.log('[DeckImport] Restoring database from snapshot...');
+            logger.info('[DeckImport] Restoring database from snapshot...');
             db.fromJSON(dbSnapshot);
             await PersistenceService.save(db);
-            console.log('[DeckImport] Rollback complete - database restored to pre-import state');
+            logger.info('[DeckImport] Rollback complete - database restored to pre-import state');
           } else {
-            console.warn('[DeckImport] No snapshot available, cannot rollback');
+            logger.warn('[DeckImport] No snapshot available, cannot rollback');
           }
           
           // Notify parent to refresh UI
@@ -257,7 +258,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
             onCancel();
           }
         } catch (rollbackError) {
-          console.error('[DeckImport] Rollback failed:', rollbackError);
+          logger.error('[DeckImport] Rollback failed:', rollbackError);
           Alert.alert(
             'Rollback Failed',
             'Could not restore database to previous state. Please restart the app.',

@@ -7,6 +7,7 @@ import { auth } from '../config/firebase';
 import { AuthContextType, User, mapFirebaseUser } from '../types/auth';
 import { mapAuthError, isUserCancellation } from '../utils/authErrors';
 import { UserPrefsService } from '../services/onboarding/UserPrefsService';
+import { logger } from '../utils/logger';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -54,7 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await auth().signInWithEmailAndPassword(email, password);
     } catch (error) {
-      console.error('[Auth] Email sign-in error:', error);
+      logger.error('[Auth] Email sign-in error:', error);
       const friendlyMessage = mapAuthError(error);
       const enhancedError = new Error(friendlyMessage);
       (enhancedError as any).code = (error as any)?.code;
@@ -66,7 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await auth().createUserWithEmailAndPassword(email, password);
     } catch (error) {
-      console.error('[Auth] Sign up error:', error);
+      logger.error('[Auth] Sign up error:', error);
       const friendlyMessage = mapAuthError(error);
       const enhancedError = new Error(friendlyMessage);
       (enhancedError as any).code = (error as any)?.code;
@@ -120,7 +121,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
     } catch (error) {
-      console.error('[Auth] Apple sign-in error:', error);
+      logger.error('[Auth] Apple sign-in error:', error);
       
       if (isUserCancellation(error)) {
         // User cancelled - don't throw error
@@ -139,7 +140,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const credential = auth.GoogleAuthProvider.credential(idToken);
       await auth().signInWithCredential(credential);
     } catch (error) {
-      console.error('[Auth] Google token exchange error:', error);
+      logger.error('[Auth] Google token exchange error:', error);
       const friendlyMessage = mapAuthError(error);
       const enhancedError = new Error(friendlyMessage);
       (enhancedError as any).code = (error as any)?.code;
@@ -152,7 +153,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await googlePromptAsync();
       // The actual sign-in happens in the useEffect when googleResponse updates
     } catch (error) {
-      console.error('[Auth] Google sign-in error:', error);
+      logger.error('[Auth] Google sign-in error:', error);
       
       if (isUserCancellation(error)) {
         return;
@@ -175,7 +176,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await UserPrefsService.clearUserData(uid);
       }
     } catch (error) {
-      console.error('[Auth] Sign-out error:', error);
+      logger.error('[Auth] Sign-out error:', error);
       throw error;
     }
   };
@@ -185,7 +186,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const token = await auth().currentUser?.getIdToken(forceRefresh);
       return token || null;
     } catch (error) {
-      console.error('[Auth] Get token error:', error);
+      logger.error('[Auth] Get token error:', error);
       return null;
     }
   };

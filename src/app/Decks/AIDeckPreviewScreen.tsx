@@ -13,6 +13,7 @@ import { db } from '../../services/anki/InMemoryDb';
 import { PersistenceService } from '../../services/anki/PersistenceService';
 import { DEFAULT_MODEL_ID } from '../../services/anki/schema';
 import { useScheduler } from '../../context/SchedulerProvider';
+import { logger } from '../../utils/logger';
 
 interface RouteParams {
   deckName: string;
@@ -49,16 +50,16 @@ export default function AIDeckPreviewScreen() {
       const deckId = createdDeckIdRef.current;
       const isSaved = deckSavedRef.current;
       
-      console.log('[AIDeckPreview] Cleanup check:', { deckId, isSaved });
+      logger.info('[AIDeckPreview] Cleanup check:', { deckId, isSaved });
       
       if (deckId && !isSaved) {
-        console.log('[AIDeckPreview] Cleaning up unsaved deck:', deckId);
+        logger.info('[AIDeckPreview] Cleaning up unsaved deck:', deckId);
         // Fire and forget - cleanup happens in background
         deckService.deleteDeck(deckId, { deleteCards: true }).catch((error) => {
-          console.error('[AIDeckPreview] Cleanup error:', error);
+          logger.error('[AIDeckPreview] Cleanup error:', error);
         });
       } else if (deckId && isSaved) {
-        console.log('[AIDeckPreview] Deck was saved, skipping cleanup');
+        logger.info('[AIDeckPreview] Deck was saved, skipping cleanup');
       }
     };
   }, [deckService]);
@@ -101,7 +102,7 @@ export default function AIDeckPreviewScreen() {
       return;
     }
 
-    console.log('[AIDeckPreview] Starting deck creation:', {
+    logger.info('[AIDeckPreview] Starting deck creation:', {
       deckName: deckName.trim(),
       noteCount: notes.length,
       noteModel: params.noteModel,
@@ -111,15 +112,15 @@ export default function AIDeckPreviewScreen() {
 
     try {
       // Create deck
-      console.log('[AIDeckPreview] Creating deck...');
+      logger.info('[AIDeckPreview] Creating deck...');
       const deck = deckService.createDeck(deckName.trim());
       createdDeckIdRef.current = deck.id; // Track for cleanup if needed
-      console.log('[AIDeckPreview] Deck created:', { id: deck.id, name: deck.name });
+      logger.info('[AIDeckPreview] Deck created:', { id: deck.id, name: deck.name });
 
       // Determine model ID
       // Cloze model has ID 2, Basic model has ID 1
       const modelId = params.noteModel === 'cloze' ? 2 : DEFAULT_MODEL_ID;
-      console.log('[AIDeckPreview] Using model ID:', modelId, 'for', params.noteModel);
+      logger.info('[AIDeckPreview] Using model ID:', modelId, 'for', params.noteModel);
 
       // Create notes
       let createdCount = 0;
@@ -127,11 +128,11 @@ export default function AIDeckPreviewScreen() {
 
       for (let i = 0; i < notes.length; i++) {
         const note = notes[i];
-        console.log(`[AIDeckPreview] Processing note ${i + 1}/${notes.length}`);
+        logger.info(`[AIDeckPreview] Processing note ${i + 1}/${notes.length}`);
 
         if (params.noteModel === 'basic') {
           if (!note.front || !note.back) {
-            console.log(`[AIDeckPreview] Skipping invalid basic note ${i}:`, { 
+            logger.info(`[AIDeckPreview] Skipping invalid basic note ${i}:`, { 
               hasFront: !!note.front, 
               hasBack: !!note.back 
             });
@@ -139,7 +140,7 @@ export default function AIDeckPreviewScreen() {
             continue;
           }
 
-          console.log(`[AIDeckPreview] Creating basic note ${i}:`, {
+          logger.info(`[AIDeckPreview] Creating basic note ${i}:`, {
             frontLength: note.front.length,
             backLength: note.back.length,
             tags: note.tags,
@@ -152,16 +153,16 @@ export default function AIDeckPreviewScreen() {
             tags: ['ai', 'ai:generated', ...(note.tags || [])],
           });
 
-          console.log(`[AIDeckPreview] Basic note created:`, { noteId: createdNote.id });
+          logger.info(`[AIDeckPreview] Basic note created:`, { noteId: createdNote.id });
           createdCount++;
         } else {
           if (!note.cloze) {
-            console.log(`[AIDeckPreview] Skipping invalid cloze note ${i}`);
+            logger.info(`[AIDeckPreview] Skipping invalid cloze note ${i}`);
             skippedCount++;
             continue;
           }
 
-          console.log(`[AIDeckPreview] Creating cloze note ${i}:`, {
+          logger.info(`[AIDeckPreview] Creating cloze note ${i}:`, {
             clozeLength: note.cloze.length,
             tags: note.tags,
           });
@@ -174,41 +175,41 @@ export default function AIDeckPreviewScreen() {
             tags: ['ai', 'ai:generated', ...(note.tags || [])],
           });
 
-          console.log(`[AIDeckPreview] Cloze note created:`, { noteId: createdNote.id });
+          logger.info(`[AIDeckPreview] Cloze note created:`, { noteId: createdNote.id });
           createdCount++;
         }
       }
 
-      console.log('[AIDeckPreview] Note creation summary:', {
+      logger.info('[AIDeckPreview] Note creation summary:', {
         total: notes.length,
         created: createdCount,
         skipped: skippedCount,
       });
 
       // Save to persistence
-      console.log('[AIDeckPreview] Saving to persistence...');
+      logger.info('[AIDeckPreview] Saving to persistence...');
       await PersistenceService.save(db);
-      console.log('[AIDeckPreview] Persistence save complete');
+      logger.info('[AIDeckPreview] Persistence save complete');
 
       // Verify cards were created
       const cards = db.getCardsByDeck(deck.id);
-      console.log('[AIDeckPreview] Verification - cards in deck:', cards.length);
+      logger.info('[AIDeckPreview] Verification - cards in deck:', cards.length);
 
       // Mark as successfully saved (no cleanup needed)
       deckSavedRef.current = true;
-      console.log('[AIDeckPreview] Marked deck as saved');
+      logger.info('[AIDeckPreview] Marked deck as saved');
 
       // Reload scheduler to pick up new deck
-      console.log('[AIDeckPreview] Reloading scheduler...');
+      logger.info('[AIDeckPreview] Reloading scheduler...');
       await reload();
-      console.log('[AIDeckPreview] Scheduler reload complete');
+      logger.info('[AIDeckPreview] Scheduler reload complete');
 
       // Verify deck is now in scheduler
       const verifyDeck = db.getDeck(deck.id);
-      console.log('[AIDeckPreview] Deck verification:', verifyDeck ? 'Found' : 'NOT FOUND');
+      logger.info('[AIDeckPreview] Deck verification:', verifyDeck ? 'Found' : 'NOT FOUND');
 
       // Automatically navigate to deck detail
-      console.log('[AIDeckPreview] Auto-navigating to deck detail');
+      logger.info('[AIDeckPreview] Auto-navigating to deck detail');
       navigation.reset({
         index: 1,
         routes: [
@@ -217,7 +218,7 @@ export default function AIDeckPreviewScreen() {
         ],
       });
     } catch (error) {
-      console.error('[AIDeckPreview] Create deck error:', error);
+      logger.error('[AIDeckPreview] Create deck error:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to create deck');
     } finally {
       setIsCreating(false);

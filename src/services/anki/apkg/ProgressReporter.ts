@@ -4,6 +4,7 @@
  */
 
 import { ApkgParseOptions } from './types';
+import { logger } from '../../../utils/logger';
 
 export class ProgressReporter {
   private onProgress?: (message: string) => void;
@@ -21,7 +22,7 @@ export class ProgressReporter {
       this.onProgress?.(message);
     } catch (error) {
       // Silently ignore callback errors to prevent parsing failures
-      console.warn('[ProgressReporter] Error in progress callback:', error);
+      logger.warn('[ProgressReporter] Error in progress callback:', error);
     }
   }
 }

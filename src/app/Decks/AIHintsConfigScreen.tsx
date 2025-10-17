@@ -10,6 +10,7 @@ import { AiHintsService } from '../../services/ai/AiHintsService';
 import { cardHintsService, CardHintsService } from '../../services/anki/CardHintsService';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { HintsInputItem } from '../../services/ai/types';
+import { logger } from '../../utils/logger';
 
 interface AIHintsConfigScreenProps {
   route: {
@@ -89,7 +90,7 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         items,
       });
     } catch (error) {
-      console.error('[AIHintsConfig] Error preparing generation:', error);
+      logger.error('[AIHintsConfig] Error preparing generation:', error);
       Alert.alert('Error', 'Failed to prepare hints generation');
     }
   };

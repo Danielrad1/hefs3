@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../../utils/logger';
 
 /**
  * Card hint metadata stored locally (multi-level hints with HTML)
@@ -80,9 +81,9 @@ export class CardHintsService {
       }
 
       this.loaded = true;
-      console.log('[CardHintsService] Loaded', this.cache.size, 'hints');
+      logger.info('[CardHintsService] Loaded', this.cache.size, 'hints');
     } catch (error) {
-      console.error('[CardHintsService] Failed to load:', error);
+      logger.error('[CardHintsService] Failed to load:', error);
       this.cache = new Map();
       this.loaded = true;
     }
@@ -183,7 +184,7 @@ export class CardHintsService {
       JSON.stringify(Array.from(deckCardIds))
     );
 
-    console.log('[CardHintsService] Saved', hints.length, 'hints for deck', deckId);
+    logger.info('[CardHintsService] Saved', hints.length, 'hints for deck', deckId);
   }
 
   /**
@@ -249,7 +250,7 @@ export class CardHintsService {
     this.deckIndexCache.delete(deckId);
     await AsyncStorage.removeItem(`@deck_hints_index:${deckId}`);
 
-    console.log('[CardHintsService] Invalidated hints for deck', deckId);
+    logger.info('[CardHintsService] Invalidated hints for deck', deckId);
   }
 
   /**

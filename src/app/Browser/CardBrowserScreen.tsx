@@ -19,6 +19,7 @@ import { SearchIndex } from '../../services/search/SearchIndex';
 import { AnkiCard, FIELD_SEPARATOR } from '../../services/anki/schema';
 import { PersistenceService } from '../../services/anki/PersistenceService';
 import { useScheduler } from '../../context/SchedulerProvider';
+import { logger } from '../../utils/logger';
 
 interface FilterChip {
   id: string;
@@ -64,7 +65,7 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
       // Build index in background
       setTimeout(() => {
         if (__DEV__) {
-          console.log('[CardBrowser] Building search index...');
+          logger.info('[CardBrowser] Building search index...');
         }
         searchIndexRef.current = new SearchIndex(db);
         searchIndexRef.current.indexAll();
@@ -191,7 +192,7 @@ export default function CardBrowserScreen({ route, navigation }: CardBrowserScre
               
               Alert.alert('Success', 'Card deleted');
             } catch (error) {
-              console.error('[CardBrowser] Delete error:', error);
+              logger.error('[CardBrowser] Delete error:', error);
               Alert.alert('Error', 'Failed to delete card');
             }
           },

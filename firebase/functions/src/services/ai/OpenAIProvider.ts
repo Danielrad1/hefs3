@@ -3,6 +3,7 @@ import { AIProvider, GenerateDeckRequest, GenerateDeckResponse, GeneratedNote, G
 import { getSystemPrompt, buildUserPrompt } from './prompts';
 import { getHintsSystemPrompt, buildHintsUserPrompt } from './prompts.hints';
 import { AI_CONFIG } from '../../config/ai';
+import { logger } from '../../utils/logger';
 
 /**
  * OpenAI provider for deck generation
@@ -14,7 +15,7 @@ export class OpenAIProvider implements AIProvider {
   constructor(apiKey: string, model: string = AI_CONFIG.defaultModel) {
     this.client = new OpenAI({ apiKey });
     this.model = model;
-    console.log(`[OpenAIProvider] Initialized with model: ${this.model}`);
+    logger.info(`[OpenAIProvider] Initialized with model: ${this.model}`);
   }
 
   getName(): string {
@@ -22,7 +23,7 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async generateDeck(request: GenerateDeckRequest): Promise<GenerateDeckResponse> {
-    console.log('[OpenAIProvider] Starting generation:', {
+    logger.info('[OpenAIProvider] Starting generation:', {
       sourceType: request.sourceType,
       noteModel: request.noteModel,
       itemLimit: request.itemLimit,
@@ -41,16 +42,16 @@ export class OpenAIProvider implements AIProvider {
       style: request.style,
     });
 
-    console.log('[OpenAIProvider] System prompt length:', systemPrompt.length);
-    console.log('[OpenAIProvider] User prompt length:', userPrompt.length);
+    logger.debug('[OpenAIProvider] System prompt length:', systemPrompt.length);
+    logger.debug('[OpenAIProvider] User prompt length:', userPrompt.length);
     
     // Estimate token count (rough approximation: 1 token ≈ 4 characters)
     const estimatedTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
     const modelConfig = AI_CONFIG.models.find(m => m.id === this.model);
     const maxTokens = modelConfig?.capabilities.maxTokens || 128000;
     
-    console.log('[OpenAIProvider] Estimated input tokens:', estimatedTokens.toLocaleString());
-    console.log('[OpenAIProvider] Model max tokens:', maxTokens.toLocaleString());
+    logger.info('[OpenAIProvider] Estimated input tokens:', estimatedTokens.toLocaleString());
+    logger.info('[OpenAIProvider] Model max tokens:', maxTokens.toLocaleString());
     
     // Check if input is too large (leaving room for output)
     const maxInputTokens = maxTokens * 0.90; // Reserve 10% for output (~40k tokens for GPT-5)
@@ -62,17 +63,17 @@ export class OpenAIProvider implements AIProvider {
       );
     }
     
-    // Log full prompts for debugging
-    console.log('[OpenAIProvider] ========== SYSTEM PROMPT ==========');
-    console.log(systemPrompt);
-    console.log('[OpenAIProvider] ========== END SYSTEM PROMPT ==========');
+    // NEVER log full prompts in production (contains user content)
+    logger.debug('[OpenAIProvider] ========== SYSTEM PROMPT ==========');
+    logger.debug(systemPrompt);
+    logger.debug('[OpenAIProvider] ========== END SYSTEM PROMPT ==========');
     
-    console.log('[OpenAIProvider] ========== USER PROMPT ==========');
-    console.log(userPrompt);
-    console.log('[OpenAIProvider] ========== END USER PROMPT ==========');
+    logger.debug('[OpenAIProvider] ========== USER PROMPT ==========');
+    logger.debug(userPrompt);
+    logger.debug('[OpenAIProvider] ========== END USER PROMPT ==========');
 
     try {
-      console.log('[OpenAIProvider] Calling OpenAI API...');
+      logger.info('[OpenAIProvider] Calling OpenAI API...');
       const completion = await this.client.chat.completions.create({
         model: this.model,
         messages: [
@@ -84,7 +85,7 @@ export class OpenAIProvider implements AIProvider {
         // temperature: 0.7, // Removed for GPT-5 Nano compatibility
       });
 
-      console.log('[OpenAIProvider] API call successful');
+      logger.info('[OpenAIProvider] API call successful');
       
       // Calculate cost based on token usage
       const usage = completion.usage;
@@ -95,17 +96,17 @@ export class OpenAIProvider implements AIProvider {
           const outputCost = (usage.completion_tokens / 1_000_000) * modelConfig.pricing.outputPer1M;
           const totalCost = inputCost + outputCost;
           
-          console.log('[OpenAIProvider] ========== TOKEN USAGE & COST ==========');
-          console.log(`[OpenAIProvider] Model: ${modelConfig.name} (${this.model})`);
-          console.log(`[OpenAIProvider] Input tokens: ${usage.prompt_tokens.toLocaleString()}`);
-          console.log(`[OpenAIProvider] Output tokens: ${usage.completion_tokens.toLocaleString()}`);
-          console.log(`[OpenAIProvider] Total tokens: ${usage.total_tokens.toLocaleString()}`);
-          console.log(`[OpenAIProvider] Input cost: $${inputCost.toFixed(6)} (${usage.prompt_tokens.toLocaleString()} tokens @ $${modelConfig.pricing.inputPer1M}/1M)`);
-          console.log(`[OpenAIProvider] Output cost: $${outputCost.toFixed(6)} (${usage.completion_tokens.toLocaleString()} tokens @ $${modelConfig.pricing.outputPer1M}/1M)`);
-          console.log(`[OpenAIProvider] TOTAL COST: $${totalCost.toFixed(6)}`);
-          console.log('[OpenAIProvider] ========================================');
+          logger.info('[OpenAIProvider] ========== TOKEN USAGE & COST ==========');
+          logger.info(`[OpenAIProvider] Model: ${modelConfig.name} (${this.model})`);
+          logger.info(`[OpenAIProvider] Input tokens: ${usage.prompt_tokens.toLocaleString()}`);
+          logger.info(`[OpenAIProvider] Output tokens: ${usage.completion_tokens.toLocaleString()}`);
+          logger.info(`[OpenAIProvider] Total tokens: ${usage.total_tokens.toLocaleString()}`);
+          logger.info(`[OpenAIProvider] Input cost: $${inputCost.toFixed(6)} (${usage.prompt_tokens.toLocaleString()} tokens @ $${modelConfig.pricing.inputPer1M}/1M)`);
+          logger.info(`[OpenAIProvider] Output cost: $${outputCost.toFixed(6)} (${usage.completion_tokens.toLocaleString()} tokens @ $${modelConfig.pricing.outputPer1M}/1M)`);
+          logger.info(`[OpenAIProvider] TOTAL COST: $${totalCost.toFixed(6)}`);
+          logger.info('[OpenAIProvider] ========================================');
         } else {
-          console.log('[OpenAIProvider] Token usage:', usage);
+          logger.info('[OpenAIProvider] Token usage:', usage);
         }
       }
 
@@ -114,18 +115,18 @@ export class OpenAIProvider implements AIProvider {
         throw new Error('No response from AI provider');
       }
 
-      console.log('[OpenAIProvider] Response length:', content.length);
+      logger.debug('[OpenAIProvider] Response length:', content.length);
       
-      // Log full AI response payload
-      console.log('[OpenAIProvider] ========== AI RESPONSE PAYLOAD ==========');
-      console.log(content);
-      console.log('[OpenAIProvider] ========== END AI RESPONSE PAYLOAD ==========');
+      // NEVER log full AI response in production (contains user content)
+      logger.debug('[OpenAIProvider] ========== AI RESPONSE PAYLOAD ==========');
+      logger.debug(content);
+      logger.debug('[OpenAIProvider] ========== END AI RESPONSE PAYLOAD ==========');
       
       const parsed = JSON.parse(content);
       const actualCount = parsed.notes?.length || 0;
       const requestedCount = request.itemLimit;
       
-      console.log('[OpenAIProvider] Parsed response:', {
+      logger.info('[OpenAIProvider] Parsed response:', {
         hasDeckName: !!parsed.deckName,
         deckName: parsed.deckName,
         notesCount: actualCount,
@@ -134,20 +135,20 @@ export class OpenAIProvider implements AIProvider {
       
       // Log card count mismatch but don't reject
       if (actualCount !== requestedCount) {
-        console.warn(`[OpenAIProvider] ⚠️ Card count mismatch! Requested: ${requestedCount}, Got: ${actualCount}`);
-        console.warn(`[OpenAIProvider] Accepting response anyway (validation disabled)`);
+        logger.warn(`[OpenAIProvider] ⚠️ Card count mismatch! Requested: ${requestedCount}, Got: ${actualCount}`);
+        logger.warn(`[OpenAIProvider] Accepting response anyway (validation disabled)`);
       }
       
-      // Log first 3 notes as samples
+      // Log first 3 notes as samples (debug only - contains user content)
       if (parsed.notes && parsed.notes.length > 0) {
-        console.log('[OpenAIProvider] Sample notes (first 3):');
+        logger.debug('[OpenAIProvider] Sample notes (first 3):');
         parsed.notes.slice(0, 3).forEach((note: any, i: number) => {
-          console.log(`[OpenAIProvider] Note ${i}:`, JSON.stringify(note, null, 2));
+          logger.debug(`[OpenAIProvider] Note ${i}:`, JSON.stringify(note, null, 2));
         });
       }
 
       const response = this.parseResponse(parsed, request);
-      console.log('[OpenAIProvider] Final response:', {
+      logger.info('[OpenAIProvider] Final response:', {
         deckName: response.deckName,
         notesCount: response.notes.length,
         model: response.model,
@@ -155,7 +156,7 @@ export class OpenAIProvider implements AIProvider {
 
       return response;
     } catch (error) {
-      console.error('[OpenAIProvider] Generation failed:', error);
+      logger.error('[OpenAIProvider] Generation failed:', error);
       
       // Handle specific OpenAI errors
       if (error instanceof Error) {
@@ -195,7 +196,7 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async generateHints(request: GenerateHintsRequest): Promise<GenerateHintsResponse> {
-    console.log('[OpenAIProvider] Starting hints generation:', {
+    logger.info('[OpenAIProvider] Starting hints generation:', {
       itemsCount: request.items.length,
       deckName: request.options?.deckName,
       style: request.options?.style,
@@ -219,7 +220,7 @@ export class OpenAIProvider implements AIProvider {
       allResults.push(...results);
     }
 
-    console.log('[OpenAIProvider] Hints generation complete:', {
+    logger.info('[OpenAIProvider] Hints generation complete:', {
       totalRequested: request.items.length,
       successfulResults: allResults.length,
     });
@@ -251,18 +252,18 @@ export class OpenAIProvider implements AIProvider {
       batches.push(items.slice(i, i + BATCH_SIZE));
     }
 
-    console.log(`[OpenAIProvider] Processing ${items.length} items in ${batches.length} parallel batches of ${BATCH_SIZE}`);
+    logger.info(`[OpenAIProvider] Processing ${items.length} items in ${batches.length} parallel batches of ${BATCH_SIZE}`);
 
     // Process all batches in parallel using Promise.all
     const startTime = Date.now();
     const batchPromises = batches.map((batch, index) => 
       this.generateHintsForBatch(batch, noteModel, options)
         .then(results => {
-          console.log(`[OpenAIProvider] Batch ${index + 1}/${batches.length} complete (${results.length} items)`);
+          logger.info(`[OpenAIProvider] Batch ${index + 1}/${batches.length} complete (${results.length} items)`);
           return results;
         })
         .catch(error => {
-          console.error(`[OpenAIProvider] Batch ${index + 1}/${batches.length} failed:`, error);
+          logger.error(`[OpenAIProvider] Batch ${index + 1}/${batches.length} failed:`, error);
           // Return empty array on error to not block other batches
           return [];
         })
@@ -275,7 +276,7 @@ export class OpenAIProvider implements AIProvider {
     // Flatten results from all batches
     const allResults = batchResults.flat();
 
-    console.log(`[OpenAIProvider] Parallel processing complete in ${elapsedTime}s:`, {
+    logger.info(`[OpenAIProvider] Parallel processing complete in ${elapsedTime}s:`, {
       totalBatches: batches.length,
       totalItems: items.length,
       successfulItems: allResults.length,
@@ -308,16 +309,16 @@ export class OpenAIProvider implements AIProvider {
       languageHints: options?.languageHints,
     });
 
-    console.log('[OpenAIProvider] Hints system prompt length:', systemPrompt.length);
-    console.log('[OpenAIProvider] Hints user prompt length:', userPrompt.length);
-    console.log('[OpenAIProvider] ===== SYSTEM PROMPT =====');
-    console.log(systemPrompt);
-    console.log('[OpenAIProvider] ===== USER PROMPT =====');
-    console.log(userPrompt);
-    console.log('[OpenAIProvider] ===== END PROMPTS =====');
+    logger.debug('[OpenAIProvider] Hints system prompt length:', systemPrompt.length);
+    logger.debug('[OpenAIProvider] Hints user prompt length:', userPrompt.length);
+    logger.debug('[OpenAIProvider] ===== SYSTEM PROMPT =====');
+    logger.debug(systemPrompt);
+    logger.debug('[OpenAIProvider] ===== USER PROMPT =====');
+    logger.debug(userPrompt);
+    logger.debug('[OpenAIProvider] ===== END PROMPTS =====');
 
     try {
-      console.log('[OpenAIProvider] Calling OpenAI API for hints...');
+      logger.info('[OpenAIProvider] Calling OpenAI API for hints...');
       const completion = await this.client.chat.completions.create({
         model: this.model,
         messages: [
@@ -328,7 +329,7 @@ export class OpenAIProvider implements AIProvider {
         // Note: GPT-5 Nano only supports default temperature (1)
       });
 
-      console.log('[OpenAIProvider] Hints API call successful');
+      logger.info('[OpenAIProvider] Hints API call successful');
 
       // Log token usage
       const usage = completion.usage;
@@ -339,7 +340,7 @@ export class OpenAIProvider implements AIProvider {
           const outputCost = (usage.completion_tokens / 1_000_000) * modelConfig.pricing.outputPer1M;
           const totalCost = inputCost + outputCost;
           
-          console.log('[OpenAIProvider] Hints token usage:', {
+          logger.info('[OpenAIProvider] Hints token usage:', {
             input: usage.prompt_tokens,
             output: usage.completion_tokens,
             total: usage.total_tokens,
@@ -353,17 +354,17 @@ export class OpenAIProvider implements AIProvider {
         throw new Error('No response from AI provider');
       }
 
-      console.log('[OpenAIProvider] Raw AI response (first 500 chars):', content.substring(0, 500));
+      logger.debug('[OpenAIProvider] Raw AI response (first 500 chars):', content.substring(0, 500));
 
       const parsed = JSON.parse(content);
-      console.log('[OpenAIProvider] Hints response parsed:', {
+      logger.info('[OpenAIProvider] Hints response parsed:', {
         itemsCount: parsed.items?.length || 0,
         requestedCount: items.length,
       });
 
       return this.parseHintsResponse(parsed, items, content);
     } catch (error) {
-      console.error('[OpenAIProvider] Hints generation failed:', error);
+      logger.error('[OpenAIProvider] Hints generation failed:', error);
       
       if (error instanceof Error) {
         throw new Error(`Hints generation failed: ${error.message}`);
@@ -388,7 +389,7 @@ export class OpenAIProvider implements AIProvider {
     for (const item of parsed.items) {
       // Validate structure
       if (!item.id || !requestedIds.has(item.id)) {
-        console.warn('[OpenAIProvider] Skipping item with invalid/unknown ID:', item.id);
+        logger.warn('[OpenAIProvider] Skipping item with invalid/unknown ID:', item.id);
         continue;
       }
 
@@ -401,7 +402,7 @@ export class OpenAIProvider implements AIProvider {
 
       // Log warnings but accept all items
       if (!hintL1 || !hintL2 || !hintL3) {
-        console.warn('[OpenAIProvider] Missing hint levels for', item.id, {
+        logger.warn('[OpenAIProvider] Missing hint levels for', item.id, {
           hasL1: !!hintL1,
           hasL2: !!hintL2,
           hasL3: !!hintL3,
@@ -415,7 +416,7 @@ export class OpenAIProvider implements AIProvider {
       }
 
       if (hintL1.length > 180 || hintL2.length > 180 || hintL3.length > 180) {
-        console.warn('[OpenAIProvider] Hint length exceeds limit for', item.id, {
+        logger.warn('[OpenAIProvider] Hint length exceeds limit for', item.id, {
           l1Length: hintL1.length,
           l2Length: hintL2.length,
           l3Length: hintL3.length,
@@ -424,10 +425,10 @@ export class OpenAIProvider implements AIProvider {
       }
 
       if (!tip) {
-        console.warn('[OpenAIProvider] Missing tip for', item.id);
+        logger.warn('[OpenAIProvider] Missing tip for', item.id);
         // Continue processing - accept missing tip
       } else if (tip.length > 320) {
-        console.warn('[OpenAIProvider] Tip length exceeds limit for', item.id, {
+        logger.warn('[OpenAIProvider] Tip length exceeds limit for', item.id, {
           tipLength: tip.length,
         });
         // Continue processing - accept long tips
@@ -448,7 +449,7 @@ export class OpenAIProvider implements AIProvider {
       .map(r => r.id)
       .filter(id => !results.find(r => r.id === id));
 
-    console.log('[OpenAIProvider] Parsed hints results:', {
+    logger.info('[OpenAIProvider] Parsed hints results:', {
       requested: requestedItems.length,
       received: parsed.items.length,
       valid: results.length,
@@ -457,10 +458,10 @@ export class OpenAIProvider implements AIProvider {
     });
 
     if (missingIds.length > 0 && rawContent) {
-      console.log('[OpenAIProvider] Checking raw content for missing IDs...');
+      logger.debug('[OpenAIProvider] Checking raw content for missing IDs...');
       missingIds.forEach(id => {
         const inRawContent = rawContent.includes(`"id":"${id}"`);
-        console.log(`  ${id}: ${inRawContent ? 'PRESENT in raw response' : 'NOT in raw response'}`);
+        logger.debug(`  ${id}: ${inRawContent ? 'PRESENT in raw response' : 'NOT in raw response'}`);
       });
     }
 
@@ -468,7 +469,7 @@ export class OpenAIProvider implements AIProvider {
   }
 
   private parseResponse(parsed: any, request: GenerateDeckRequest): GenerateDeckResponse {
-    console.log('[OpenAIProvider] Parsing response, raw notes count:', parsed.notes?.length || 0);
+    logger.debug('[OpenAIProvider] Parsing response, raw notes count:', parsed.notes?.length || 0);
     if (!parsed.notes || !Array.isArray(parsed.notes)) {
       throw new Error('Invalid response: missing or invalid notes array');
     }
@@ -481,7 +482,7 @@ export class OpenAIProvider implements AIProvider {
           : (note.cloze && note.cloze.includes('{{c'));
         
         if (!isValid) {
-          console.log(`[OpenAIProvider] Filtered out invalid note at index ${index}:`, note);
+          logger.debug(`[OpenAIProvider] Filtered out invalid note at index ${index}:`, note);
         }
         return isValid;
       })
@@ -491,13 +492,13 @@ export class OpenAIProvider implements AIProvider {
         if (request.noteModel === 'basic') {
           normalized.front = String(note.front).trim();
           normalized.back = String(note.back).trim();
-          console.log(`[OpenAIProvider] Normalized basic note ${index}:`, {
+          logger.debug(`[OpenAIProvider] Normalized basic note ${index}:`, {
             frontLength: normalized.front.length,
             backLength: normalized.back.length,
           });
         } else {
           normalized.cloze = String(note.cloze).trim();
-          console.log(`[OpenAIProvider] Normalized cloze note ${index}:`, {
+          logger.debug(`[OpenAIProvider] Normalized cloze note ${index}:`, {
             clozeLength: normalized.cloze.length,
           });
         }
@@ -509,7 +510,7 @@ export class OpenAIProvider implements AIProvider {
         return normalized;
       });
 
-    console.log('[OpenAIProvider] After filtering and normalization:', {
+    logger.info('[OpenAIProvider] After filtering and normalization:', {
       originalCount: parsed.notes.length,
       validCount: notes.length,
       filteredOut: parsed.notes.length - notes.length,

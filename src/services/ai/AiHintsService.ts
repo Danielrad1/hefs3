@@ -1,6 +1,7 @@
 import { ApiService } from '../cloud/ApiService';
 import { GenerateHintsRequest, GenerateHintsResponse, HintsInputItem, HintsOutputItem, HintsOptions } from './types';
 import { sanitizeHintsInput, getSkipReasonMessage, type SkippedItem } from './HintsSanitizer';
+import { logger } from '../../utils/logger';
 
 // Re-export for convenience
 export { getSkipReasonMessage, type SkippedItem } from './HintsSanitizer';
@@ -24,24 +25,24 @@ export class AiHintsService {
     options?: HintsOptions
   ): Promise<GenerateHintsResult> {
     try {
-      console.log('[AiHintsService] Generating hints for', items.length, 'cards');
+      logger.info('[AiHintsService] Generating hints for', items.length, 'cards');
 
       // Sanitize inputs - strip HTML, validate content
       const { valid, skipped } = sanitizeHintsInput(items);
       
       if (valid.length === 0) {
-        console.warn('[AiHintsService] No valid items to process after sanitization');
+        logger.warn('[AiHintsService] No valid items to process after sanitization');
         return { hints: [], skipped };
       }
 
-      console.log('[AiHintsService] Sanitization:', {
+      logger.info('[AiHintsService] Sanitization:', {
         total: items.length,
         valid: valid.length,
         skipped: skipped.length,
       });
 
       // Send all items to backend - it handles parallel processing internally
-      console.log('[AiHintsService] Sending', valid.length, 'items to backend for parallel processing');
+      logger.info('[AiHintsService] Sending', valid.length, 'items to backend for parallel processing');
 
       const request: GenerateHintsRequest = {
         items: valid,
@@ -50,14 +51,14 @@ export class AiHintsService {
 
       const response = await ApiService.post<GenerateHintsResponse>('/ai/hints/generate', request);
       
-      console.log('[AiHintsService] Generation complete:', {
+      logger.info('[AiHintsService] Generation complete:', {
         requested: valid.length,
         received: response.items.length,
       });
 
       const allResults = response.items;
 
-      console.log('[AiHintsService] All hints generated:', {
+      logger.info('[AiHintsService] All hints generated:', {
         totalRequested: items.length,
         validProcessed: valid.length,
         hintsGenerated: allResults.length,
@@ -66,7 +67,7 @@ export class AiHintsService {
 
       return { hints: allResults, skipped };
     } catch (error) {
-      console.error('[AiHintsService] Generate hints failed:', error);
+      logger.error('[AiHintsService] Generate hints failed:', error);
       throw error;
     }
   }

@@ -6,6 +6,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { ApkgParseOptions } from './types';
 import { ProgressReporter } from './ProgressReporter';
+import { logger } from '../../../utils/logger';
 
 export class MediaExtractor {
   private mediaDir: string;
@@ -24,14 +25,14 @@ export class MediaExtractor {
     // Check for media file (JSON mapping)
     const mediaFile = zip.file('media');
     if (!mediaFile) {
-      console.log('[MediaExtractor] No media file found in .apkg');
+      logger.info('[MediaExtractor] No media file found in .apkg');
       return mediaMap;
     }
 
     const mediaJson = await mediaFile.async('string');
-    console.log('[MediaExtractor] Media mapping:', mediaJson);
+    logger.info('[MediaExtractor] Media mapping:', mediaJson);
     const mediaMapping = JSON.parse(mediaJson) as Record<string, string>;
-    console.log('[MediaExtractor] Found', Object.keys(mediaMapping).length, 'media files to extract');
+    logger.info('[MediaExtractor] Found', Object.keys(mediaMapping).length, 'media files to extract');
 
     // Extract each media file
     const entries = Object.entries(mediaMapping);
@@ -45,7 +46,7 @@ export class MediaExtractor {
         const encodedFilename = encodeURIComponent(filename);
         const destPath = `${this.mediaDir}${encodedFilename}`;
 
-        console.log(`[MediaExtractor] Writing media file: ${filename} → ${encodedFilename}`);
+        logger.info(`[MediaExtractor] Writing media file: ${filename} → ${encodedFilename}`);
         await FileSystem.writeAsStringAsync(
           destPath,
           this.uint8ArrayToBase64(blob),
@@ -58,17 +59,17 @@ export class MediaExtractor {
         // Verify file was written
         const fileInfo = await FileSystem.getInfoAsync(destPath);
         const size = fileInfo.exists && !fileInfo.isDirectory ? (fileInfo as any).size : 0;
-        console.log(
+        logger.info(
           `[MediaExtractor] Media file written: ${filename}, exists: ${fileInfo.exists}, size: ${size}`
         );
 
         mediaMap.set(id, filename);
       } else {
-        console.warn(`[MediaExtractor] Media file ${id} (${filename}) not found in zip`);
+        logger.warn(`[MediaExtractor] Media file ${id} (${filename}) not found in zip`);
       }
     }
 
-    console.log(`[MediaExtractor] Extracted ${mediaMap.size} media files to ${this.mediaDir}`);
+    logger.info(`[MediaExtractor] Extracted ${mediaMap.size} media files to ${this.mediaDir}`);
     return mediaMap;
   }
 
@@ -87,14 +88,14 @@ export class MediaExtractor {
     const mediaMappingPath = `${extractedDir}media`;
     const info = await FileSystem.getInfoAsync(mediaMappingPath);
     if (!info.exists) {
-      console.log('[MediaExtractor] No media file found in extracted folder');
+      logger.info('[MediaExtractor] No media file found in extracted folder');
       return mediaMap;
     }
 
     const mediaJson = await FileSystem.readAsStringAsync(mediaMappingPath);
-    console.log('[MediaExtractor] Media mapping (fs):', mediaJson);
+    logger.info('[MediaExtractor] Media mapping (fs):', mediaJson);
     const mediaMapping = JSON.parse(mediaJson) as Record<string, string>;
-    console.log('[MediaExtractor] Found', Object.keys(mediaMapping).length, 'media files to move');
+    logger.info('[MediaExtractor] Found', Object.keys(mediaMapping).length, 'media files to move');
 
     const entries = Object.entries(mediaMapping);
     let index = 0;
@@ -103,7 +104,7 @@ export class MediaExtractor {
       const srcPath = `${extractedDir}${id}`;
       const srcInfo = await FileSystem.getInfoAsync(srcPath);
       if (!srcInfo.exists || srcInfo.isDirectory) {
-        console.warn(`[MediaExtractor] Media file ${id} (${filename}) not found on disk after unzip`);
+        logger.warn(`[MediaExtractor] Media file ${id} (${filename}) not found on disk after unzip`);
         continue;
       }
 
@@ -112,7 +113,7 @@ export class MediaExtractor {
       const destPath = `${this.mediaDir}${encodedFilename}`;
 
       // Log the specific file being processed
-      console.log(
+      logger.info(
         `[MediaExtractor] Processing media ${index}/${entries.length}: ${filename} → ${encodedFilename}`
       );
 
@@ -120,13 +121,13 @@ export class MediaExtractor {
         // Prefer move to avoid doubling storage usage
         await FileSystem.moveAsync({ from: srcPath, to: destPath });
       } catch (e) {
-        console.warn('[MediaExtractor] moveAsync failed, falling back to copyAsync', e);
+        logger.warn('[MediaExtractor] moveAsync failed, falling back to copyAsync', e);
         await FileSystem.copyAsync({ from: srcPath, to: destPath });
       }
 
       const writtenInfo = await FileSystem.getInfoAsync(destPath);
       const size = writtenInfo.exists && !writtenInfo.isDirectory ? (writtenInfo as any).size : 0;
-      console.log(
+      logger.info(
         `[MediaExtractor] Media file placed: ${filename}, exists: ${writtenInfo.exists}, size: ${size}`
       );
 
@@ -139,7 +140,7 @@ export class MediaExtractor {
       }
     }
 
-    console.log(`[MediaExtractor] Extracted ${mediaMap.size} media files to ${this.mediaDir} (fs move)`);
+    logger.info(`[MediaExtractor] Extracted ${mediaMap.size} media files to ${this.mediaDir} (fs move)`);
     return mediaMap;
   }
 

@@ -5,6 +5,7 @@ import { useTheme } from '../../../design/theme';
 import { s } from '../../../design/spacing';
 import { r } from '../../../design/radii';
 import { deckMetadataService, DeckMetadata } from '../../../services/anki/DeckMetadataService';
+import { logger } from '../../../utils/logger';
 
 interface Deck {
   id: string;
@@ -64,7 +65,7 @@ export default function FolderManagementModalV2({
     setFolders(Array.from(folderSet).sort());
     setDeckFolderMap(deckToFolder);
     setFolderMetadata(folderMeta);
-    console.log('[FolderManagementModal] Loaded folders:', Array.from(folderSet));
+    logger.info('[FolderManagementModal] Loaded folders:', Array.from(folderSet));
   };
 
   const handleCreateFolder = async () => {
@@ -91,9 +92,9 @@ export default function FolderManagementModalV2({
       await loadFolders();
       onRefresh();
       
-      console.log('[FolderManagement] Created folder:', trimmedName);
+      logger.info('[FolderManagement] Created folder:', trimmedName);
     } catch (error) {
-      console.error('[FolderManagement] Error creating folder:', error);
+      logger.error('[FolderManagement] Error creating folder:', error);
       Alert.alert('Error', 'Failed to create folder');
     }
   };
@@ -161,7 +162,7 @@ export default function FolderManagementModalV2({
       await loadFolders();
       onRefresh();
     } catch (error) {
-      console.error('[FolderManagement] Error:', error);
+      logger.error('[FolderManagement] Error:', error);
       Alert.alert('Error', 'Failed to assign decks');
     }
   };

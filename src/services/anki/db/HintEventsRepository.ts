@@ -31,7 +31,7 @@ export class HintEventsRepository {
    */
   recordHintRevealed(event: Omit<HintEvent, 'id'>): void {
     this.hintEvents.push({
-      id: `hint_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `hint_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       ...event,
     });
   }
@@ -41,7 +41,7 @@ export class HintEventsRepository {
    */
   recordReview(link: Omit<HintReviewLink, 'id'>): void {
     this.reviewLinks.push({
-      id: `link_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `link_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       ...link,
     });
   }

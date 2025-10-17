@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { auth } from '../../config/firebase';
+import { logger } from '../../utils/logger';
 
 const API_BASE = Constants.expoConfig?.extra?.apiBaseUrl as string;
 
@@ -45,7 +46,7 @@ export class ApiService {
       const headers = await this.getAuthHeaders();
       const url = `${API_BASE}${endpoint}`;
 
-      console.log(`[ApiService] ${options.method || 'GET'} ${endpoint}`);
+      logger.info(`[ApiService] ${options.method || 'GET'} ${endpoint}`);
 
       // Create abort controller for timeout
       const controller = new AbortController();
@@ -66,26 +67,26 @@ export class ApiService {
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
-        console.error(`[ApiService] Non-JSON response:`, text.substring(0, 500));
+        logger.error(`[ApiService] Non-JSON response:`, text.substring(0, 500));
         throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
       }
 
       const data: ApiResponse<T> = await response.json();
 
       if (!response.ok || !data.success) {
-        console.error(`[ApiService] Request failed:`, data.error);
+        logger.error(`[ApiService] Request failed:`, data.error);
         throw new Error(data.error?.message || 'API request failed');
       }
 
-      console.log(`[ApiService] Success:`, endpoint);
+      logger.info(`[ApiService] Success:`, endpoint);
       return data;
     } catch (error) {
       // Provide better error message for timeouts
       if (error instanceof Error && error.name === 'AbortError') {
-        console.error(`[ApiService] ${endpoint} timed out after ${timeoutMs}ms`);
+        logger.error(`[ApiService] ${endpoint} timed out after ${timeoutMs}ms`);
         throw new Error(`Request timed out. The file may be too large or the server is busy. Please try again.`);
       }
-      console.error(`[ApiService] ${endpoint} failed:`, error);
+      logger.error(`[ApiService] ${endpoint} failed:`, error);
       throw error;
     }
   }
@@ -129,7 +130,7 @@ export class ApiService {
       const data = await response.json();
       return data.success === true;
     } catch (error) {
-      console.error('[ApiService] Health check failed:', error);
+      logger.error('[ApiService] Health check failed:', error);
       return false;
     }
   }

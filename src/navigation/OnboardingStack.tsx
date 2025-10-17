@@ -1,6 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import WelcomeScreen from '../app/Onboarding/WelcomeScreen';
+import OnboardingIntroScreen from '../app/Onboarding/OnboardingIntroScreen';
 import ProfileScreen from '../app/Onboarding/ProfileScreen';
 import PreferencesScreen from '../app/Onboarding/PreferencesScreen';
 import ThemeScreen from '../app/Onboarding/ThemeScreen';
@@ -16,7 +16,7 @@ export default function OnboardingStack() {
         gestureEnabled: false, // Prevent back swipe during onboarding
       }}
     >
-      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="Welcome" component={OnboardingIntroScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Preferences" component={PreferencesScreen} />
       <Stack.Screen name="Theme" component={ThemeScreen} />

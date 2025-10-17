@@ -5,6 +5,7 @@ import ThemeSelectionScreen from './ThemeSelectionScreen';
 import NotificationsScreen from './NotificationsScreen';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
 import { useAuth } from '../../context/AuthContext';
+import { logger } from '../../utils/logger';
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -65,7 +66,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       // Mark complete
       onComplete();
     } catch (error) {
-      console.error('[OnboardingFlow] Error saving data:', error);
+      logger.error('[OnboardingFlow] Error saving data:', error);
       // Still complete even if save fails
       onComplete();
     }

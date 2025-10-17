@@ -11,11 +11,11 @@ import PrimaryButton from '../../components/PrimaryButton';
 
 const { width } = Dimensions.get('window');
 
-interface WelcomeScreenProps {
+interface OnboardingIntroScreenProps {
   navigation: any;
 }
 
-export default function WelcomeScreen({ navigation }: WelcomeScreenProps) {
+export default function OnboardingIntroScreen({ navigation }: OnboardingIntroScreenProps) {
   const theme = useTheme();
 
   const handleContinue = () => {

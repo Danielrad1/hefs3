@@ -7,6 +7,7 @@ import { useTheme } from '../../../design/theme';
 import { s } from '../../../design/spacing';
 import { r } from '../../../design/radii';
 import PrimaryButton from '../../../components/PrimaryButton';
+import { logger } from '../../../utils/logger';
 
 interface NotificationsStepProps {
   onNext: (data: { notificationsEnabled: boolean }) => void;
@@ -30,10 +31,10 @@ export default function NotificationsStep({ onNext, onBack, isLast }: Notificati
       }
       
       if (finalStatus === 'granted') {
-        console.log('[Notifications] Permission granted');
+        logger.info('[Notifications] Permission granted');
         onNext({ notificationsEnabled: true });
       } else {
-        console.log('[Notifications] Permission denied');
+        logger.info('[Notifications] Permission denied');
         Alert.alert(
           'Notifications Disabled',
           'You can enable notifications later in Settings.',
@@ -41,7 +42,7 @@ export default function NotificationsStep({ onNext, onBack, isLast }: Notificati
         );
       }
     } catch (error) {
-      console.error('[Notifications] Error requesting permission:', error);
+      logger.error('[Notifications] Error requesting permission:', error);
       onNext({ notificationsEnabled: false });
     }
   };

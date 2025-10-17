@@ -1,6 +1,7 @@
 import { useColorScheme } from 'react-native';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../utils/logger';
 
 type ThemePreference = 'light' | 'dark' | 'system';
 type ColorScheme = 'sunset' | 'ocean' | 'forest' | 'neon' | 'royal' | 'moss' | 'midnight' | 'cherry' | 'mint' | 'coral' | 'lavender' | 'amber' | 'sky' | 'berry' | 'earth' | 'aurora' | 'monoPurple' | 'monoBlue' | 'monoGreen' | 'monoRed' | 'monoOrange' | 'monoPink' | 'monoTeal' | 'monoIndigo' | 'monoRose' | 'monoEmerald' | 'monoViolet' | 'monoSky' | 'monoAmber' | 'monoLime' | 'monoCyan' | 'monoFuchsia' | 'monoSlate' | 'monoStone' | 'monoNeutral' | 'monoZinc';
@@ -96,7 +97,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
           setColorScheme(savedScheme as ColorScheme);
         }
       } catch (error) {
-        console.error('[Theme] Failed to load theme preference:', error);
+        logger.error('[Theme] Failed to load theme preference:', error);
       } finally {
         setIsLoading(false);
       }
@@ -108,7 +109,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!isLoading) {
       AsyncStorage.setItem(THEME_STORAGE_KEY, themePreference).catch((error) => {
-        console.error('[Theme] Failed to save theme preference:', error);
+        logger.error('[Theme] Failed to save theme preference:', error);
       });
     }
   }, [themePreference, isLoading]);
@@ -117,7 +118,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!isLoading) {
       AsyncStorage.setItem(COLOR_SCHEME_STORAGE_KEY, colorScheme).catch((error) => {
-        console.error('[Theme] Failed to save color scheme:', error);
+        logger.error('[Theme] Failed to save color scheme:', error);
       });
     }
   }, [colorScheme, isLoading]);

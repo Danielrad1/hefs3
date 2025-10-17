@@ -5,16 +5,47 @@ type ImgDims = { width: number; height: number };
 
 /**
  * Image cache for preloading images and caching dimensions
+ * Uses LRU eviction to prevent unbounded memory growth
  */
 class ImageCacheService {
+  private static readonly MAX_CACHE_SIZE = 200;
+  
   private preloadedImages = new Set<string>();
   private dims = new Map<string, ImgDims>();
+  // Track access order for LRU
+  private accessOrder: string[] = [];
+
+  /**
+   * Track access for LRU eviction
+   */
+  private trackAccess(filename: string): void {
+    // Remove if exists (will add to end)
+    const index = this.accessOrder.indexOf(filename);
+    if (index > -1) {
+      this.accessOrder.splice(index, 1);
+    }
+    this.accessOrder.push(filename);
+  }
+
+  /**
+   * Evict least recently used entries if over limit
+   */
+  private evictIfNeeded(): void {
+    while (this.dims.size > ImageCacheService.MAX_CACHE_SIZE) {
+      const lru = this.accessOrder.shift();
+      if (lru) {
+        this.dims.delete(lru);
+        this.preloadedImages.delete(lru);
+      }
+    }
+  }
 
   /**
    * Get dimensions for an image (async, with caching)
    */
   async getDimensions(filename: string): Promise<ImgDims | null> {
     if (this.dims.has(filename)) {
+      this.trackAccess(filename);
       return this.dims.get(filename)!;
     }
 
@@ -26,6 +57,8 @@ class ImageCacheService {
         (width, height) => {
           const dims = { width, height };
           this.dims.set(filename, dims);
+          this.trackAccess(filename);
+          this.evictIfNeeded();
           resolve(dims);
         },
         () => resolve(null)
@@ -95,6 +128,7 @@ class ImageCacheService {
    */
   async preloadImage(filename: string): Promise<void> {
     if (this.preloadedImages.has(filename)) {
+      this.trackAccess(filename);
       return;
     }
 
@@ -102,6 +136,8 @@ class ImageCacheService {
       const mediaPath = getMediaUri(filename);
       await Image.prefetch(mediaPath);
       this.preloadedImages.add(filename);
+      this.trackAccess(filename);
+      this.evictIfNeeded();
     } catch (error) {
       // Silent fail
     }
@@ -122,6 +158,18 @@ class ImageCacheService {
   clear(): void {
     this.preloadedImages.clear();
     this.dims.clear();
+    this.accessOrder = [];
+  }
+  
+  /**
+   * Get cache statistics (for debugging)
+   */
+  getStats(): { size: number; maxSize: number; preloaded: number } {
+    return {
+      size: this.dims.size,
+      maxSize: ImageCacheService.MAX_CACHE_SIZE,
+      preloaded: this.preloadedImages.size,
+    };
   }
 }
 

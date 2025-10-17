@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as mammoth from 'mammoth';
 import { PDFExtract } from 'pdf.js-extract';
+import { logger } from '../utils/logger';
 
 interface ParseRequest {
   fileData: string; // base64 encoded
@@ -25,39 +26,39 @@ async function parseFile(req: Request, res: Response): Promise<void> {
 
     const startTime = Date.now();
     const fileSizeKB = Math.round(fileData.length / 1024);
-    console.log(`[Parse] Processing ${fileType} file: ${fileName || 'unnamed'} (${fileSizeKB} KB base64)`);
+    logger.info(`[Parse] Processing ${fileType} file: ${fileName || 'unnamed'} (${fileSizeKB} KB base64)`);
 
     // Convert base64 to buffer
     const decodeStart = Date.now();
     const buffer = Buffer.from(fileData, 'base64');
     const bufferSizeMB = (buffer.length / (1024 * 1024)).toFixed(2);
-    console.log(`[Parse] Decoded base64 in ${Date.now() - decodeStart}ms (${bufferSizeMB} MB)`);
+    logger.info(`[Parse] Decoded base64 in ${Date.now() - decodeStart}ms (${bufferSizeMB} MB)`);
 
     let extractedText = '';
 
     if (fileType === 'docx' || fileType === 'doc') {
       // Parse Word document
       const parseStart = Date.now();
-      console.log('[Parse] Parsing Word document...');
+      logger.info('[Parse] Parsing Word document...');
       const result = await mammoth.extractRawText({ buffer });
       extractedText = result.value;
-      console.log(`[Parse] Extracted ${extractedText.length} characters from Word in ${Date.now() - parseStart}ms`);
+      logger.info(`[Parse] Extracted ${extractedText.length} characters from Word in ${Date.now() - parseStart}ms`);
     } else if (fileType === 'pdf') {
       // Parse PDF
       const parseStart = Date.now();
-      console.log('[Parse] Parsing PDF...');
+      logger.info('[Parse] Parsing PDF...');
       const pdfExtract = new PDFExtract();
       const data = await pdfExtract.extractBuffer(buffer);
-      console.log(`[Parse] PDF parsed in ${Date.now() - parseStart}ms (${data.pages.length} pages)`);
+      logger.info(`[Parse] PDF parsed in ${Date.now() - parseStart}ms (${data.pages.length} pages)`);
       
       // Extract text from all pages
       const textStart = Date.now();
       extractedText = data.pages
         .map(page => page.content.map(item => item.str).join(' '))
         .join('\n');
-      console.log(`[Parse] Text extraction took ${Date.now() - textStart}ms`);
+      logger.info(`[Parse] Text extraction took ${Date.now() - textStart}ms`);
       
-      console.log(`[Parse] Extracted ${extractedText.length} characters from PDF`);
+      logger.info(`[Parse] Extracted ${extractedText.length} characters from PDF`);
     } else {
       res.status(400).json({
         success: false,
@@ -81,11 +82,11 @@ async function parseFile(req: Request, res: Response): Promise<void> {
     }
 
     const totalTime = Date.now() - startTime;
-    console.log(`[Parse] ========== PARSING COMPLETE ==========`);
-    console.log(`[Parse] Total time: ${totalTime}ms`);
-    console.log(`[Parse] File size: ${bufferSizeMB} MB`);
-    console.log(`[Parse] Output: ${extractedText.length} characters`);
-    console.log(`[Parse] ==========================================`);
+    logger.info(`[Parse] ========== PARSING COMPLETE ==========`);
+    logger.info(`[Parse] Total time: ${totalTime}ms`);
+    logger.info(`[Parse] File size: ${bufferSizeMB} MB`);
+    logger.info(`[Parse] Output: ${extractedText.length} characters`);
+    logger.info(`[Parse] ==========================================`);
     
     res.json({
       success: true,
@@ -94,7 +95,7 @@ async function parseFile(req: Request, res: Response): Promise<void> {
       },
     });
   } catch (error) {
-    console.error('[Parse] Error:', error);
+    logger.error('[Parse] Error:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to parse file',

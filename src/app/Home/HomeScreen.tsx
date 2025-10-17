@@ -7,7 +7,6 @@ import { useTheme } from '../../design/theme';
 import { useScheduler } from '../../context/SchedulerProvider';
 import { useAuth } from '../../context/AuthContext';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
-import { sampleCards } from '../../mocks/sampleCards';
 import { db } from '../../services/anki/InMemoryDb';
 import { StatsService, HomeStats, GlobalSnapshot, WeeklyCoachReport as WeeklyCoachReportType } from '../../services/anki/StatsService';
 import { BacklogPressureCard, EfficiencyCard, StreakCalendarCard, WeeklyCoachReport, BestHoursCard, AddsTimelineMini, BacklogClearByCard } from '../../components/stats';
@@ -17,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { FirstRunGuide } from '../../guided/FirstRunGuide';
 import OnboardingModal from '../../components/OnboardingModal';
 import { useFocusEffect } from '@react-navigation/native';
+import { logger } from '../../utils/logger';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -61,14 +61,6 @@ export default function HomeScreen() {
   
   const motivationalMessage = getMotivationalMessage();
 
-  // Bootstrap sample data ONLY on first launch (empty database)
-  useEffect(() => {
-    const allCards = db.getAllCards();
-    if (allCards.length === 0) {
-      bootstrap(sampleCards);
-    }
-  }, [bootstrap]);
-
   // First run: show welcome popup on Home
   useFocusEffect(
     React.useCallback(() => {
@@ -102,23 +94,30 @@ export default function HomeScreen() {
       setIsRefreshing(true);
     }
     
-    setTimeout(() => {
-      const statsService = new StatsService(db);
-      const stats = statsService.getHomeStats();
-      const snapshot = statsService.getGlobalSnapshot({ windowDays: 7 });
-      const coachReport = statsService.getWeeklyCoachReport();
-      const bestHours = statsService.getBestHours({ days: 30, minReviews: 20 });
-      const addsTimeline = statsService.getAddsTimeline({ days: 7 });
-      const dailyAverage = statsService.getRecentDailyAverage({ days: 7 });
-      setHomeStats(stats);
-      setGlobalSnapshot(snapshot);
-      setWeeklyCoachReport(coachReport);
-      setBestHoursData(bestHours);
-      setAddsTimelineData(addsTimeline);
-      setAvgReviewsPerDay(dailyAverage.avgReviewsPerDay);
-      isCalculatingRef.current = false;
-      setIsRefreshing(false);
+    const timer = setTimeout(() => {
+      try {
+        const statsService = new StatsService(db);
+        const stats = statsService.getHomeStats();
+        const snapshot = statsService.getGlobalSnapshot({ windowDays: 7 });
+        const coachReport = statsService.getWeeklyCoachReport();
+        const bestHours = statsService.getBestHours({ days: 30, minReviews: 20 });
+        const addsTimeline = statsService.getAddsTimeline({ days: 7 });
+        const dailyAverage = statsService.getRecentDailyAverage({ days: 7 });
+        setHomeStats(stats);
+        setGlobalSnapshot(snapshot);
+        setWeeklyCoachReport(coachReport);
+        setBestHoursData(bestHours);
+        setAddsTimelineData(addsTimeline);
+        setAvgReviewsPerDay(dailyAverage.avgReviewsPerDay);
+      } catch (error) {
+        logger.error('[HomeScreen] Error calculating stats:', error);
+      } finally {
+        isCalculatingRef.current = false;
+        setIsRefreshing(false);
+      }
     }, 0);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   // Pull-to-refresh handler
@@ -129,7 +128,8 @@ export default function HomeScreen() {
   // Calculate statistics when screen is focused
   useFocusEffect(
     React.useCallback(() => {
-      refreshStats();
+      const cleanup = refreshStats();
+      return cleanup;
     }, [refreshStats])
   );
 
@@ -148,7 +148,7 @@ export default function HomeScreen() {
               setUserName(user.displayName.split(' ')[0]);
             }
           } catch (error) {
-            console.log('[HomeScreen] Error loading user profile:', error);
+            logger.info('[HomeScreen] Error loading user profile:', error);
           }
         }
       };

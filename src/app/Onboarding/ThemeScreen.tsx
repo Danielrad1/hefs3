@@ -9,6 +9,7 @@ import PrimaryButton from '../../components/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
 import { auth } from '../../config/firebase';
+import { logger } from '../../utils/logger';
 
 interface ThemeScreenProps {
   navigation: any;
@@ -86,7 +87,7 @@ export default function ThemeScreen({ navigation, route }: ThemeScreenProps) {
 
       // Force reload by setting saving to false which will trigger AuthNavigator check
     } catch (error) {
-      console.error('[Onboarding] Error saving preferences:', error);
+      logger.error('[Onboarding] Error saving preferences:', error);
       Alert.alert('Error', 'Failed to save your preferences. Please try again.');
       setSaving(false);
     }

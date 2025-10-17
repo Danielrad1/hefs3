@@ -12,6 +12,7 @@ import { r } from '../../design/radii';
 import { AiService } from '../../services/ai/AiService';
 import { NoteModel, GeneratedNote } from '../../services/ai/types';
 import { ApiService } from '../../services/cloud/ApiService';
+import { logger } from '../../utils/logger';
 
 const EXAMPLE_PROMPTS = [
   "Human anatomy muscles with origin, insertion, action",
@@ -82,7 +83,7 @@ export default function AIDeckCreatorScreen() {
             const base64 = await FileSystem.readAsStringAsync(file.uri, {
               encoding: FileSystem.EncodingType.Base64,
             });
-            console.log(`[Import] Read file as base64 in ${Date.now() - readStart}ms (${Math.round(base64.length / 1024)} KB)`);
+            logger.info(`[Import] Read file as base64 in ${Date.now() - readStart}ms (${Math.round(base64.length / 1024)} KB)`);
 
             // Determine file type
             const fileType = file.name.endsWith('.docx') ? 'docx' : 'doc';
@@ -95,7 +96,7 @@ export default function AIDeckCreatorScreen() {
               fileName: file.name,
             });
 
-            console.log(`[Import] Backend parsing took ${Date.now() - parseStart}ms`);
+            logger.info(`[Import] Backend parsing took ${Date.now() - parseStart}ms`);
             
             if (response.text) {
               setNotesText(response.text);
@@ -104,7 +105,7 @@ export default function AIDeckCreatorScreen() {
               throw new Error('No text extracted from Word document');
             }
           } catch (error) {
-            console.error('Word parsing error:', error);
+            logger.error('Word parsing error:', error);
             Alert.alert(
               'Parsing Error',
               error instanceof Error ? error.message : 'Failed to extract text from Word document. Please try again or use a different file.',
@@ -123,7 +124,7 @@ export default function AIDeckCreatorScreen() {
             const base64 = await FileSystem.readAsStringAsync(file.uri, {
               encoding: FileSystem.EncodingType.Base64,
             });
-            console.log(`[Import] Read PDF as base64 in ${Date.now() - readStart}ms (${Math.round(base64.length / 1024)} KB)`);
+            logger.info(`[Import] Read PDF as base64 in ${Date.now() - readStart}ms (${Math.round(base64.length / 1024)} KB)`);
 
             // Send to backend for parsing
             const parseStart = Date.now();
@@ -133,7 +134,7 @@ export default function AIDeckCreatorScreen() {
               fileName: file.name,
             });
 
-            console.log(`[Import] Backend PDF parsing took ${Date.now() - parseStart}ms`);
+            logger.info(`[Import] Backend PDF parsing took ${Date.now() - parseStart}ms`);
             
             if (response.text) {
               setNotesText(response.text);
@@ -142,7 +143,7 @@ export default function AIDeckCreatorScreen() {
               throw new Error('No text extracted from PDF');
             }
           } catch (error) {
-            console.error('PDF parsing error:', error);
+            logger.error('PDF parsing error:', error);
             Alert.alert(
               'Parsing Error',
               error instanceof Error ? error.message : 'Failed to extract text from PDF. Please try again or use a different file.',
@@ -161,7 +162,7 @@ export default function AIDeckCreatorScreen() {
         }
       }
     } catch (error) {
-      console.error('Import error:', error);
+      logger.error('Import error:', error);
       Alert.alert('Import Error', 'Failed to import file. Please try again.');
       setImportedFileName(null);
     }
@@ -200,7 +201,7 @@ export default function AIDeckCreatorScreen() {
         metadata: response.metadata,
       });
     } catch (error) {
-      console.error('AI generation error:', error);
+      logger.error('AI generation error:', error);
       // Go back to creator screen
       navigation.goBack();
       Alert.alert(

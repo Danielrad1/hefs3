@@ -28,6 +28,7 @@ import FolderCustomizationModal from './components/FolderCustomizationModalV2';
 import FolderManagementModal from './components/FolderManagementModalV2';
 import { buildDeckTree, filterDecks, DeckWithStats, DeckNode } from './utils/deckTreeUtils';
 import { deckMetadataService, DeckMetadata, FolderMetadata } from '../../services/anki/DeckMetadataService';
+import { logger } from '../../utils/logger';
 
 export default function DecksScreen() {
   const theme = useTheme();
@@ -167,7 +168,7 @@ export default function DecksScreen() {
               await PersistenceService.save(db);
               reload();
             } catch (error) {
-              console.error('Error deleting deck:', error);
+              logger.error('Error deleting deck:', error);
               Alert.alert('Error', error instanceof Error ? error.message : 'Failed to delete deck');
             }
           },

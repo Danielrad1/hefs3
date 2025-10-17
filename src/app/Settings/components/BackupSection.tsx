@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CloudBackupService, BackupMetadata } from '../../../services/cloud';
 import { useScheduler } from '../../../context/SchedulerProvider';
 import Constants from 'expo-constants';
+import { logger } from '../../../utils/logger';
 
 interface SettingItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -39,7 +40,7 @@ export function BackupSection({ SettingItem }: { SettingItem: React.ComponentTyp
       const data = await CloudBackupService.getBackupMetadata();
       setMetadata(data);
     } catch (error) {
-      console.error('Failed to load backup metadata:', error);
+      logger.error('Failed to load backup metadata:', error);
     } finally {
       setCheckingMetadata(false);
     }
@@ -56,7 +57,7 @@ export function BackupSection({ SettingItem }: { SettingItem: React.ComponentTyp
       // Refresh metadata
       await loadMetadata();
     } catch (error: any) {
-      console.error('Backup upload failed:', error);
+      logger.error('Backup upload failed:', error);
       Alert.alert('Backup Failed', error.message || 'Failed to upload backup');
     } finally {
       setLoading(false);
@@ -83,7 +84,7 @@ export function BackupSection({ SettingItem }: { SettingItem: React.ComponentTyp
               
               Alert.alert('Success', 'Database restored successfully!');
             } catch (error: any) {
-              console.error('Backup restore failed:', error);
+              logger.error('Backup restore failed:', error);
               Alert.alert('Restore Failed', error.message || 'Failed to restore backup');
             } finally {
               setLoading(false);

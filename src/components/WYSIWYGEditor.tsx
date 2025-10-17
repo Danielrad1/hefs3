@@ -12,6 +12,7 @@ import { useTheme } from '../design/theme';
 import { s } from '../design/spacing';
 import { r } from '../design/radii';
 import { getMediaUri } from '../utils/mediaHelpers';
+import { logger } from '../utils/logger';
 
 interface WYSIWYGEditorProps {
   value: string;
@@ -118,7 +119,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
               processed = processed.replace(fullMatch, `<img ${before}src="${base64Src}"${after}>`);
             }
           } catch (error) {
-            console.warn('[WYSIWYGEditor] Failed to convert image:', src, error);
+            logger.warn('[WYSIWYGEditor] Failed to convert image:', src, error);
           }
         }
         
@@ -159,7 +160,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
           const dataUri = `data:${mimeType};base64,${base64}`;
           richText.current?.insertHTML(`<img src="${dataUri}" data-filename="${filename}" style="max-width:100%;height:auto;display:block;margin:8px auto;" />`);
         } catch (error) {
-          console.error('[WYSIWYGEditor] Error converting image to base64:', error);
+          logger.error('[WYSIWYGEditor] Error converting image to base64:', error);
         }
       },
       insertAudio: (filename: string) => {

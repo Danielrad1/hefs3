@@ -12,6 +12,7 @@ import { useScheduler } from '../../context/SchedulerProvider';
 import OnboardingModal from '../../components/OnboardingModal';
 import { FirstRunGuide } from '../../guided/FirstRunGuide';
 import { useAuth } from '../../context/AuthContext';
+import { logger } from '../../utils/logger';
 
 export default function DiscoverScreen() {
   const theme = useTheme();
@@ -50,7 +51,7 @@ export default function DiscoverScreen() {
       const catalog = await DiscoverService.getCatalog();
       setDecks(catalog.decks);
     } catch (error) {
-      console.error('Failed to load decks:', error);
+      logger.error('Failed to load decks:', error);
       Alert.alert('Error', 'Failed to load deck catalog. Please try again.');
     } finally {
       setLoading(false);
@@ -138,11 +139,14 @@ export default function DiscoverScreen() {
       // Mark guide complete and schedule study
       try { await FirstRunGuide.completeDiscover(uid); } catch {}
 
-      // Prompt user to go to Decks next
-      setShowPostImportModal(true);
+      // Only show modal if this is part of the tutorial
+      const shouldShowTutorial = await FirstRunGuide.shouldShowDiscover(uid);
+      if (shouldShowTutorial) {
+        setShowPostImportModal(true);
+      }
       
     } catch (error: any) {
-      console.error('Download/Import failed:', error);
+      logger.error('Download/Import failed:', error);
       
       Alert.alert('Failed', error.message || 'Failed to download or import deck');
     } finally {

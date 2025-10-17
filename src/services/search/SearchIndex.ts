@@ -5,6 +5,7 @@
 
 import { AnkiNote } from '../anki/schema';
 import { InMemoryDb } from '../anki/InMemoryDb';
+import { logger } from '../../utils/logger';
 
 interface IndexedNote {
   noteId: string;
@@ -16,6 +17,7 @@ interface IndexedNote {
 
 export class SearchIndex {
   private index: Map<string, IndexedNote> = new Map();
+  private noteToCardsCache: Map<string, string[]> = new Map();
 
   constructor(private db: InMemoryDb) {}
 
@@ -24,18 +26,28 @@ export class SearchIndex {
    */
   indexAll(): void {
     this.index.clear();
+    this.noteToCardsCache.clear();
+    
+    // Pre-compute note→card lookup to avoid O(n²)
+    const allCards = this.db.getAllCards();
+    allCards.forEach((card) => {
+      const existing = this.noteToCardsCache.get(card.nid) || [];
+      existing.push(card.did);
+      this.noteToCardsCache.set(card.nid, existing);
+    });
+    
     const notes = this.db.getAllNotes();
     notes.forEach((note) => this.indexNote(note));
-    console.log(`[SearchIndex] Indexed ${notes.length} notes`);
+    logger.info(`[SearchIndex] Indexed ${notes.length} notes`);
   }
 
   /**
    * Index a single note
    */
   indexNote(note: AnkiNote): void {
-    // Get decks for this note's cards
-    const cards = this.db.getAllCards().filter((c) => c.nid === note.id);
-    const deckIds = Array.from(new Set(cards.map((c) => c.did)));
+    // Use cached note→card lookup for O(1) performance
+    const cardDeckIds = this.noteToCardsCache.get(note.id) || [];
+    const deckIds = Array.from(new Set(cardDeckIds));
 
     // Strip HTML and tokenize
     const rawText = this.stripHtml(note.flds);

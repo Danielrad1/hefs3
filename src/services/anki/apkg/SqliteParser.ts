@@ -7,17 +7,18 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as SQLite from 'expo-sqlite';
 import { AnkiCard, AnkiNote, AnkiCol, Deck, DeckConfig, AnkiRevlog } from '../schema';
 import { ApkgParseResult } from './types';
+import { logger } from '../../../utils/logger';
 
 export class SqliteParser {
   /**
    * Parse the collection.anki2 SQLite database
    */
   async parse(dbPath: string): Promise<ApkgParseResult> {
-    console.log('[SqliteParser] Opening database at:', dbPath);
+    logger.info('[SqliteParser] Opening database at:', dbPath);
 
     // Check if file exists
     const fileInfo = await FileSystem.getInfoAsync(dbPath);
-    console.log('[SqliteParser] File exists:', fileInfo.exists);
+    logger.info('[SqliteParser] File exists:', fileInfo.exists);
 
     // expo-sqlite might not support arbitrary paths, copy to SQLiteDatabase directory
     const sqliteDir = `${FileSystem.documentDirectory}SQLite/`;
@@ -25,7 +26,7 @@ export class SqliteParser {
     const dbName = 'imported_collection.db';
     const dbInSqliteDir = `${sqliteDir}${dbName}`;
 
-    console.log('[SqliteParser] Copying to SQLite directory:', dbInSqliteDir);
+    logger.info('[SqliteParser] Copying to SQLite directory:', dbInSqliteDir);
     await FileSystem.copyAsync({
       from: dbPath,
       to: dbInSqliteDir,
@@ -33,14 +34,14 @@ export class SqliteParser {
 
     // Open database by name (relative to SQLite directory)
     const db = await SQLite.openDatabaseAsync(dbName);
-    console.log('[SqliteParser] Database opened successfully');
+    logger.info('[SqliteParser] Database opened successfully');
 
     try {
       // Check what tables exist
       const tables = await db.getAllAsync<any>(
         "SELECT name FROM sqlite_master WHERE type='table'"
       );
-      console.log('[SqliteParser] Tables in database:', tables);
+      logger.info('[SqliteParser] Tables in database:', tables);
 
       // Read collection
       const colRow = await db.getFirstAsync<any>('SELECT * FROM col');
@@ -150,9 +151,9 @@ export class SqliteParser {
    */
   private async parseNotes(db: any): Promise<AnkiNote[]> {
     const notesRows = await db.getAllAsync<any>('SELECT * FROM notes');
-    console.log('[SqliteParser] Found', notesRows.length, 'notes in database');
+    logger.info('[SqliteParser] Found', notesRows.length, 'notes in database');
     notesRows.forEach((row, i) => {
-      console.log(`[SqliteParser] Note ${i}:`, {
+      logger.info(`[SqliteParser] Note ${i}:`, {
         id: row.id,
         mid: row.mid,
         flds: row.flds?.substring(0, 100), // First 100 chars
@@ -179,9 +180,9 @@ export class SqliteParser {
    */
   private async parseCards(db: any): Promise<AnkiCard[]> {
     const cardsRows = await db.getAllAsync<any>('SELECT * FROM cards');
-    console.log('[SqliteParser] Found', cardsRows.length, 'cards in database');
+    logger.info('[SqliteParser] Found', cardsRows.length, 'cards in database');
     cardsRows.forEach((row, i) => {
-      console.log(`[SqliteParser] Card ${i}:`, {
+      logger.info(`[SqliteParser] Card ${i}:`, {
         id: row.id,
         nid: row.nid,
         did: row.did,
@@ -219,7 +220,7 @@ export class SqliteParser {
   private async parseRevlog(db: any): Promise<AnkiRevlog[]> {
     try {
       const revlogRows = await db.getAllAsync<any>('SELECT * FROM revlog');
-      console.log('[SqliteParser] Found', revlogRows.length, 'review history entries');
+      logger.info('[SqliteParser] Found', revlogRows.length, 'review history entries');
       return revlogRows.map((row) => ({
         id: row.id.toString(),
         cid: row.cid.toString(),
@@ -232,7 +233,7 @@ export class SqliteParser {
         type: row.type,
       }));
     } catch (error) {
-      console.log('[SqliteParser] No revlog table found or error reading it:', error);
+      logger.info('[SqliteParser] No revlog table found or error reading it:', error);
       // Some .apkg files might not have revlog, that's okay
       return [];
     }

@@ -18,6 +18,7 @@ import AIHintsPromoModal from './AIHintsPromoModal';
 import StudyCoachOverlay from './StudyCoachOverlay';
 import { FirstRunGuide } from '../../guided/FirstRunGuide';
 import { useAuth } from '../../context/AuthContext';
+import { logger } from '../../utils/logger';
 
 interface StudyScreenProps {
   navigation?: any;
@@ -319,17 +320,17 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
 
   const handleEnableHints = React.useCallback(() => {
     if (!currentDeckId) {
-      console.log('[StudyScreen] No currentDeckId');
+      logger.info('[StudyScreen] No currentDeckId');
       return;
     }
     
     const deck = db.getDeck(currentDeckId);
     if (!deck) {
-      console.log('[StudyScreen] Deck not found:', currentDeckId);
+      logger.info('[StudyScreen] Deck not found:', currentDeckId);
       return;
     }
 
-    console.log('[StudyScreen] Navigating to AIHintsConfig for deck:', deck.name);
+    logger.info('[StudyScreen] Navigating to AIHintsConfig for deck:', deck.name);
     setShowPromoModal(false);
     
     // Small delay to let modal close animation finish
@@ -344,9 +345,9 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
             totalCards: db.getCardsByDeck(currentDeckId).length,
           },
         });
-        console.log('[StudyScreen] Navigation triggered');
+        logger.info('[StudyScreen] Navigation triggered');
       } else {
-        console.log('[StudyScreen] No navigation prop');
+        logger.info('[StudyScreen] No navigation prop');
       }
     }, 100);
   }, [currentDeckId, navigation]);

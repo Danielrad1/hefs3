@@ -4,6 +4,7 @@
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
+import { logger } from '../../utils/logger';
 import {
   ApkgParseResult,
   ApkgParseOptions,
@@ -34,7 +35,7 @@ export class ApkgParser {
    * Parse an .apkg file from a URI
    */
   async parse(fileUri: string, options: ApkgParseOptions = {}): Promise<ApkgParseResult> {
-    console.log('[ApkgParser] Starting parse:', fileUri);
+    logger.info('[ApkgParser] Starting parse:', fileUri);
     const progress = new ProgressReporter(options);
 
     // Check file size first
@@ -44,17 +45,17 @@ export class ApkgParser {
     }
 
     const fileSizeMB = fileInfo.size ? fileInfo.size / (1024 * 1024) : 0;
-    console.log('[ApkgParser] File size:', fileSizeMB.toFixed(2), 'MB');
+    logger.info('[ApkgParser] File size:', fileSizeMB.toFixed(2), 'MB');
 
     // Warn about very large files but don't block them
     if (fileSizeMB > 500) {
-      console.warn(
+      logger.warn(
         '[ApkgParser] Very large file detected:',
         fileSizeMB.toFixed(2),
         'MB - this will take significant time and memory'
       );
     } else if (fileSizeMB > 100) {
-      console.warn('[ApkgParser] Large file detected:', fileSizeMB.toFixed(2), 'MB - this may take a while');
+      logger.warn('[ApkgParser] Large file detected:', fileSizeMB.toFixed(2), 'MB - this may take a while');
     }
 
     // Ensure directories exist
@@ -67,31 +68,31 @@ export class ApkgParser {
       if (streamed) {
         // We have extracted files on disk; proceed without JSZip
         const { collectionPath, extractedDir } = streamed;
-        console.log('[ApkgParser] Streaming unzip path active. Collection at:', collectionPath);
+        logger.info('[ApkgParser] Streaming unzip path active. Collection at:', collectionPath);
 
         // Parse SQLite
-        console.log('[ApkgParser] Parsing SQLite database (streaming path)...');
+        logger.info('[ApkgParser] Parsing SQLite database (streaming path)...');
         progress.report('Parsing database…');
         const result = await this.sqliteParser.parse(collectionPath);
 
         // Extract media by moving/copying from extracted dir
-        console.log('[ApkgParser] Extracting media files (streaming path)...');
+        logger.info('[ApkgParser] Extracting media files (streaming path)...');
         progress.report('Placing media files…');
         const mediaMap = await this.mediaExtractor.extractFromFs(extractedDir, options);
         result.mediaFiles = mediaMap;
 
         // Best-effort cleanup of extracted dir
-        console.log('[ApkgParser] Cleaning up extracted directory...');
+        logger.info('[ApkgParser] Cleaning up extracted directory...');
         try {
           await FileSystem.deleteAsync(extractedDir, { idempotent: true });
         } catch {}
-        console.log('[ApkgParser] Cleanup complete');
+        logger.info('[ApkgParser] Cleanup complete');
 
-        console.log('[ApkgParser] Parse complete (streaming path)!');
+        logger.info('[ApkgParser] Parse complete (streaming path)!');
         progress.report('Completed');
         return result;
       } else {
-        console.log('[ApkgParser] Streaming unzip not available; falling back to JSZip path.');
+        logger.info('[ApkgParser] Streaming unzip not available; falling back to JSZip path.');
       }
     }
 
@@ -100,7 +101,7 @@ export class ApkgParser {
     try {
       progress.report('Reading file…');
       zip = await this.unzipStrategy.readAndUnzipWithJSZip(fileUri, fileSizeMB);
-      console.log('[ApkgParser] File loaded successfully');
+      logger.info('[ApkgParser] File loaded successfully');
       progress.report('Processing archive…');
     } catch (error) {
       if (error instanceof Error) {
@@ -118,22 +119,22 @@ export class ApkgParser {
     }
 
     // Extract collection from zip and write to disk
-    console.log('[ApkgParser] Processing archive...');
+    logger.info('[ApkgParser] Processing archive...');
     progress.report('Writing database file…');
     const collectionPath = await this.unzipStrategy.extractCollectionFromZip(zip);
 
     // Parse SQLite
-    console.log('[ApkgParser] Parsing SQLite database...');
+    logger.info('[ApkgParser] Parsing SQLite database...');
     progress.report('Parsing database…');
     const result = await this.sqliteParser.parse(collectionPath);
 
     // Extract media
-    console.log('[ApkgParser] Extracting media files...');
+    logger.info('[ApkgParser] Extracting media files...');
     progress.report('Extracting media…');
     const mediaMap = await this.mediaExtractor.extractFromZip(zip, options);
     result.mediaFiles = mediaMap;
 
-    console.log('[ApkgParser] Parse complete!');
+    logger.info('[ApkgParser] Parse complete!');
     progress.report('Completed');
     return result;
   }

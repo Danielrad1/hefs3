@@ -12,6 +12,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './design/theme';
 import { PersistenceService } from './services/anki/PersistenceService';
 import { db } from './services/anki/InMemoryDb';
+import { logger } from './utils/logger';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -19,15 +20,15 @@ export default function App() {
   useEffect(() => {
     async function initializeApp() {
       try {
-        console.log('[App] Loading database...');
+        logger.info('[App] Loading database...');
         const loaded = await PersistenceService.load(db);
         if (loaded) {
-          console.log('[App] Database loaded from disk');
+          logger.info('[App] Database loaded from disk');
         } else {
-          console.log('[App] No saved database found, starting fresh');
+          logger.info('[App] No saved database found, starting fresh');
         }
       } catch (error) {
-        console.error('[App] Error loading database:', error);
+        logger.error('[App] Error loading database:', error);
       } finally {
         setIsLoading(false);
       }

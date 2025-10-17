@@ -6,6 +6,7 @@ import { InMemoryDb } from './InMemoryDb';
 import { AnkiCard, CardQueue } from './schema';
 import { isDue } from './time';
 import { MediaService } from './MediaService';
+import { logger } from '../../utils/logger';
 
 export interface CardQuery {
   deck?: string;
@@ -245,8 +246,8 @@ export class CardService {
     });
     
     // Clean up orphaned media files
-    console.log('[CardService] Cleaning up orphaned media files...');
+    logger.info('[CardService] Cleaning up orphaned media files...');
     const deletedCount = await this.mediaService.gcUnused();
-    console.log(`[CardService] Deleted ${deletedCount} orphaned media files`);
+    logger.info(`[CardService] Deleted ${deletedCount} orphaned media files`);
   }
 }

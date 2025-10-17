@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,11 @@ interface SignUpScreenProps {
 export default function SignUpScreen({ onBack, onSignIn }: SignUpScreenProps) {
   const { signUpWithEmail, signInWithApple, signInWithGoogle } = useAuth();
   const theme = useTheme();
+  
+  // Force sunset theme for sign-up screen
+  useEffect(() => {
+    theme.setColorScheme('sunset');
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

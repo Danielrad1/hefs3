@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../design/theme';
 import { s } from '../design/spacing';
 import { r } from '../design/radii';
+import { logger } from '../utils/logger';
 
 export type MediaType = 'image' | 'audio';
 
@@ -48,25 +49,25 @@ export default function MediaPickerSheet({
         onClose();
       }
     } catch (error) {
-      console.error('[MediaPickerSheet] Camera error:', error);
+      logger.error('[MediaPickerSheet] Camera error:', error);
       Alert.alert('Error', 'Failed to take photo');
     }
   };
 
   const handleLibrary = async () => {
-    console.log('[MediaPickerSheet] handleLibrary called, type:', type);
+    logger.info('[MediaPickerSheet] handleLibrary called, type:', type);
     
     try {
-      console.log('[MediaPickerSheet] Requesting permissions...');
+      logger.info('[MediaPickerSheet] Requesting permissions...');
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      console.log('[MediaPickerSheet] Permission status:', status);
+      logger.info('[MediaPickerSheet] Permission status:', status);
       
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Photo library permission is required');
         return;
       }
 
-      console.log('[MediaPickerSheet] Launching image library...');
+      logger.info('[MediaPickerSheet] Launching image library...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes:
           type === 'image'
@@ -76,21 +77,21 @@ export default function MediaPickerSheet({
         allowsEditing: type === 'image',
       });
 
-      console.log('[MediaPickerSheet] Image picker result:', { canceled: result.canceled, hasAssets: !!result.assets?.[0] });
+      logger.info('[MediaPickerSheet] Image picker result:', { canceled: result.canceled, hasAssets: !!result.assets?.[0] });
 
       if (!result.canceled && result.assets[0]) {
         const uri = result.assets[0].uri;
         const filename = uri.split('/').pop() || `media-${Date.now()}`;
-        console.log('[MediaPickerSheet] Calling onMediaSelected with:', { uri, filename });
+        logger.info('[MediaPickerSheet] Calling onMediaSelected with:', { uri, filename });
         onMediaSelected(uri, filename);
         // Note: Don't close here - let parent handle it after media is added
       } else {
-        console.log('[MediaPickerSheet] User canceled or no asset selected');
+        logger.info('[MediaPickerSheet] User canceled or no asset selected');
         onClose();
       }
     } catch (error) {
-      console.error('[MediaPickerSheet] Library error:', error);
-      console.error('[MediaPickerSheet] Error details:', error instanceof Error ? error.message : 'Unknown');
+      logger.error('[MediaPickerSheet] Library error:', error);
+      logger.error('[MediaPickerSheet] Error details:', error instanceof Error ? error.message : 'Unknown');
       Alert.alert('Error', `Failed to pick media: ${error instanceof Error ? error.message : 'Unknown error'}`);
       onClose();
     }
