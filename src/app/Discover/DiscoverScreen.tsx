@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
@@ -8,12 +9,13 @@ import { r } from '../../design/radii';
 import { DiscoverService, DeckManifest } from '../../services/discover/DiscoverService';
 import { DeckDetailModal } from './DeckDetailModal';
 import { useScheduler } from '../../context/SchedulerProvider';
-import GuideBanner from '../../components/GuideBanner';
+import OnboardingModal from '../../components/OnboardingModal';
 import { FirstRunGuide } from '../../guided/FirstRunGuide';
 
 export default function DiscoverScreen() {
   const theme = useTheme();
-  const { reload } = useScheduler(); // Get reload function to refresh Decks screen
+  const navigation = useNavigation<any>();
+  const { reload } = useScheduler(); // Refresh deck list after import
   const [decks, setDecks] = useState<DeckManifest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDeck, setSelectedDeck] = useState<DeckManifest | null>(null);
@@ -21,17 +23,18 @@ export default function DiscoverScreen() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState('');
-  const [showDiscoverBanner, setShowDiscoverBanner] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showPostImportModal, setShowPostImportModal] = useState(false);
 
   useEffect(() => {
     loadDecks();
   }, []);
 
-  // Show discover banner on first run
+  // Show import modal on first run
   useEffect(() => {
     FirstRunGuide.shouldShowDiscover()
-      .then(setShowDiscoverBanner)
-      .catch(() => setShowDiscoverBanner(false));
+      .then((should) => setShowImportModal(should))
+      .catch(() => setShowImportModal(false));
   }, []);
 
   const loadDecks = async () => {
@@ -125,8 +128,11 @@ export default function DiscoverScreen() {
       // Import the downloaded file
       const parsed = await importDeckFile(localUri, deck);
 
-      // Mark guide complete
+      // Mark guide complete and schedule study
       try { await FirstRunGuide.completeDiscover(); } catch {}
+
+      // Prompt user to go to Decks next
+      setShowPostImportModal(true);
       
     } catch (error: any) {
       console.error('Download/Import failed:', error);
@@ -163,20 +169,6 @@ export default function DiscoverScreen() {
         </Text>
       </View>
 
-      {showDiscoverBanner && decks.length > 0 && (
-        <GuideBanner
-          title="Add Your First Deck"
-          body="Pick a curated deck to start right now."
-          primaryLabel="Open First Deck"
-          onPrimary={() => {
-            setShowDiscoverBanner(false);
-            setSelectedDeck(decks[0]);
-          }}
-          secondaryLabel="Skip"
-          onSecondary={() => setShowDiscoverBanner(false)}
-        />
-      )}
-
       <ScrollView style={styles.content} contentContainerStyle={styles.grid}>
         {decks.map((deck, index) => {
           const isDownloading = downloadingId === deck.id;
@@ -189,7 +181,7 @@ export default function DiscoverScreen() {
               key={deck.id}
               style={[styles.card, { backgroundColor: theme.colors.surface }]}
               onPress={async () => {
-                setShowDiscoverBanner(false);
+                setShowImportModal(false);
                 try { await FirstRunGuide.markDiscoverShown(); } catch {}
                 setSelectedDeck(deck);
               }}
@@ -257,6 +249,32 @@ export default function DiscoverScreen() {
           iconColor={getIconColor(selectedDeck)}
         />
       )}
+
+      {/* Import guide popup */}
+      <OnboardingModal
+        visible={showImportModal && decks.length > 0}
+        icon="cloud-download-outline"
+        title="Import Your First Deck"
+        body="Tap any deck to preview it, then press Download. You can import Anki .apkg files or create decks with AI later from Decks."
+        primaryLabel="Let's do it"
+        onPrimary={async () => {
+          setShowImportModal(false);
+          try { await FirstRunGuide.markDiscoverShown(); } catch {}
+        }}
+      />
+
+      {/* Post-import next step */}
+      <OnboardingModal
+        visible={showPostImportModal}
+        icon="checkmark-circle-outline"
+        title="Deck Imported"
+        body="Great! Next, go to the Decks tab, open your deck, and press Study Now."
+        primaryLabel="Go to Decks"
+        onPrimary={() => {
+          setShowPostImportModal(false);
+          try { (navigation as any).navigate('Decks'); } catch {}
+        }}
+      />
     </SafeAreaView>
   );
 }

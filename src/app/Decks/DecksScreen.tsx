@@ -8,6 +8,8 @@ import { useScheduler } from '../../context/SchedulerProvider';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import DeckActionSheet, { DeckAction } from '../../components/DeckActionSheet';
+import { FirstRunGuide } from '../../guided/FirstRunGuide';
+import OnboardingModal from '../../components/OnboardingModal';
 import TextInputModal from '../../components/TextInputModal';
 import { DeckService } from '../../services/anki/DeckService';
 import { CardService } from '../../services/anki/CardService';
@@ -49,6 +51,7 @@ export default function DecksScreen() {
   const [folderToCustomize, setFolderToCustomize] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [folderActionSheetVisible, setFolderActionSheetVisible] = useState(false);
+  const [showStudyModal, setShowStudyModal] = useState(false);
 
   const deckService = React.useMemo(() => new DeckService(db), []);
   const cardService = React.useMemo(() => new CardService(db), []);
@@ -79,6 +82,9 @@ export default function DecksScreen() {
     React.useCallback(() => {
       reload();
       loadMetadata();
+      FirstRunGuide.shouldShowStudy()
+        .then(setShowStudyModal)
+        .catch(() => setShowStudyModal(false));
     }, [reload, loadMetadata])
   );
 
@@ -492,6 +498,14 @@ export default function DecksScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
+      <OnboardingModal
+        visible={showStudyModal}
+        icon="albums-outline"
+        title="Open Your Deck"
+        body="Tap your newly imported deck, then press Study Now to begin."
+        primaryLabel="Got it"
+        onPrimary={() => setShowStudyModal(false)}
+      />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>

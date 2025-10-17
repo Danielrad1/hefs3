@@ -15,6 +15,8 @@ import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { db } from '../../services/anki/InMemoryDb';
 import { hintEventsRepository } from '../../services/anki/db/HintEventsRepository';
 import AIHintsPromoModal from './AIHintsPromoModal';
+import StudyCoachOverlay from './StudyCoachOverlay';
+import { FirstRunGuide } from '../../guided/FirstRunGuide';
 
 interface StudyScreenProps {
   navigation?: any;
@@ -33,6 +35,9 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const [aiHintsEnabled, setAiHintsEnabled] = useState(false);
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [currentCardMaxHintDepth, setCurrentCardMaxHintDepth] = useState<number | null>(null); // Track highest hint level revealed for current card
+  const [showCoach, setShowCoach] = useState(false);
+  const [coachStep, setCoachStep] = useState<'reveal' | 'swipe'>('reveal');
+  const coachCompletedRef = React.useRef(false);
   
   const overlayColor = useSharedValue('rgba(0, 0, 0, 0)');
   const currentCardSwipeDistance = useSharedValue(0);
@@ -74,6 +79,25 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     };
     loadHints();
   }, [current, next]);
+
+  // First-run: show study coaching overlay when scheduled
+  useEffect(() => {
+    let mounted = true;
+    const check = async () => {
+      try {
+        const should = await FirstRunGuide.shouldShowStudy();
+        if (mounted && should && current) {
+          setCoachStep('reveal');
+          setShowCoach(true);
+          try { await FirstRunGuide.markStudyShown(); } catch {}
+        }
+      } catch {
+        // no-op
+      }
+    };
+    check();
+    return () => { mounted = false; };
+  }, [current]);
 
   // Reload hints when screen comes into focus (e.g., after generating hints)
   useFocusEffect(
@@ -164,6 +188,13 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       wasSuccessful: ease >= 2,
     });
     
+    // Mark study coach complete on first rating
+    if (!coachCompletedRef.current) {
+      coachCompletedRef.current = true;
+      FirstRunGuide.completeStudy().catch(() => {});
+      setShowCoach(false);
+    }
+
     // Fade out color overlay smoothly as card flies away
     overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 400 });
     
@@ -460,6 +491,22 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         visible={showPromoModal}
         onClose={handleClosePromoModal}
         onEnable={handleEnableHints}
+      />
+
+      {/* First-run Study Coach */}
+      <StudyCoachOverlay
+        visible={showCoach}
+        step={coachStep}
+        onNext={() => {
+          if (coachStep === 'reveal') {
+            setCoachStep('swipe');
+          } else {
+            setShowCoach(false);
+          }
+        }}
+        onSkip={() => {
+          setShowCoach(false);
+        }}
       />
     </View>
   );

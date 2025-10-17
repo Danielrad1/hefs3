@@ -14,6 +14,8 @@ import { BacklogPressureCard, EfficiencyCard, StreakCalendarCard, WeeklyCoachRep
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { useNavigation } from '@react-navigation/native';
+import { FirstRunGuide } from '../../guided/FirstRunGuide';
+import OnboardingModal from '../../components/OnboardingModal';
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function HomeScreen() {
@@ -30,6 +32,7 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [userName, setUserName] = useState<string>('there');
   const isCalculatingRef = React.useRef(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   
   // Contextual motivational message
   const getMotivationalMessage = React.useCallback(() => {
@@ -65,6 +68,22 @@ export default function HomeScreen() {
       bootstrap(sampleCards);
     }
   }, [bootstrap]);
+
+  // First run: show welcome popup on Home
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const should = await FirstRunGuide.shouldShowDiscover();
+          if (active && should) {
+            setShowWelcomeModal(true);
+          }
+        } catch {}
+      })();
+      return () => { active = false; };
+    }, [navigation])
+  );
 
   // Function to refresh stats
   const refreshStats = React.useCallback((forceRefresh = false) => {
@@ -146,7 +165,8 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
+    <>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       <ScrollView 
         contentContainerStyle={styles.content} 
         showsVerticalScrollIndicator={false}
@@ -159,6 +179,8 @@ export default function HomeScreen() {
           />
         }
       >
+
+
         {/* Header */}
         <View style={styles.headerSection}>
           {/* Greeting with inline streak */}
@@ -365,7 +387,20 @@ export default function HomeScreen() {
           />
         )}
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+      {/* Welcome Popup */}
+      <OnboardingModal
+        visible={showWelcomeModal}
+        icon="hand-left-outline"
+        helper="Takes ~1 minute"
+        title="Welcome to Memorize"
+        body="Let’s do a quick guided start. Tap the Discover tab below to browse curated decks, then import one to begin. You can skip anytime."
+        primaryLabel="Let’s Go"
+        onPrimary={() => setShowWelcomeModal(false)}
+        secondaryLabel="Skip"
+        onSecondary={() => setShowWelcomeModal(false)}
+      />
+    </>
   );
 }
 
