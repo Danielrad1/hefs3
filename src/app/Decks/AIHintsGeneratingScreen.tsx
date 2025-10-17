@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, Easing, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
+import { usePremium } from '../../context/PremiumContext';
 import { s } from '../../design/spacing';
 import { AiHintsService } from '../../services/ai/AiHintsService';
 import { cardHintsService, CardHintsService } from '../../services/anki/CardHintsService';
@@ -28,6 +29,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
   const theme = useTheme();
   const { deckId, deckName, items } = route.params;
   const { setDeck } = useScheduler();
+  const { incrementUsage } = usePremium();
   
   const [status, setStatus] = useState('Preparing...');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -202,6 +204,9 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       
       // Enable hints for this deck
       await deckMetadataService.setAiHintsEnabled(deckId, true);
+
+      // Increment usage after successful generation
+      await incrementUsage('hints');
 
       setStatus('Complete!');
       setGeneratedCount(hints.length);

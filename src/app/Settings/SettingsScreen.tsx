@@ -9,8 +9,10 @@ import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { useAuth } from '../../context/AuthContext';
+import { usePremium } from '../../context/PremiumContext';
 import { NotificationService } from '../../services/NotificationService';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
+import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 import { logger } from '../../utils/logger';
 
 type ColorScheme = 'sunset' | 'ocean' | 'forest' | 'neon';
@@ -68,6 +70,7 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const theme = useTheme();
   const { user, signOut } = useAuth();
+  const { isPremiumEffective, usage, subscribe } = usePremium();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [dailyReminder, setDailyReminder] = useState(false);
   const [dailyGoal, setDailyGoal] = useState(15);
@@ -75,6 +78,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [showNameModal, setShowNameModal] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [tempDisplayName, setTempDisplayName] = useState('');
   const [tempGoal, setTempGoal] = useState('15');
 
@@ -162,10 +166,16 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const handleSubscription = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('⭐ Memorize Pro', 'Unlock unlimited decks, advanced analytics, cloud sync, and priority support!\n\n• Unlimited flashcard decks\n• Advanced statistics & insights\n• Automatic cloud backup\n• Priority email support\n• Ad-free experience\n\nOnly $4.99/month or $39.99/year', [
-      { text: 'Maybe Later', style: 'cancel' },
-      { text: 'Subscribe Now', onPress: () => logger.info('Subscribe pressed') },
-    ]);
+    setShowPremiumModal(true);
+  };
+
+  const handleSubscribePress = async () => {
+    try {
+      await subscribe();
+      setShowPremiumModal(false);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to start subscription');
+    }
   };
 
   const handleSignOut = () => {
@@ -195,26 +205,54 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           <Text style={[styles.title, { color: theme.colors.textHigh }]}>Settings</Text>
         </View>
 
-        <Pressable onPress={handleSubscription} style={styles.premiumBanner}>
-          <LinearGradient colors={['#6366F1', '#8B5CF6', '#D946EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumGradient}>
-            <View style={styles.premiumContent}>
-              <View style={styles.premiumIcon}>
-                <Ionicons name="star" size={32} color="#FFD700" />
+        {!isPremiumEffective && (
+          <Pressable onPress={handleSubscription} style={styles.premiumBanner}>
+            <LinearGradient colors={['#6366F1', '#8B5CF6', '#D946EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumGradient}>
+              <View style={styles.premiumContent}>
+                <View style={styles.premiumIcon}>
+                  <Ionicons name="star" size={32} color="#FFD700" />
+                </View>
+                <View style={styles.premiumText}>
+                  <Text style={styles.premiumTitle}>Upgrade to Pro</Text>
+                  <Text style={styles.premiumSubtitle}>Unlimited AI • Advanced stats • All themes</Text>
+                </View>
+                <View style={styles.premiumBadge}>
+                  <Text style={styles.premiumBadgeText}>Premium</Text>
+                </View>
               </View>
-              <View style={styles.premiumText}>
-                <Text style={styles.premiumTitle}>Upgrade to Pro</Text>
-                <Text style={styles.premiumSubtitle}>Unlimited decks • Advanced stats • Cloud sync</Text>
+              <View style={styles.premiumFooter}>
+                <Ionicons name="checkmark-circle" size={16} color="rgba(255, 255, 255, 0.9)" />
+                <Text style={styles.premiumFooterText}>3-day free trial • Cancel anytime</Text>
               </View>
-              <View style={styles.premiumBadge}>
-                <Text style={styles.premiumBadgeText}>Premium</Text>
+            </LinearGradient>
+          </Pressable>
+        )}
+
+        {isPremiumEffective && (
+          <View style={[styles.premiumActiveBanner, { backgroundColor: theme.colors.surface2, borderColor: theme.colors.success }]}>
+            <View style={styles.premiumActiveContent}>
+              <Ionicons name="checkmark-circle" size={32} color={theme.colors.success} />
+              <View style={styles.premiumActiveText}>
+                <Text style={[styles.premiumActiveTitle, { color: theme.colors.textHigh }]}>Premium Active</Text>
+                <Text style={[styles.premiumActiveSubtitle, { color: theme.colors.textMed }]}>You have full access to all features</Text>
               </View>
             </View>
-            <View style={styles.premiumFooter}>
-              <Ionicons name="checkmark-circle" size={16} color="rgba(255, 255, 255, 0.9)" />
-              <Text style={styles.premiumFooterText}>7-day free trial • Cancel anytime</Text>
+          </View>
+        )}
+
+        {!isPremiumEffective && usage && (
+          <View style={[styles.usageBanner, { backgroundColor: theme.colors.surface2 }]}>
+            <Text style={[styles.usageTitle, { color: theme.colors.textMed }]}>FREE TIER USAGE</Text>
+            <View style={styles.usageRow}>
+              <Text style={[styles.usageLabel, { color: theme.colors.textHigh }]}>AI Deck Generation</Text>
+              <Text style={[styles.usageValue, { color: theme.colors.textMed }]}>{usage.deckGenerations}/{usage.limits.deck} this month</Text>
             </View>
-          </LinearGradient>
-        </Pressable>
+            <View style={styles.usageRow}>
+              <Text style={[styles.usageLabel, { color: theme.colors.textHigh }]}>AI Hints</Text>
+              <Text style={[styles.usageValue, { color: theme.colors.textMed }]}>{usage.hintGenerations}/{usage.limits.hints} this month</Text>
+            </View>
+          </View>
+        )}
 
         <SectionHeader title="PROFILE" />
         <View style={styles.section}>
@@ -345,6 +383,11 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           </View>
         </Pressable>
       </Modal>
+
+      <PremiumUpsellModal
+        visible={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -404,4 +447,14 @@ const styles = StyleSheet.create({
   modalButtonText: { fontSize: 16, fontWeight: '600' },
   themeOption: { flexDirection: 'row', alignItems: 'center', gap: s.md, padding: s.lg, borderRadius: r.md, borderWidth: 2, marginBottom: s.sm },
   themeOptionText: { fontSize: 16, fontWeight: '600', flex: 1 },
+  premiumActiveBanner: { marginBottom: s.xl, borderRadius: r.lg, borderWidth: 2, padding: s.lg },
+  premiumActiveContent: { flexDirection: 'row', alignItems: 'center', gap: s.md },
+  premiumActiveText: { flex: 1 },
+  premiumActiveTitle: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  premiumActiveSubtitle: { fontSize: 14, fontWeight: '500' },
+  usageBanner: { marginBottom: s.xl, borderRadius: r.lg, padding: s.lg },
+  usageTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, marginBottom: s.md },
+  usageRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: s.sm },
+  usageLabel: { fontSize: 15, fontWeight: '600' },
+  usageValue: { fontSize: 14, fontWeight: '500' },
 });

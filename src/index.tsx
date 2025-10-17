@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNav from './navigation';
 import { SchedulerProvider } from './context/SchedulerProvider';
 import { AuthProvider } from './context/AuthContext';
+import { PremiumProvider } from './context/PremiumContext';
 import { ThemeProvider } from './design/theme';
 import { PersistenceService } from './services/anki/PersistenceService';
 import { db } from './services/anki/InMemoryDb';
@@ -53,10 +54,12 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
-            <SchedulerProvider>
-              <RootNav />
-              <StatusBar style="auto" />
-            </SchedulerProvider>
+            <PremiumProvider>
+              <SchedulerProvider>
+                <RootNav />
+                <StatusBar style="auto" />
+              </SchedulerProvider>
+            </PremiumProvider>
           </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>

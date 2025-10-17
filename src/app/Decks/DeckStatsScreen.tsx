@@ -12,17 +12,21 @@ import {
   ScrollView,
   Pressable,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+// BlurView can be added later with: npx expo install expo-blur
 import { useTheme } from '../../design/theme';
+import { usePremium } from '../../context/PremiumContext';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { db } from '../../services/anki/InMemoryDb';
 import { StatsService, DeckSnapshot, HintStats } from '../../services/anki/StatsService';
 import { DeckHealthCard, DeckCountsBar, HintEffectivenessCard, SurvivalCurves, ForecastChart, AnswerButtonsDistribution, LeechesList } from '../../components/stats';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
+import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 
 type DeckStatsScreenRouteProp = RouteProp<
   { DeckStats: { deckId: string; deckName: string } },
@@ -34,12 +38,14 @@ export default function DeckStatsScreen() {
   const navigation = useNavigation();
   const route = useRoute<DeckStatsScreenRouteProp>();
   const { deckId, deckName } = route.params;
+  const { isPremiumEffective, subscribe } = usePremium();
 
   const [snapshot, setSnapshot] = useState<DeckSnapshot | null>(null);
   const [hintStats, setHintStats] = useState<HintStats | null>(null);
   const [aiHintsEnabled, setAiHintsEnabled] = useState(false);
   const [windowDays, setWindowDays] = useState<7 | 30>(7);
   const [loading, setLoading] = useState(true);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [survivalData, setSurvivalData] = useState<{
     youngSurvival: Array<{ interval: number; survivalRate: number }>;
     matureSurvival: Array<{ interval: number; survivalRate: number }>;
@@ -109,14 +115,22 @@ export default function DeckStatsScreen() {
       setSurvivalData(survival);
       setForecastData(forecast);
       setAnswerDistribution(distributions.filter(d => d.total > 0));
-      setLeeches(leechesData);
       setLoading(false);
     }, 0);
   };
 
   const loadHintSettings = async () => {
-    const settings = await deckMetadataService.getAiHintsSettings(deckId);
-    setAiHintsEnabled(settings.enabled);
+    const meta = await deckMetadataService.getMetadata(deckId);
+    setAiHintsEnabled(meta?.aiHintsEnabled || false);
+  };
+
+  const handleSubscribePress = async () => {
+    try {
+      await subscribe();
+      setShowPremiumModal(false);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to start subscription');
+    }
   };
 
   if (loading || !snapshot) {
@@ -162,59 +176,140 @@ export default function DeckStatsScreen() {
         <View style={styles.backButton} />
       </View>
 
-      {/* Time Window Toggle */}
-      <View style={styles.windowToggle}>
-        <Pressable
-          onPress={() => setWindowDays(7)}
-          style={[
-            styles.toggleButton,
-            {
-              backgroundColor:
-                windowDays === 7 ? theme.colors.primary : 'transparent',
-            },
-          ]}
-        >
-          <Text
+      {/* Time Window Toggle - Only show for premium users */}
+      {isPremiumEffective && (
+        <View style={styles.windowToggle}>
+          <Pressable
+            onPress={() => setWindowDays(7)}
             style={[
-              styles.toggleText,
+              styles.toggleButton,
               {
-                color: windowDays === 7 ? theme.colors.onPrimary : theme.colors.textSecondary,
-                fontWeight: windowDays === 7 ? '700' : '600',
+                backgroundColor:
+                  windowDays === 7 ? theme.colors.primary : 'transparent',
               },
             ]}
           >
-            7 Days
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setWindowDays(30)}
-          style={[
-            styles.toggleButton,
-            {
-              backgroundColor:
-                windowDays === 30 ? theme.colors.primary : 'transparent',
-            },
-          ]}
-        >
-          <Text
+            <Text
+              style={[
+                styles.toggleText,
+                {
+                  color: windowDays === 7 ? theme.colors.onPrimary : theme.colors.textSecondary,
+                  fontWeight: windowDays === 7 ? '700' : '600',
+                },
+              ]}
+            >
+              7 Days
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setWindowDays(30)}
             style={[
-              styles.toggleText,
+              styles.toggleButton,
               {
-                color: windowDays === 30 ? theme.colors.onPrimary : theme.colors.textSecondary,
-                fontWeight: windowDays === 30 ? '700' : '600',
+                backgroundColor:
+                  windowDays === 30 ? theme.colors.primary : 'transparent',
               },
             ]}
           >
-            30 Days
-          </Text>
-        </Pressable>
-      </View>
+            <Text
+              style={[
+                styles.toggleText,
+                {
+                  color: windowDays === 30 ? theme.colors.onPrimary : theme.colors.textSecondary,
+                  fontWeight: windowDays === 30 ? '700' : '600',
+                },
+              ]}
+            >
+              30 Days
+            </Text>
+          </Pressable>
+        </View>
+      )}
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Deck Health Summary - Hero Card */}
+      <View style={{ flex: 1 }}>
+        {/* Show blurred stats for free users */}
+        {!isPremiumEffective && (
+          <>
+            <View style={[styles.blurredBackground, { opacity: 0.15 }]}>
+              <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled={false}
+              >
+                <DeckHealthCard
+                  difficultyIndex={snapshot.difficultyIndex}
+                  retention={{
+                    young7: snapshot.retention.young7,
+                    mature7: snapshot.retention.mature7,
+                  }}
+                  throughput={{
+                    rpm: snapshot.throughput.rpm,
+                    secPerReview: snapshot.throughput.secPerReview,
+                  }}
+                  estTimeMinutes={Math.round(snapshot.today.estTimeP50Sec / 60)}
+                />
+              </ScrollView>
+            </View>
+            
+            {/* Unlock overlay */}
+            <View style={[styles.unlockOverlay, { backgroundColor: theme.colors.bg + 'F5' }]}>
+              <ScrollView contentContainerStyle={styles.unlockContent}>
+                <View style={[styles.unlockIcon, { backgroundColor: theme.colors.accent + '20' }]}>
+                  <Ionicons name="bar-chart" size={48} color={theme.colors.accent} />
+                </View>
+                <Text style={[styles.unlockTitle, { color: theme.colors.textPrimary }]}>
+                  Unlock Advanced Analytics
+                </Text>
+                <Text style={[styles.unlockSubtitle, { color: theme.colors.textSecondary }]}>
+                  Study more efficiently and faster with data-driven insights
+                </Text>
+                
+                <View style={styles.statsList}>
+                  <StatBenefit 
+                    icon="trending-up"
+                    title="Know when you'll be ready"
+                    description="See exactly when material sticks long-term."
+                    theme={theme}
+                  />
+                  <StatBenefit 
+                    icon="calendar"
+                    title="Catch weak spots early"
+                    description="Focus study time where it matters most."
+                    theme={theme}
+                  />
+                  <StatBenefit 
+                    icon="flash"
+                    title="Study at peak hours"
+                    description="Schedule when your brain learns fastest."
+                    theme={theme}
+                  />
+                  <StatBenefit 
+                    icon="pulse"
+                    title="Track what sticks"
+                    description="See how long material stays in memory."
+                    theme={theme}
+                  />
+                </View>
+                
+                <Pressable
+                  style={[styles.unlockButton, { backgroundColor: theme.colors.accent }]}
+                  onPress={() => setShowPremiumModal(true)}
+                >
+                  <Ionicons name="sparkles" size={20} color="#000" />
+                  <Text style={styles.unlockButtonText}>Unlock Premium Analytics</Text>
+                </Pressable>
+              </ScrollView>
+            </View>
+          </>
+        )}
+        
+        {/* Full stats for premium users */}
+        {isPremiumEffective && (
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+          {/* Deck Health Summary - Hero Card */}
         <DeckHealthCard
           difficultyIndex={snapshot.difficultyIndex}
           retention={{
@@ -287,8 +382,30 @@ export default function DeckStatsScreen() {
           </View>
         </View>
 
-        {/* Hint Effectiveness - Phase 4 */}
-        {aiHintsEnabled && hintStats && (
+        {/* Premium upgrade prompt */}
+        {!isPremiumEffective && (
+          <Pressable 
+            style={[styles.upgradeCard, { backgroundColor: theme.colors.accent + '15', borderColor: theme.colors.accent + '40' }]}
+            onPress={() => setShowPremiumModal(true)}
+          >
+            <View style={[styles.upgradeIcon, { backgroundColor: theme.colors.accent + '20' }]}>
+              <Ionicons name="bar-chart" size={32} color={theme.colors.accent} />
+            </View>
+            <Text style={[styles.upgradeTitle, { color: theme.colors.textPrimary }]}>
+              Unlock Advanced Analytics
+            </Text>
+            <Text style={[styles.upgradeSubtitle, { color: theme.colors.textMed }]}>
+              See forecasts, survival curves, answer patterns, and get AI-powered study recommendations
+            </Text>
+            <View style={[styles.upgradeButton, { backgroundColor: theme.colors.accent }]}>
+              <Ionicons name="sparkles" size={16} color="#000" />
+              <Text style={styles.upgradeButtonText}>Upgrade to Premium</Text>
+            </View>
+          </Pressable>
+        )}
+
+        {/* Hint Effectiveness - Phase 4 - Premium only */}
+        {isPremiumEffective && aiHintsEnabled && hintStats && (
           <HintEffectivenessCard
             adoptionPct={hintStats.adoptionPct}
             avgDepth={hintStats.avgDepth}
@@ -298,6 +415,9 @@ export default function DeckStatsScreen() {
           />
         )}
 
+        {/* Advanced stats - Premium only */}
+        {isPremiumEffective && (
+          <>
         {/* =================================================================== */}
         {/* CARD DISTRIBUTION */}
         {/* =================================================================== */}
@@ -353,10 +473,63 @@ export default function DeckStatsScreen() {
             </Text>
           </View>
         </View>
-      </ScrollView>
+          </>
+        )}
+        </ScrollView>
+        )}
+      </View>
+
+      <PremiumUpsellModal
+        visible={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+      />
     </SafeAreaView>
   );
 }
+
+// Helper component for stat benefits
+function StatBenefit({ icon, title, description, theme }: { icon: keyof typeof Ionicons.glyphMap; title: string; description: string; theme: any }) {
+  return (
+    <View style={statBenefitStyles.container}>
+      <View style={[statBenefitStyles.icon, { backgroundColor: theme.colors.accent + '15' }]}>
+        <Ionicons name={icon} size={24} color={theme.colors.accent} />
+      </View>
+      <View style={statBenefitStyles.content}>
+        <Text style={[statBenefitStyles.title, { color: theme.colors.textPrimary }]}>{title}</Text>
+        <Text style={[statBenefitStyles.description, { color: theme.colors.textMed }]}>{description}</Text>
+      </View>
+    </View>
+  );
+}
+
+const statBenefitStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    gap: s.md,
+    marginBottom: s.lg,
+  },
+  icon: {
+    width: 48,
+    height: 48,
+    borderRadius: r.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  content: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: s.xs / 2,
+  },
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -546,5 +719,94 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     fontWeight: '500',
+  },
+  // Unlock overlay for free users
+  blurredBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  unlockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+  },
+  unlockContent: {
+    padding: s.xl,
+    alignItems: 'center',
+  },
+  unlockIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: s.lg,
+  },
+  unlockTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: s.sm,
+  },
+  unlockSubtitle: {
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: s.xl,
+  },
+  statsList: {
+    width: '100%',
+    marginBottom: s.xl,
+  },
+  unlockButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.sm,
+    paddingHorizontal: s.xl,
+    paddingVertical: s.lg,
+    borderRadius: r.lg,
+  },
+  unlockButtonText: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#000',
+  },
+  // Upgrade card
+  upgradeCard: {
+    borderWidth: 2,
+    borderRadius: r.xl,
+    padding: s.xl,
+    alignItems: 'center',
+    gap: s.md,
+  },
+  upgradeIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: s.xs,
+  },
+  upgradeTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  upgradeSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: s.sm,
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.xs,
+    paddingHorizontal: s.lg,
+    paddingVertical: s.md,
+    borderRadius: r.lg,
+  },
+  upgradeButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#000',
   },
 });

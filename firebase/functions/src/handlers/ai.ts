@@ -3,6 +3,7 @@ import { GenerateDeckRequestSchema, ModelInfo } from '../types/ai';
 import { OpenAIProvider } from '../services/ai/OpenAIProvider';
 import { AI_CONFIG } from '../config/ai';
 import { logger } from '../utils/logger';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 /**
  * POST /ai/deck/generate
@@ -40,6 +41,14 @@ export const generateDeck = async (req: Request, res: Response) => {
     // Create provider and generate
     const provider = new OpenAIProvider(apiKey);
     const result = await provider.generateDeck(request);
+
+    // Clamp to 25 cards for free users
+    const user = (req as AuthenticatedRequest).user;
+    if (!user?.premium && result.notes && result.notes.length > 25) {
+      logger.info(`[AI] Clamping deck from ${result.notes.length} to 25 cards for free user ${user.uid}`);
+      result.notes = result.notes.slice(0, 25);
+      result.metadata.items = 25;
+    }
 
     return res.json({
       success: true,

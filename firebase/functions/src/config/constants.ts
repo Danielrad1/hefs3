@@ -16,4 +16,5 @@ export const errorCodes = {
   FORBIDDEN: 'forbidden',
   INVALID_INPUT: 'invalid_input',
   INTERNAL_ERROR: 'internal_error',
+  QUOTA_EXCEEDED: 'quota_exceeded',
 } as const;

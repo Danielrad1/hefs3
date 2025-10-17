@@ -1,11 +1,13 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../design/theme';
+import { usePremium } from '../../context/PremiumContext';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
+import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 import * as Haptics from 'expo-haptics';
 
 type ColorScheme = 'sunset' | 'ocean' | 'forest' | 'neon' | 'royal' | 'moss' | 'midnight' | 'cherry' | 'mint' | 'coral' | 'lavender' | 'amber' | 'sky' | 'berry' | 'earth' | 'aurora' | 'monoPurple' | 'monoBlue' | 'monoGreen' | 'monoRed' | 'monoOrange' | 'monoPink' | 'monoTeal' | 'monoIndigo' | 'monoRose' | 'monoEmerald' | 'monoViolet' | 'monoSky' | 'monoAmber' | 'monoLime' | 'monoCyan' | 'monoFuchsia' | 'monoSlate' | 'monoStone' | 'monoNeutral' | 'monoZinc';
@@ -114,10 +116,31 @@ interface ThemeSelectionScreenProps {
 
 export default function ThemeSelectionScreen({ navigation }: ThemeSelectionScreenProps) {
   const theme = useTheme();
+  const { isPremiumEffective, subscribe } = usePremium();
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
 
   const handleThemeSelect = (themeId: ColorScheme) => {
+    // First 4 themes are free (sunset, ocean, forest, neon), rest require premium
+    const freeThemes: ColorScheme[] = ['sunset', 'ocean', 'forest', 'neon'];
+    const isThemeFree = freeThemes.includes(themeId);
+    
+    if (!isPremiumEffective && !isThemeFree) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setShowPremiumModal(true);
+      return;
+    }
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     theme.setColorScheme(themeId);
+  };
+
+  const handleSubscribePress = async () => {
+    try {
+      await subscribe();
+      setShowPremiumModal(false);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to start subscription');
+    }
   };
 
   return (
@@ -157,6 +180,11 @@ export default function ThemeSelectionScreen({ navigation }: ThemeSelectionScree
                     ]}
                     onPress={() => handleThemeSelect(themeOption.id)}
                   >
+                    {!isPremiumEffective && !['sunset', 'ocean', 'forest', 'neon'].includes(themeOption.id) && (
+                      <View style={[styles.lockBadge, { backgroundColor: theme.colors.warning }]}>
+                        <Ionicons name="lock-closed" size={12} color="#fff" />
+                      </View>
+                    )}
                     <LinearGradient
                       colors={themeOption.gradient}
                       start={{ x: 0, y: 0 }}
@@ -194,6 +222,11 @@ export default function ThemeSelectionScreen({ navigation }: ThemeSelectionScree
           </View>
         ))}
       </ScrollView>
+
+      <PremiumUpsellModal
+        visible={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -285,5 +318,16 @@ const styles = StyleSheet.create({
   themeDesc: {
     fontSize: 11,
     fontWeight: '500',
+  },
+  lockBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
 });

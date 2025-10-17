@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
+import { usePremium } from '../../context/PremiumContext';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { db } from '../../services/anki/InMemoryDb';
@@ -10,6 +11,7 @@ import { AiHintsService } from '../../services/ai/AiHintsService';
 import { cardHintsService, CardHintsService } from '../../services/anki/CardHintsService';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { HintsInputItem } from '../../services/ai/types';
+import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 import { logger } from '../../utils/logger';
 
 interface AIHintsConfigScreenProps {
@@ -25,10 +27,20 @@ interface AIHintsConfigScreenProps {
 
 export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfigScreenProps) {
   const theme = useTheme();
+  const { isPremiumEffective, usage, subscribe, incrementUsage } = usePremium();
   const { deckId, deckName, totalCards } = route.params;
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
 
   const handleGenerate = async () => {
     try {
+      // Check quota before generation (client-side)
+      if (!isPremiumEffective && usage) {
+        if (usage.hintGenerations >= usage.limits.hints) {
+          setShowPremiumModal(true);
+          return;
+        }
+      }
+
       // Get all cards from the deck
       let cards = db.getCardsByDeck(deckId);
 
@@ -91,7 +103,23 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
       });
     } catch (error) {
       logger.error('[AIHintsConfig] Error preparing generation:', error);
-      Alert.alert('Error', 'Failed to prepare hints generation');
+      
+      // Check if quota exceeded
+      const errorMessage = error instanceof Error ? error.message : '';
+      if (errorMessage.includes('limit reached') || errorMessage.includes('quota')) {
+        setShowPremiumModal(true);
+      } else {
+        Alert.alert('Error', 'Failed to prepare hints generation');
+      }
+    }
+  };
+
+  const handleSubscribePress = async () => {
+    try {
+      await subscribe();
+      setShowPremiumModal(false);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to start subscription');
     }
   };
 
@@ -177,6 +205,14 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
 
       {/* Generate Button */}
       <View style={[styles.footer, { backgroundColor: theme.colors.bg }]}>
+        {!isPremiumEffective && usage && (
+          <View style={[styles.usageBar, { backgroundColor: theme.colors.surface2 }]}>
+            <Ionicons name="information-circle-outline" size={16} color={theme.colors.textMed} />
+            <Text style={[styles.usageText, { color: theme.colors.textMed }]}>
+              {usage.hintGenerations}/{usage.limits.hints} free hint generations used this month
+            </Text>
+          </View>
+        )}
         <Pressable
           style={[styles.generateButton, { backgroundColor: theme.colors.accent }]}
           onPress={handleGenerate}
@@ -186,6 +222,11 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
           <Text style={styles.generateButtonText}>Generate AI Hints</Text>
         </Pressable>
       </View>
+
+      <PremiumUpsellModal
+        visible={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -316,6 +357,19 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },
+  usageBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.xs,
+    padding: s.sm,
+    borderRadius: r.md,
+    marginBottom: s.md,
+  },
+  usageText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
   generateButton: {
     padding: s.xl,
     borderRadius: r.lg,
@@ -332,5 +386,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#000',
+  },
+  freeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.sm,
+    padding: s.md,
+    borderRadius: r.lg,
+    borderWidth: 1,
+  },
+  freeBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
 });

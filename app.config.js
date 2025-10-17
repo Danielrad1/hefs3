@@ -7,7 +7,7 @@ export default ({ config }) => ({
   extra: {
     ...appJson.expo.extra,
     // API Configuration
-    apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:5001/your-project/us-central1/api',
+    apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:5001/hefs-b3e45/us-central1/api',
     
     // Feature Flags
     enableCloudBackup: process.env.ENABLE_CLOUD_BACKUP !== 'false',

@@ -13,6 +13,7 @@ pkill -f "firebase-tools" 2>/dev/null || true
 
 # Kill processes on emulator ports
 lsof -ti:5001 | xargs kill -9 2>/dev/null || true
+lsof -ti:8080 | xargs kill -9 2>/dev/null || true
 lsof -ti:4400 | xargs kill -9 2>/dev/null || true
 lsof -ti:4500 | xargs kill -9 2>/dev/null || true
 lsof -ti:9299 | xargs kill -9 2>/dev/null || true
@@ -28,7 +29,7 @@ echo "🔨 Building functions..."
 cd functions && npm run build && cd ..
 
 echo "🔥 Starting Firebase Emulator..."
-firebase emulators:start --only functions &
+firebase emulators:start --only functions,firestore &
 
 # Save the process ID
 EMULATOR_PID=$!

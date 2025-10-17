@@ -7,11 +7,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../../design/theme';
+import { usePremium } from '../../context/PremiumContext';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { AiService } from '../../services/ai/AiService';
 import { NoteModel, GeneratedNote } from '../../services/ai/types';
 import { ApiService } from '../../services/cloud/ApiService';
+import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 import { logger } from '../../utils/logger';
 
 const EXAMPLE_PROMPTS = [
@@ -25,6 +27,7 @@ const EXAMPLE_PROMPTS = [
 export default function AIDeckCreatorScreen() {
   const theme = useTheme();
   const navigation = useNavigation<any>();
+  const { isPremiumEffective, usage, subscribe, incrementUsage } = usePremium();
   
   const [prompt, setPrompt] = useState('');
   const [notesText, setNotesText] = useState('');
@@ -33,7 +36,8 @@ export default function AIDeckCreatorScreen() {
   const [importedFileName, setImportedFileName] = useState<string | null>(null);
   const [noteModel, setNoteModel] = useState<NoteModel>('basic');
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [itemLimit, setItemLimit] = useState('50');
+  const [itemLimit, setItemLimit] = useState('25');
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   
   // Rotate placeholder examples
   useEffect(() => {
@@ -180,6 +184,14 @@ export default function AIDeckCreatorScreen() {
 
     const limit = parseInt(itemLimit) || 50;
 
+    // Check quota before generation (client-side)
+    if (!isPremiumEffective && usage) {
+      if (usage.deckGenerations >= usage.limits.deck) {
+        setShowPremiumModal(true);
+        return;
+      }
+    }
+
     // Navigate to loading screen with handler
     navigation.navigate('AIGenerating' as any);
 
@@ -193,6 +205,9 @@ export default function AIDeckCreatorScreen() {
         itemLimit: limit,
       });
 
+      // Increment usage after successful generation
+      await incrementUsage('deck');
+
       // Replace loading screen with preview (can't go back to loading)
       navigation.replace('AIDeckPreview', {
         deckName: response.deckName,
@@ -204,11 +219,36 @@ export default function AIDeckCreatorScreen() {
       logger.error('AI generation error:', error);
       // Go back to creator screen
       navigation.goBack();
-      Alert.alert(
-        'Generation Failed',
-        error instanceof Error ? error.message : 'Failed to generate deck. Please try again.'
-      );
+      
+      // Check if quota exceeded
+      const errorMessage = error instanceof Error ? error.message : '';
+      if (errorMessage.includes('limit reached') || errorMessage.includes('quota')) {
+        setShowPremiumModal(true);
+      } else {
+        Alert.alert(
+          'Generation Failed',
+          errorMessage || 'Failed to generate deck. Please try again.'
+        );
+      }
     }
+  };
+
+  const handleSubscribePress = async () => {
+    try {
+      await subscribe();
+      setShowPremiumModal(false);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to start subscription');
+    }
+  };
+
+  const handleCountPress = (count: string) => {
+    const countNum = parseInt(count);
+    if (!isPremiumEffective && countNum > 25) {
+      setShowPremiumModal(true);
+      return;
+    }
+    setItemLimit(count);
   };
 
   return (
@@ -329,33 +369,43 @@ export default function AIDeckCreatorScreen() {
               NUMBER OF CARDS
             </Text>
             <View style={styles.countOptions}>
-              {['25', '50', '75', '100'].map((count) => (
-                <Pressable
-                  key={count}
-                  style={[
-                    styles.countOption,
-                    itemLimit === count
-                      ? {
-                          backgroundColor: theme.colors.overlay.primary,
-                          borderColor: theme.colors.primary,
-                        }
-                      : {
-                          backgroundColor: theme.colors.surface2,
-                          borderColor: theme.colors.border,
-                        },
-                  ]}
-                  onPress={() => setItemLimit(count)}
-                >
-                  <Text style={[
-                    styles.countText,
-                    itemLimit === count
-                      ? { color: theme.colors.primary }
-                      : { color: theme.colors.textHigh },
-                  ]}>
-                    {count}
-                  </Text>
-                </Pressable>
-              ))}
+              {['25', '50', '75', '100'].map((count) => {
+                const countNum = parseInt(count);
+                const isLocked = !isPremiumEffective && countNum > 25;
+                return (
+                  <Pressable
+                    key={count}
+                    style={[
+                      styles.countOption,
+                      itemLimit === count
+                        ? {
+                            backgroundColor: theme.colors.overlay.primary,
+                            borderColor: theme.colors.primary,
+                          }
+                        : {
+                            backgroundColor: theme.colors.surface2,
+                            borderColor: theme.colors.border,
+                          },
+                      isLocked && { opacity: 0.5 },
+                    ]}
+                    onPress={() => handleCountPress(count)}
+                  >
+                    {isLocked && (
+                      <View style={[styles.proBadge, { backgroundColor: theme.colors.warning }]}>
+                        <Text style={styles.proBadgeText}>PRO</Text>
+                      </View>
+                    )}
+                    <Text style={[
+                      styles.countText,
+                      itemLimit === count
+                        ? { color: theme.colors.primary }
+                        : { color: theme.colors.textHigh },
+                    ]}>
+                      {count}
+                    </Text>
+                  </Pressable>
+                );
+              })}
               <Pressable
                 style={[
                   styles.countOption,
@@ -363,9 +413,14 @@ export default function AIDeckCreatorScreen() {
                   { 
                     backgroundColor: !['25', '50', '75', '100'].includes(itemLimit) ? theme.colors.overlay.primary : theme.colors.surface2,
                     borderColor: !['25', '50', '75', '100'].includes(itemLimit) ? theme.colors.primary : theme.colors.border,
+                    opacity: !isPremiumEffective ? 0.5 : 1,
                   },
                 ]}
                 onPress={() => {
+                  if (!isPremiumEffective) {
+                    setShowPremiumModal(true);
+                    return;
+                  }
                   Alert.prompt(
                     'Custom Amount',
                     'Enter number of cards (max 150)',
@@ -389,6 +444,11 @@ export default function AIDeckCreatorScreen() {
                   );
                 }}
               >
+                {!isPremiumEffective && (
+                  <View style={[styles.proBadge, { backgroundColor: theme.colors.warning }]}>
+                    <Text style={styles.proBadgeText}>PRO</Text>
+                  </View>
+                )}
                 <Text style={[
                   styles.countText,
                   { color: !['25', '50', '75', '100'].includes(itemLimit) ? theme.colors.primary : theme.colors.textHigh }
@@ -461,6 +521,14 @@ export default function AIDeckCreatorScreen() {
 
         {/* Generate Button with Magic */}
         <View style={[styles.footer, { backgroundColor: theme.colors.bg, borderTopColor: theme.colors.border }]}>
+          {!isPremiumEffective && usage && (
+            <View style={[styles.usageBar, { backgroundColor: theme.colors.surface2 }]}>
+              <Ionicons name="information-circle-outline" size={16} color={theme.colors.textMed} />
+              <Text style={[styles.usageText, { color: theme.colors.textMed }]}>
+                {usage.deckGenerations}/{usage.limits.deck} free generations used this month
+              </Text>
+            </View>
+          )}
           <Pressable
             style={styles.generateButton}
             onPress={handleGenerate}
@@ -479,6 +547,10 @@ export default function AIDeckCreatorScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      <PremiumUpsellModal
+        visible={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -644,6 +716,19 @@ const styles = StyleSheet.create({
     padding: s.lg,
     borderTopWidth: 1,
   },
+  usageBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.xs,
+    padding: s.sm,
+    borderRadius: r.md,
+    marginBottom: s.md,
+  },
+  usageText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
   generateButton: {
     borderRadius: r.md,
     overflow: 'hidden',
@@ -767,10 +852,24 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   countText: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  proBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: r.sm,
+  },
+  proBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#fff',
   },
   customCountOption: {
     minWidth: 70,

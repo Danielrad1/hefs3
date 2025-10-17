@@ -6,8 +6,11 @@ import { backupHandler } from './handlers/backup';
 import { aiHandler } from './handlers/ai';
 import { generateHints } from './handlers/aiHints';
 import { parseHandler } from './handlers/parse';
+import { getUsage } from './handlers/usage';
+import { revenueCatWebhook } from './handlers/revenuecat';
 import { authenticate } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
+import { withQuota } from './middleware/quota';
 import express from 'express';
 import cors from 'cors';
 import { logger } from './utils/logger';
@@ -42,14 +45,18 @@ app.post('/backup/url', authenticate, backupHandler.getSignedUrl);
 app.get('/backup/metadata', authenticate, backupHandler.getMetadata);
 app.delete('/backup', authenticate, backupHandler.deleteBackup);
 
-// AI routes
+// AI routes with quota enforcement
 logger.info('[Setup] Registering AI routes...');
-app.post('/ai/deck/generate', authenticate, aiHandler.generateDeck);
+app.post('/ai/deck/generate', authenticate, withQuota({ kind: 'deck', freeLimit: 3 }), aiHandler.generateDeck);
 logger.info('[Setup] Registered /ai/deck/generate');
-app.post('/ai/hints/generate', authenticate, generateHints);
+app.post('/ai/hints/generate', authenticate, withQuota({ kind: 'hints', freeLimit: 1 }), generateHints);
 logger.info('[Setup] Registered /ai/hints/generate');
 app.get('/ai/models', authenticate, aiHandler.getModels);
 logger.info('[Setup] AI routes registered');
+
+// Usage and IAP routes
+app.get('/usage', authenticate, getUsage);
+app.post('/iap/revenuecat/webhook', revenueCatWebhook);
 
 // Parse routes
 app.post('/parse/file', authenticate, parseHandler.parseFile);
