@@ -37,11 +37,11 @@ export default function StudyCoachOverlay({ visible, step, onNext }: Props) {
         ) : (
           <>
             <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Swipe to rate your recall</Text>
-            <Text style={[styles.body, { color: theme.colors.textSecondary }]}>After revealing: swipe Right = Easy, Left = Hard, Up = Good, Down = Again.</Text>
+            <Text style={[styles.body, { color: theme.colors.textSecondary }]}>After revealing: swipe Right = Good, Left = Hard, Up = Easy, Down = Again.</Text>
             <View style={styles.legends}>
-              <Legend icon="arrow-forward" label="Easy" color="#3B82F6" />
+              <Legend icon="arrow-forward" label="Good" color="#10B981" />
               <Legend icon="arrow-back" label="Hard" color="#F97316" />
-              <Legend icon="arrow-up" label="Good" color="#10B981" />
+              <Legend icon="arrow-up" label="Easy" color="#3B82F6" />
               <Legend icon="arrow-down" label="Again" color="#EF4444" />
             </View>
           </>

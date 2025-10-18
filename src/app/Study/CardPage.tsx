@@ -7,6 +7,7 @@ import Animated, {
   useSharedValue,
   runOnJS,
   withSpring,
+  withSequence,
   Extrapolate,
   useAnimatedScrollHandler,
   Easing
@@ -28,7 +29,7 @@ import { TipDisplay } from '../../components/TipDisplay';
 
 const { height, width } = Dimensions.get('window');
 
-const SWIPE_THRESHOLD = 350; // Increased threshold to prevent accidental ratings while scrolling
+const SWIPE_THRESHOLD = 150; // Increased threshold to prevent accidental ratings while scrolling
 
 type CardPageProps = {
   card: Card;
@@ -45,9 +46,14 @@ type CardPageProps = {
 
 const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false, hint, onRequestEnableHints, aiHintsEnabled = false, hintsLoading = false, onHintRevealed }: CardPageProps) {
   const theme = useTheme();
-  const { selection } = useHaptics();
+  const { selection, ratingEasy, ratingGood, ratingHard, ratingAgain } = useHaptics();
   const panRef = useRef<GestureType | undefined>(undefined);
   const scrollRef = useRef<Animated.ScrollView>(null);
+  
+  // Safe logging function to call from worklets
+  const log = React.useCallback((tag: string, msg: string) => {
+    console.log(`[CardPage ${tag}] ${msg}`);
+  }, []);
   
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -59,8 +65,14 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   const scrollY = useSharedValue(0);
   const contentH = useSharedValue(0);
   const viewportH = useSharedValue(0);
-  const gestureStartScrollY = useSharedValue(0); // Track scroll position at gesture start
-  const gestureStartedAtEdge = useSharedValue(false); // Track if gesture started at edge
+  
+  // Gesture-start gating: check if at bottom when gesture STARTS (not mid-gesture)
+  const verticalRatingAllowed = useSharedValue(false);
+  const gestureIsScroll = useSharedValue(false); // Lock gesture as scroll if it starts as vertical without permission
+  const gestureIsHorizontal = useSharedValue(false); // Lock gesture as horizontal once detected
+  const isScrolling = useSharedValue(false); // Track if ScrollView is actively handling this gesture
+  const scrollYWhenPanStarted = useSharedValue(0); // Track scroll position when pan started
+  const gestureStartTime = useSharedValue(0); // Track when gesture started for delayed feedback
   
   // React state for revealed status (for rendering)
   const [revealed, setRevealed] = React.useState(false);
@@ -132,11 +144,21 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
 
   // Scroll handler for tracking scroll position
   const onScroll = useAnimatedScrollHandler({
+    onBeginDrag: (e) => {
+      'worklet';
+      isScrolling.value = true;
+      runOnJS(log)('SCROLL_BEGIN', `y=${e.contentOffset.y.toFixed(0)}`);
+    },
     onScroll: (e) => {
       'worklet';
       scrollY.value = e.contentOffset.y;
       contentH.value = e.contentSize.height;
       viewportH.value = e.layoutMeasurement.height;
+    },
+    onEndDrag: (e) => {
+      'worklet';
+      isScrolling.value = false;
+      runOnJS(log)('SCROLL_END', `y=${e.contentOffset.y.toFixed(0)}`);
     },
   });
   
@@ -152,156 +174,207 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       handleToggle();
     });
 
-  // One-finger pan for rating swipes
+  // One-finger pan for rating swipes  
   const panGesture = Gesture.Pan()
     .withRef(panRef)
     .maxPointers(1)
     .simultaneousWithExternalGesture(scrollGesture)
-    .minDistance(4) // Recognizes quickly
-    .enabled(!disabled) // Disable when card is in background
+    .minDistance(4)
+    .enabled(!disabled)
     .onBegin((event) => {
       'worklet';
-      // Store the Y position where the touch started (relative to card center)
       touchStartY.value = event.y - (height / 2);
-      // Store scroll position at gesture start
-      gestureStartScrollY.value = scrollY.value;
       
-      // Check if gesture started at an edge (prevents accidental ratings while scrolling)
+      // Lock permissions at gesture BEGIN
       const EPS = 12;
-      const atTop = scrollY.value <= EPS;
-      const atBottom = (contentH.value - viewportH.value - scrollY.value) <= EPS;
-      const fits = (contentH.value - viewportH.value) <= EPS;
+      const atTop = scrollY.value <= EPS; // At top (for Again - swipe down)
+      const atBottom = (contentH.value - viewportH.value - scrollY.value) <= EPS; // At bottom (for Easy - swipe up)
+      const fits = (contentH.value - viewportH.value) <= EPS; // Content fits without scrolling
       
-      // Allow vertical rating only if starting at an edge or content fits without scrolling
-      gestureStartedAtEdge.value = fits || atTop || atBottom;
+      // Allow vertical rating at EITHER edge or when content fits
+      // atTop = can swipe down for Again
+      // atBottom = can swipe up for Easy
+      verticalRatingAllowed.value = fits || atTop || atBottom;
+      gestureIsScroll.value = false; // Will be determined in onUpdate based on direction
+      gestureIsHorizontal.value = false; // Will be determined in onUpdate based on direction
+      scrollYWhenPanStarted.value = scrollY.value; // Remember where we started
+      gestureStartTime.value = Date.now(); // Track when gesture started for delayed feedback
+      
+      const msg = `scrollY=${scrollY.value.toFixed(0)} atTop=${atTop} atBottom=${atBottom} fits=${fits} vertAllowed=${verticalRatingAllowed.value} revealed=${isRevealed.value}`;
+      runOnJS(log)('BEGIN', msg);
     })
     .onUpdate((event) => {
       'worklet';
       // Only allow rating swipes when answer is fully visible
-      if (!isRevealed.value || revealProgress.value !== 1) return;
+      if (!isRevealed.value || revealProgress.value !== 1) {
+        runOnJS(log)('UPDATE_BLOCKED', `revealed=${isRevealed.value} progress=${revealProgress.value}`);
+        return;
+      }
       
       const absX = Math.abs(event.translationX);
       const absY = Math.abs(event.translationY);
+      const totalMovement = absX + absY;
       
-      // Check current scroll position
-      const EPS = 12;
-      const atTop = scrollY.value <= EPS;
-      const atBottom = (contentH.value - viewportH.value - scrollY.value) <= EPS;
-      const fits = (contentH.value - viewportH.value) <= EPS;
+      // Debug: Log first update
+      if (totalMovement > 5 && totalMovement < 15) {
+        const msg = `UPDATE movement=${totalMovement.toFixed(0)} isScrolling=${isScrolling.value}`;
+        runOnJS(log)('UPDATE', msg);
+      }
       
-      const isHorizontal = absX >= absY;
+      // Determine gesture direction once we have meaningful movement
+      const isVertical = absY > absX;
+      const isHorizontal = absX > absY;
       
-      // Vertical rating ONLY allowed if:
-      // 1. Gesture started at an edge
-      // 2. Still at appropriate edge for the swipe direction
-      const canVerticalRate = gestureStartedAtEdge.value && (
-        fits ||
-        (atTop && event.translationY > 0) ||  // Started at top, swiping down
-        (atBottom && event.translationY < 0)   // Started at bottom, swiping up
-      );
+      // Lock gesture direction once determined (>10px movement)
+      if (totalMovement > 10) {
+        if (!gestureIsHorizontal.value && !gestureIsScroll.value && isHorizontal) {
+          gestureIsHorizontal.value = true;
+          runOnJS(log)('LOCKED_HORIZONTAL', `absX=${absX.toFixed(0)}`);
+        }
+      }
       
-      // If scrolling (vertical movement without rating permission), ignore horizontal shake
-      const isScrolling = absY > absX && !canVerticalRate;
+      // If actively scrolling, lock the gesture completely (no card movement at all)
+      // BUT: Be smart about direction - don't lock if gesture makes no sense as scroll
+      const scrollChanged = Math.abs(scrollY.value - scrollYWhenPanStarted.value) > 5;
+      if (!gestureIsScroll.value && !gestureIsHorizontal.value && isScrolling.value && scrollChanged) {
+        // Check if scroll direction makes sense
+        const swipeDirection = event.translationY > 0 ? 'down' : 'up';
+        const atTop = scrollYWhenPanStarted.value <= 12;
+        const atBottom = verticalRatingAllowed.value && !atTop;
+        
+        // Don't lock if: at top swiping down OR at bottom swiping up (these are likely ratings)
+        const isImpossibleScroll = (atTop && swipeDirection === 'down') || (atBottom && swipeDirection === 'up');
+        
+        if (!isImpossibleScroll) {
+          gestureIsScroll.value = true;
+          const msg = `Scroll active ${Math.abs(scrollY.value - scrollYWhenPanStarted.value).toFixed(0)}px`;
+          runOnJS(log)('LOCKED_SCROLLING', msg);
+        } else {
+          runOnJS(log)('SCROLL_IGNORED', `${swipeDirection} at ${atTop ? 'top' : 'bottom'}`);
+        }
+      }
       
-      // Horizontal: enabled unless scrolling; Vertical: only when at edges
-      translateX.value = isScrolling ? 0 : event.translationX;
-      translateY.value = (isHorizontal || canVerticalRate) ? event.translationY : 0;
+      // ONLY lock vertical gestures when scrolling
+      if (!gestureIsScroll.value && !gestureIsHorizontal.value && isVertical) {
+        // Lock if vertical movement without permission (not at bottom)
+        if (totalMovement > 10 && !verticalRatingAllowed.value) {
+          gestureIsScroll.value = true;
+          const msg = `Vertical without permission absY=${absY.toFixed(0)}`;
+          runOnJS(log)('LOCKED_SCROLL', msg);
+        }
+      }
       
-      if (onSwipeChange) {
-        runOnJS(onSwipeChange)(translateX.value, translateY.value, true);
+      // If locked as scroll (actively scrolling), freeze card completely
+      if (gestureIsScroll.value) {
+        translateX.value = 0;
+        translateY.value = 0;
+        // Don't trigger swipe change callback - prevents colored lights flash
+      } else if (gestureIsHorizontal.value) {
+        // Locked as horizontal - only allow horizontal movement
+        translateX.value = event.translationX;
+        translateY.value = 0;
+        
+        // Instant color feedback for fast swipes
+        if (onSwipeChange) {
+          runOnJS(onSwipeChange)(translateX.value, translateY.value, true);
+        }
+      } else {
+        // Not locked yet - allow both directions based on permissions
+        translateX.value = event.translationX;
+        translateY.value = verticalRatingAllowed.value ? event.translationY : 0;
+        
+        // Instant color feedback for fast swipes
+        if (onSwipeChange) {
+          runOnJS(onSwipeChange)(translateX.value, translateY.value, true);
+        }
       }
     })
     .onEnd((event) => {
+      const totalDist = Math.abs(event.translationX) + Math.abs(event.translationY);
+      runOnJS(log)('END_CALLED', `revealed=${isRevealed.value} progress=${revealProgress.value} totalDist=${totalDist.toFixed(0)}`);
+      
       if (isRevealed.value && revealProgress.value === 1) {
-        // Use velocity for more natural feel
-        const absX = Math.abs(event.translationX);
-        const absY = Math.abs(event.translationY);
-        const velocityX = event.velocityX;
-        const velocityY = event.velocityY;
+        // Use event translation to determine TRUE gesture direction (before we modified it)
+        const eventAbsX = Math.abs(event.translationX);
+        const eventAbsY = Math.abs(event.translationY);
+        const isHorizontalGesture = eventAbsX >= eventAbsY;
         
-        // Check current scroll position
-        const EPS = 12;
-        const atTop = scrollY.value <= EPS;
-        const atBottom = (contentH.value - viewportH.value - scrollY.value) <= EPS;
-        const fits = (contentH.value - viewportH.value) <= EPS;
+        const endMsg = `isScroll=${gestureIsScroll.value} horiz=${isHorizontalGesture} x=${translateX.value.toFixed(0)} y=${translateY.value.toFixed(0)}`;
+        runOnJS(log)('END', endMsg);
         
+        // If vertical gesture was locked as scroll, block it
+        // But horizontal gestures can still rate (user may have scrolled then swiped horizontally)
+        if (gestureIsScroll.value && !isHorizontalGesture) {
+          runOnJS(log)('BLOCKED', 'Vertical scroll gesture');
+          translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
+          translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
+          if (onSwipeChange) runOnJS(onSwipeChange)(0, 0, true);
+          return; // Exit early - this was a scroll, not a rating
+        }
+        
+        // For horizontal gestures, use event translation (may have been zeroed during scroll)
+        // For non-locked gestures, use animated values
+        const endX = isHorizontalGesture && gestureIsScroll.value ? event.translationX : translateX.value;
+        const endY = isHorizontalGesture && gestureIsScroll.value ? event.translationY : translateY.value;
+        
+        const absX = Math.abs(endX);
+        const absY = Math.abs(endY);
         const isHorizontalSwipe = absX >= absY;
         
-        // Vertical rating ONLY allowed if gesture started at edge
-        const canVerticalRate = gestureStartedAtEdge.value && (
-          fits || 
-          (atTop && event.translationY > 0) || 
-          (atBottom && event.translationY < 0)
-        );
+        // Pure distance-based rating (no velocity)
+        const isStrongSwipe = absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD;
         
-        const isStrongSwipe = absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD || 
-                             Math.abs(velocityX) > 500 || Math.abs(velocityY) > 500;
-        
-        if (isStrongSwipe && (isHorizontalSwipe || canVerticalRate)) {
-          // Determine direction based on which axis has more movement
-          let difficulty: Difficulty;
+        // Horizontal: always allowed, Vertical: only if allowed at gesture start
+        if (isStrongSwipe && (isHorizontalSwipe || verticalRatingAllowed.value)) {
+          const dir = isHorizontalSwipe ? (endX > 0 ? 'good' : 'hard') : (endY > 0 ? 'again' : 'easy');
+          const rateMsg = `dir=${dir} horiz=${isHorizontalSwipe} x=${endX.toFixed(0)} y=${endY.toFixed(0)}`;
+          runOnJS(log)('RATING', rateMsg);
           
-          if (absY > absX) {
-            // Vertical swipe
-            if (event.translationY > 0) {
-              // Down = Again
+          let difficulty: Difficulty;
+
+          if (!isHorizontalSwipe) {
+            if (endY > 0) {
               difficulty = 'again';
+              runOnJS(ratingAgain)();
+              
               translateX.value = 0;
-              translateY.value = withSpring(height * 1.5, { 
-                velocity: velocityY,
-                damping: 15,
-                stiffness: 120
+              translateY.value = withSpring(height * 1.5, {
+                velocity: event.velocityY, damping: 15, stiffness: 120
               });
             } else {
-              // Up = Good
-              difficulty = 'good';
+              difficulty = 'easy';
+              runOnJS(ratingEasy)();
+              
               translateX.value = 0;
-              translateY.value = withSpring(-height * 1.5, { 
-                velocity: velocityY,
-                damping: 15,
-                stiffness: 120
+              translateY.value = withSpring(-height * 1.5, {
+                velocity: event.velocityY, damping: 15, stiffness: 120
               });
             }
           } else {
-            // Horizontal swipe
-            if (event.translationX > 0) {
-              // Right = Easy
-              difficulty = 'easy';
+            if (endX > 0) {
+              difficulty = 'good';
+              runOnJS(ratingGood)();
+              
               translateY.value = 0;
-              translateX.value = withSpring(width * 1.5, { 
-                velocity: velocityX,
-                damping: 15,
-                stiffness: 120
+              translateX.value = withSpring(width * 1.5, {
+                velocity: event.velocityX, damping: 15, stiffness: 120
               });
             } else {
-              // Left = Hard
               difficulty = 'hard';
+              runOnJS(ratingHard)();
+              
               translateY.value = 0;
-              translateX.value = withSpring(-width * 1.5, { 
-                velocity: velocityX,
-                damping: 15,
-                stiffness: 120
+              translateX.value = withSpring(-width * 1.5, {
+                velocity: event.velocityX, damping: 15, stiffness: 120
               });
             }
           }
           
-          // Call onAnswer immediately (don't wait for animation)
           handleAnswer(difficulty);
         } else {
-          // Snap back with spring physics
-          translateX.value = withSpring(0, {
-            damping: 15,
-            stiffness: 150
-          });
-          translateY.value = withSpring(0, {
-            damping: 15,
-            stiffness: 150
-          });
-          
-          // Reset overlay
-          if (onSwipeChange) {
-            runOnJS(onSwipeChange)(0, 0, true);
-          }
+          translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
+          translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
+          if (onSwipeChange) runOnJS(onSwipeChange)(0, 0, true);
         }
       }
     });
@@ -369,7 +442,8 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       setRevealed(false);
       setShowHintModal(false);
       setShowTipModal(false);
-      gestureStartedAtEdge.value = false;
+      verticalRatingAllowed.value = false;
+      gestureIsScroll.value = false;
       
       // Reset scroll position to top
       scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -427,13 +501,13 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
         label = 'AGAIN';
         color = '#EF4444'; // red
       } else {
-        label = 'GOOD';
-        color = '#10B981'; // green
+        label = 'EASY';
+        color = '#3B82F6'; // blue
       }
     } else {
       if (translateX.value > 0) {
-        label = 'EASY';
-        color = '#3B82F6'; // blue
+        label = 'GOOD';
+        color = '#10B981'; // green
       } else {
         label = 'HARD';
         color = '#F59E0B'; // orange
@@ -476,7 +550,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
     } else {
       // Horizontal swipe
       if (translateX.value > 0) {
-        // Swiping RIGHT = EASY = show at TOP LEFT
+        // Swiping RIGHT = GOOD = show at TOP LEFT
         return {
           top: 60,
           left: 20,
@@ -577,7 +651,6 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
               scrollEventThrottle={16}
               bounces={false}
               overScrollMode="never"
-              showsVerticalScrollIndicator={true}
               removeClippedSubviews={false}
               contentContainerStyle={styles.scrollContent}
             >

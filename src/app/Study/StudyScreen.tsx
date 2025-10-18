@@ -4,7 +4,6 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Ex
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../design';
-import { useHaptics } from '../../hooks/useHaptics';
 import { Difficulty } from '../../domain/srsTypes';
 import { sampleCards } from '../../mocks/sampleCards';
 import { useScheduler } from '../../context/SchedulerProvider';
@@ -26,7 +25,6 @@ interface StudyScreenProps {
 
 export default function StudyScreen({ navigation }: StudyScreenProps) {
   const theme = useTheme();
-  const haptics = useHaptics();
   const confettiRef = useRef<ConfettiCannon>(null);
   const { current, next, cardType, answer, bootstrap, currentDeckId, decks } = useScheduler();
   const { user } = useAuth();
@@ -154,22 +152,10 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const handleAnswer = React.useCallback((difficulty: Difficulty) => {
     if (!current) return;
 
-    // Trigger appropriate haptic feedback
-    switch (difficulty) {
-      case 'again':
-        haptics.error();
-        break;
-      case 'hard':
-        haptics.warning();
-        break;
-      case 'good':
-        haptics.success();
-        break;
-      case 'easy':
-        haptics.success();
-        // Trigger confetti for easy answers
-        confettiRef.current?.start();
-        break;
+    // Haptics are handled in CardPage.tsx with specialized patterns
+    // Only trigger confetti for easy answers
+    if (difficulty === 'easy') {
+      confettiRef.current?.start();
     }
 
     // Calculate response time
@@ -208,7 +194,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     setTimeout(() => {
       answer(difficulty, responseTimeMs);
     }, 250);
-  }, [current, haptics, responseStartTime, overlayColor, answer, currentCardMaxHintDepth]);
+  }, [current, responseStartTime, overlayColor, answer, currentCardMaxHintDepth]);
 
   const handleSwipeChange = React.useCallback((translateX: number, translateY: number, isRevealed: boolean) => {
     if (!isRevealed) {
@@ -231,8 +217,8 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       return;
     }
     
-    // Calculate opacity based on distance
-    const opacity = Math.min(totalDistance / 150, 0.3);
+    // Calculate opacity based on distance (increased for better visibility)
+    const opacity = Math.min(totalDistance / 150, 0.45);
 
     // Determine color based on swipe direction
     let color = 'rgba(0, 0, 0, 0)';
@@ -242,21 +228,21 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         // Red for Again (down swipe)
         color = `rgba(239, 68, 68, ${opacity})`;
       } else {
-        // Green for Good (up swipe)
-        color = `rgba(16, 185, 129, ${opacity})`;
+        // Blue for Easy (up swipe)
+        color = `rgba(59, 130, 246, ${opacity})`;
       }
     } else {
       if (translateX > 0) {
-        // Blue for Easy (right swipe)
-        color = `rgba(59, 130, 246, ${opacity})`;
+        // Green for Good (right swipe)
+        color = `rgba(16, 185, 129, ${opacity})`;
       } else {
         // Orange for Hard (left swipe)
         color = `rgba(249, 115, 22, ${opacity})`;
       }
     }
 
-    // Instant color change during swipe, smooth fade on release
-    overlayColor.value = color;
+    // Fast fade-in for color feedback (100ms)
+    overlayColor.value = withTiming(color, { duration: 100 });
   }, [overlayColor, currentCardSwipeDistance]);
 
   const overlayStyle = useAnimatedStyle(() => {
