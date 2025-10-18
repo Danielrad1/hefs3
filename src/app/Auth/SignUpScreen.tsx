@@ -20,6 +20,7 @@ import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { LinearGradient } from 'expo-linear-gradient';
 import { isUserCancellation } from '../../utils/authErrors';
+import { GoogleLogo } from '../../components/GoogleLogo';
 
 interface SignUpScreenProps {
   onBack: () => void;
@@ -124,9 +125,6 @@ export default function SignUpScreen({ onBack, onSignIn }: SignUpScreenProps) {
             <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
               Create your account
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-              Start learning today
-            </Text>
           </Animated.View>
 
           {!showEmailForm ? (
@@ -136,7 +134,7 @@ export default function SignUpScreen({ onBack, onSignIn }: SignUpScreenProps) {
                 <AppleAuthentication.AppleAuthenticationButton
                   buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
                   buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                  cornerRadius={16}
+                  cornerRadius={12}
                   style={styles.appleButton}
                   onPress={handleAppleSignIn}
                 />
@@ -147,7 +145,7 @@ export default function SignUpScreen({ onBack, onSignIn }: SignUpScreenProps) {
                 style={({ pressed }) => [
                   styles.socialButton,
                   { 
-                    backgroundColor: theme.colors.surface,
+                    backgroundColor: '#000000',
                     opacity: pressed ? 0.7 : 1,
                   }
                 ]}
@@ -158,10 +156,10 @@ export default function SignUpScreen({ onBack, onSignIn }: SignUpScreenProps) {
                   <ActivityIndicator color={theme.colors.textPrimary} />
                 ) : (
                   <>
-                    <View style={[styles.socialIconContainer, { backgroundColor: '#FFFFFF' }]}>
-                      <Ionicons name="logo-google" size={22} color="#DB4437" />
+                    <View style={styles.googleIconContainer}>
+                      <GoogleLogo size={22} />
                     </View>
-                    <Text style={[styles.socialButtonText, { color: theme.colors.textPrimary }]}>
+                    <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>
                       Continue with Google
                     </Text>
                   </>
@@ -189,7 +187,7 @@ export default function SignUpScreen({ onBack, onSignIn }: SignUpScreenProps) {
                 onPress={() => setShowEmailForm(true)}
               >
                 <Ionicons name="mail" size={22} color="#0A0A0B" />
-                <Text style={styles.emailButtonText}>
+                <Text style={styles.buttonText}>
                   Sign Up with Email
                 </Text>
               </Pressable>
@@ -364,11 +362,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: s.lg,
     paddingHorizontal: s.xl,
-    borderRadius: r.lg,
-    gap: s.md,
-    minHeight: 60,
+    borderRadius: 12,
+    gap: s.sm,
+    height: 60,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -382,9 +379,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  socialButtonText: {
+  googleIconContainer: {
+    width: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonText: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   dividerContainer: {
     flexDirection: 'row',
@@ -414,11 +417,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
-  },
-  emailButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0A0A0B',
   },
   emailForm: {
     gap: s.lg,

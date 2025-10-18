@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Alert } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Alert, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
@@ -210,6 +210,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
 
       setStatus('Complete!');
       setGeneratedCount(hints.length);
+      setIsGenerating(false);
 
       // Show success modal after short delay
       setTimeout(() => {
@@ -234,6 +235,32 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
   useEffect(() => {
     generateHints();
   }, [generateHints]);
+
+  // Prevent back navigation during generation
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isGenerating) {
+        // Prevent back navigation while generating
+        return true;
+      }
+      return false;
+    });
+
+    return () => backHandler.remove();
+  }, [isGenerating]);
+
+  // Prevent swipe back gesture on iOS
+  useEffect(() => {
+    if (isGenerating) {
+      navigation.setOptions({
+        gestureEnabled: false,
+      });
+    } else {
+      navigation.setOptions({
+        gestureEnabled: true,
+      });
+    }
+  }, [isGenerating, navigation]);
 
   const mainRotation = mainRotate.interpolate({
     inputRange: [0, 1],
@@ -344,9 +371,9 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         </Text>
 
         <View style={styles.tipContainer}>
-          <Ionicons name="information-circle-outline" size={20} color="#8B5CF6" />
+          <Ionicons name="time-outline" size={20} color="#8B5CF6" />
           <Text style={[styles.tip, { color: theme.colors.textSecondary }]}>
-            Processing {items.length} cards with AI
+            This may take a couple of minutes. Please stay patient—we're ensuring hint quality for {items.length} cards.
           </Text>
         </View>
       </View>

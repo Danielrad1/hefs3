@@ -65,6 +65,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   const scrollY = useSharedValue(0);
   const contentH = useSharedValue(0);
   const viewportH = useSharedValue(0);
+  const scrollEnabled = useSharedValue(true); // Track if content actually needs scrolling
   
   // Gesture-start gating: check if at bottom when gesture STARTS (not mid-gesture)
   const verticalRatingAllowed = useSharedValue(false);
@@ -154,6 +155,14 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       scrollY.value = e.contentOffset.y;
       contentH.value = e.contentSize.height;
       viewportH.value = e.layoutMeasurement.height;
+      
+      // CRITICAL: Disable scrolling if content fits in viewport
+      const contentFits = (contentH.value - viewportH.value) <= 5;
+      scrollEnabled.value = !contentFits;
+      
+      if (contentFits) {
+        runOnJS(log)('SCROLL_DISABLED', `content=${contentH.value.toFixed(0)} viewport=${viewportH.value.toFixed(0)}`);
+      }
     },
     onEndDrag: (e) => {
       'worklet';
@@ -652,6 +661,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
               bounces={false}
               overScrollMode="never"
               removeClippedSubviews={false}
+              scrollEnabled={scrollEnabled.value}
               contentContainerStyle={styles.scrollContent}
             >
                 {/* Spacer to establish scroll height */}
@@ -856,7 +866,7 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     paddingBottom: 40,
     paddingHorizontal: 24,
-    minHeight: height * 0.75, // Ensure scrollable area
+    // Removed minHeight - let content determine scroll need naturally
     flexGrow: 1,
   },
   cardText: {

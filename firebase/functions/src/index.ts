@@ -49,8 +49,12 @@ app.delete('/backup', authenticate, backupHandler.deleteBackup);
 logger.info('[Setup] Registering AI routes...');
 app.post('/ai/deck/generate', authenticate, withQuota({ kind: 'deck', freeLimit: 3 }), aiHandler.generateDeck);
 logger.info('[Setup] Registered /ai/deck/generate');
-app.post('/ai/hints/generate', authenticate, withQuota({ kind: 'hints', freeLimit: 1 }), generateHints);
-logger.info('[Setup] Registered /ai/hints/generate');
+
+// TODO: MAJOR - RE-ENABLE QUOTA LIMIT FOR HINTS GENERATION BEFORE PRODUCTION
+// Temporarily disabled for testing - was: withQuota({ kind: 'hints', freeLimit: 1 })
+app.post('/ai/hints/generate', authenticate, generateHints);
+logger.info('[Setup] Registered /ai/hints/generate (QUOTA DISABLED FOR TESTING)');
+
 app.get('/ai/models', authenticate, aiHandler.getModels);
 logger.info('[Setup] AI routes registered');
 

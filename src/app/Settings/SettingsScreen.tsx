@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Switch, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Modal, TextInput, Platform } from 'react-native';
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Slider from '@react-native-community/slider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,6 +62,30 @@ function SettingItem({ icon, title, subtitle, onPress, rightElement, showChevron
 function SectionHeader({ title }: { title: string }) {
   const theme = useTheme();
   return <Text style={[styles.sectionHeader, { color: theme.colors.textMed }]}>{title}</Text>;
+}
+
+function SwitchToggle({ value, onToggle, theme }: { value: boolean; onToggle: () => void; theme: any }) {
+  const thumbStyle = useAnimatedStyle(() => ({
+    transform: [
+      { 
+        translateX: withSpring(value ? 20 : 0, {
+          damping: 15,
+          stiffness: 180,
+        }) 
+      }
+    ],
+  }));
+
+  return (
+    <Pressable 
+      onPress={onToggle}
+      style={[styles.switchContainer, { 
+        backgroundColor: value ? theme.colors.primary : theme.colors.border 
+      }]}
+    >
+      <Animated.View style={[styles.switchThumb, thumbStyle]} />
+    </Pressable>
+  );
 }
 
 interface SettingsScreenProps {
@@ -261,8 +286,20 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
         <SectionHeader title="STUDY" />
         <View style={styles.section}>
-          <SettingItem icon="notifications" title="Notifications" subtitle={notificationsEnabled ? 'Enabled' : 'Disabled'} rightElement={<Switch value={notificationsEnabled} onValueChange={handleNotificationsToggle} trackColor={{ false: theme.colors.border, true: theme.colors.overlay.primary }} thumbColor={notificationsEnabled ? theme.colors.primary : theme.colors.textLow} />} showChevron={false} />
-          <SettingItem icon="time" title="Daily Reminder" subtitle={dailyReminder ? 'Study at 8:00 PM daily' : 'Disabled'} rightElement={<Switch value={dailyReminder} onValueChange={handleDailyReminderToggle} trackColor={{ false: theme.colors.border, true: theme.colors.overlay.primary }} thumbColor={dailyReminder ? theme.colors.primary : theme.colors.textLow} />} showChevron={false} />
+          <SettingItem 
+            icon="notifications" 
+            title="Notifications" 
+            subtitle={notificationsEnabled ? 'Enabled' : 'Disabled'} 
+            rightElement={<SwitchToggle value={notificationsEnabled} onToggle={() => handleNotificationsToggle(!notificationsEnabled)} theme={theme} />} 
+            showChevron={false} 
+          />
+          <SettingItem 
+            icon="time" 
+            title="Daily Reminder" 
+            subtitle={dailyReminder ? 'Study at 8:00 PM daily' : 'Disabled'} 
+            rightElement={<SwitchToggle value={dailyReminder} onToggle={() => handleDailyReminderToggle(!dailyReminder)} theme={theme} />} 
+            showChevron={false} 
+          />
           <SettingItem icon="trophy" title="Daily Goal" subtitle={`${dailyGoal} minutes per day`} onPress={handleDailyGoalPress} />
         </View>
 
@@ -457,4 +494,22 @@ const styles = StyleSheet.create({
   usageRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: s.sm },
   usageLabel: { fontSize: 15, fontWeight: '600' },
   usageValue: { fontSize: 14, fontWeight: '500' },
+  switchContainer: {
+    width: 51,
+    height: 31,
+    borderRadius: 16,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  switchThumb: {
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 3,
+  },
 });

@@ -33,13 +33,14 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
 
   const handleGenerate = async () => {
     try {
-      // Check quota before generation (client-side)
-      if (!isPremiumEffective && usage) {
-        if (usage.hintGenerations >= usage.limits.hints) {
-          setShowPremiumModal(true);
-          return;
-        }
-      }
+      // TODO: MAJOR - RE-ENABLE QUOTA CHECK BEFORE PRODUCTION
+      // Temporarily disabled for testing
+      // if (!isPremiumEffective && usage) {
+      //   if (usage.hintGenerations >= usage.limits.hints) {
+      //     setShowPremiumModal(true);
+      //     return;
+      //   }
+      // }
 
       // Get all cards from the deck
       let cards = db.getCardsByDeck(deckId);
