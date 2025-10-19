@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, StyleSheet, Pressable, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, Modal, StyleSheet, Pressable, ActivityIndicator, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { DeckManifest } from '../../services/discover/DiscoverService';
+import { buildDeckTheme, getDeckGlyphs } from './DeckTheme';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface DeckDetailModalProps {
   deck: DeckManifest | null;
@@ -15,8 +19,9 @@ interface DeckDetailModalProps {
   downloadProgress: number;
   importing: boolean;
   importProgress: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   iconColor: string;
+  sampleCards?: Array<{ front: string; back: string }>;
 }
 
 export function DeckDetailModal({
@@ -30,11 +35,18 @@ export function DeckDetailModal({
   importProgress,
   icon,
   iconColor,
+  sampleCards = [
+    { front: 'Sample Question', back: 'Sample Answer' },
+    { front: 'Example Term', back: 'Definition' },
+  ],
 }: DeckDetailModalProps) {
   const theme = useTheme();
+  const [showingCardSide, setShowingCardSide] = useState<'front' | 'back'>('front');
 
   if (!deck) return null;
 
+  const deckTheme = buildDeckTheme(deck);
+  const glyphs = getDeckGlyphs(deck);
   const difficultyColor = deck.difficulty === 'beginner' ? '#10B981' : deck.difficulty === 'intermediate' ? '#F59E0B' : '#EF4444';
   const sizeInMB = (deck.size / 1024 / 1024).toFixed(1);
 
@@ -57,51 +69,95 @@ export function DeckDetailModal({
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Icon */}
-            <View style={[styles.iconContainer, { backgroundColor: iconColor + '20' }]}>
-              <Ionicons name={icon} size={48} color={iconColor} />
+            {/* Hero Section with Gradient */}
+            <LinearGradient
+              colors={deckTheme.colors}
+              start={{ x: deckTheme.angle.x, y: 0 }}
+              end={{ x: 1 - deckTheme.angle.x, y: 1 }}
+              style={styles.heroSection}
+            >
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.6)']}
+                style={styles.heroOverlay}
+              />
+              
+              {/* Icon */}
+              <View style={styles.heroIcon}>
+                {glyphs.primary.kind === 'icon' ? (
+                  <Ionicons name={glyphs.primary.value as any} size={64} color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.heroEmoji}>{glyphs.primary.value}</Text>
+                )}
+              </View>
+
+              {/* Title */}
+              <Text style={styles.heroTitle}>
+                {deck.name}
+              </Text>
+
+              {/* Meta Row */}
+              <View style={styles.heroMeta}>
+                <View style={styles.heroMetaItem}>
+                  <Ionicons name="layers" size={14} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.heroMetaText}>{deck.cardCount}</Text>
+                </View>
+                <View style={styles.heroDivider} />
+                <View style={styles.heroMetaItem}>
+                  <Ionicons name="time" size={14} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.heroMetaText}>{Math.ceil(deck.cardCount / 20)} min</Text>
+                </View>
+                <View style={styles.heroDivider} />
+                <Text style={styles.heroMetaText}>
+                  {deck.difficulty === 'beginner' ? 'Easy' : deck.difficulty === 'intermediate' ? 'Med' : 'Hard'}
+                </Text>
+              </View>
+            </LinearGradient>
+
+            {/* Card Preview Section */}
+            <View style={styles.previewSection}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+                Preview Cards
+              </Text>
+              <Pressable 
+                style={[styles.previewCard, { backgroundColor: theme.colors.bg }]}
+                onPress={() => setShowingCardSide(showingCardSide === 'front' ? 'back' : 'front')}
+              >
+                <View style={styles.cardSideIndicator}>
+                  <Text style={[styles.cardSideText, { color: theme.colors.textTertiary }]}>
+                    {showingCardSide === 'front' ? 'FRONT' : 'BACK'}
+                  </Text>
+                  <Ionicons name="swap-horizontal" size={16} color={theme.colors.textTertiary} />
+                </View>
+                <Text style={[styles.previewCardText, { color: theme.colors.textPrimary }]}>
+                  {showingCardSide === 'front' ? sampleCards[0].front : sampleCards[0].back}
+                </Text>
+                <Text style={[styles.tapToFlip, { color: theme.colors.textTertiary }]}>
+                  Tap to flip
+                </Text>
+              </Pressable>
             </View>
 
-            {/* Title */}
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-              {deck.name}
-            </Text>
-
             {/* Description */}
-            <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-              {deck.description}
-            </Text>
+            <View style={styles.descriptionSection}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+                About This Deck
+              </Text>
+              <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+                {deck.description}
+              </Text>
+            </View>
 
-            {/* Metadata */}
-            <View style={styles.metadata}>
-              <View style={styles.metaRow}>
-                <Ionicons name="layers" size={20} color={theme.colors.textTertiary} />
-                <Text style={[styles.metaText, { color: theme.colors.textPrimary }]}>
-                  {deck.cardCount} cards
-                </Text>
+            {/* Details Grid */}
+            <View style={styles.detailsGrid}>
+              <View style={[styles.detailCard, { backgroundColor: theme.colors.bg }]}>
+                <Ionicons name="language" size={24} color={theme.colors.accent} />
+                <Text style={[styles.detailLabel, { color: theme.colors.textTertiary }]}>Language</Text>
+                <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>{deck.language}</Text>
               </View>
-
-              <View style={styles.metaRow}>
-                <Ionicons name="language" size={20} color={theme.colors.textTertiary} />
-                <Text style={[styles.metaText, { color: theme.colors.textPrimary }]}>
-                  {deck.language}
-                </Text>
-              </View>
-
-              <View style={styles.metaRow}>
-                <Ionicons name="download" size={20} color={theme.colors.textTertiary} />
-                <Text style={[styles.metaText, { color: theme.colors.textPrimary }]}>
-                  {sizeInMB} MB
-                </Text>
-              </View>
-
-              <View style={styles.metaRow}>
-                <Ionicons name="bar-chart" size={20} color={theme.colors.textTertiary} />
-                <View style={[styles.difficultyBadge, { backgroundColor: difficultyColor + '20' }]}>
-                  <Text style={[styles.difficultyText, { color: difficultyColor }]}>
-                    {deck.difficulty}
-                  </Text>
-                </View>
+              <View style={[styles.detailCard, { backgroundColor: theme.colors.bg }]}>
+                <Ionicons name="download" size={24} color={theme.colors.accent} />
+                <Text style={[styles.detailLabel, { color: theme.colors.textTertiary }]}>Size</Text>
+                <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>{sizeInMB} MB</Text>
               </View>
             </View>
 
@@ -185,9 +241,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modal: {
-    borderTopLeftRadius: r.xl,
-    borderTopRightRadius: r.xl,
-    maxHeight: '85%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
   },
   header: {
     flexDirection: 'row',
@@ -198,52 +254,127 @@ const styles = StyleSheet.create({
     padding: s.xs,
   },
   content: {
-    paddingHorizontal: s.xl,
     paddingBottom: s.xl,
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: r.lg,
+  heroSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 32,
     alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginBottom: s.lg,
+    marginBottom: 24,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroIcon: {
+    marginBottom: 16,
+  },
+  heroEmoji: {
+    fontSize: 64,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  heroTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: s.sm,
+    marginBottom: 12,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
-  description: {
-    fontSize: 16,
-    lineHeight: 24,
-    textAlign: 'center',
-    marginBottom: s.xl,
-  },
-  metadata: {
-    gap: s.md,
-    marginBottom: s.xl,
-  },
-  metaRow: {
+  heroMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s.sm,
+    gap: 10,
   },
-  metaText: {
-    fontSize: 16,
-    flex: 1,
+  heroMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  difficultyBadge: {
-    paddingHorizontal: s.sm,
-    paddingVertical: s.xs / 2,
-    borderRadius: r.sm,
-  },
-  difficultyText: {
-    fontSize: 14,
+  heroMetaText: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 13,
     fontWeight: '600',
-    textTransform: 'capitalize',
+  },
+  heroDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  previewSection: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  previewCard: {
+    padding: 24,
+    borderRadius: 16,
+    minHeight: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardSideIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
+  },
+  cardSideText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  previewCardText: {
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  tapToFlip: {
+    fontSize: 12,
+    marginTop: 16,
+  },
+  descriptionSection: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  description: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  detailCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  detailValue: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   tagsContainer: {
     marginBottom: s.lg,

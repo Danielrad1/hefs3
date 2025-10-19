@@ -43,12 +43,20 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         return;
       }
 
-      // Quick parse to check for progress data
+      // START LOADING IMMEDIATELY - show feedback right away
+      setImporting(true);
       setImportProgress('Analyzing deck...');
+
+      // Quick parse to check for progress data
       const parser = new ApkgParser();
       const parsed = await parser.parse(file.uri, {
         enableStreaming: true,
-        onProgress: () => {}, // Silent for analysis
+        onProgress: (msg) => {
+          // Show progress during analysis phase too
+          if (typeof msg === 'string' && msg.length > 0) {
+            setImportProgress(msg);
+          }
+        },
       });
 
       // Check if deck has progress
@@ -58,7 +66,9 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         : 0;
 
       if (hasProgress) {
-        // Show options modal
+        // Hide loading, show options modal
+        setImporting(false);
+        setImportProgress('');
         setPendingImport({
           fileUri: file.uri,
           fileName: file.name,
@@ -70,11 +80,13 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         });
         setShowOptionsModal(true);
       } else {
-        // No progress, import directly
+        // No progress, import directly (keep loading active)
         await performImport(file.uri, file.name, false);
       }
     } catch (error: any) {
       logger.error('[DeckImport] Import error:', error);
+      setImporting(false);
+      setImportProgress('');
       Alert.alert('Import Failed', error.message || 'Failed to import deck');
     }
   };

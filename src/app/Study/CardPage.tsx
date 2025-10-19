@@ -80,6 +80,14 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   const [showHintModal, setShowHintModal] = React.useState(false);
   const [showTipModal, setShowTipModal] = React.useState(false);
 
+  // Pre-warm animation worklets on mount to prevent first-flip jank
+  React.useEffect(() => {
+    // Trigger a tiny animation to compile worklets (imperceptible to user)
+    revealProgress.value = withTiming(0.001, { duration: 1 }, () => {
+      revealProgress.value = 0;
+    });
+  }, []);
+
   // Reset state when card changes (synchronize with card transitions)
   React.useEffect(() => {
     // Reset all state immediately when card changes
@@ -105,10 +113,10 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       // Cloze cards: instant reveal (no crossfade needed)
       // Normal cards: smooth crossfade
       const isCloze = card.front.includes('{{c');
-      revealProgress.value = withTiming(1, { 
-        duration: isCloze ? 200 : 350,
-        easing: isCloze ? Easing.out(Easing.ease) : Easing.out(Easing.cubic),
-      });
+      // Use spring for smoother initial animation (avoids timing easing calculations)
+      revealProgress.value = isCloze 
+        ? withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) })
+        : withSpring(1, { damping: 20, stiffness: 180, mass: 0.5 });
     }
   };
 
@@ -118,19 +126,17 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
     const isCloze = card.front.includes('{{c');
     
     if (revealProgress.value === 0) {
-      // Show answer - instant for cloze, smooth for normal
-      revealProgress.value = withTiming(1, {
-        duration: isCloze ? 200 : 350,
-        easing: isCloze ? Easing.out(Easing.ease) : Easing.out(Easing.cubic),
-      });
+      // Show answer - instant for cloze, smooth spring for normal
+      revealProgress.value = isCloze 
+        ? withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) })
+        : withSpring(1, { damping: 20, stiffness: 180, mass: 0.5 });
       runOnJS(selection)();
       handleReveal();
     } else {
       // Hide answer - go back to question
-      revealProgress.value = withTiming(0, {
-        duration: isCloze ? 200 : 350,
-        easing: isCloze ? Easing.out(Easing.ease) : Easing.out(Easing.cubic),
-      });
+      revealProgress.value = isCloze 
+        ? withTiming(0, { duration: 200, easing: Easing.out(Easing.ease) })
+        : withSpring(0, { damping: 20, stiffness: 180, mass: 0.5 });
       runOnJS(selection)();
       // Reset revealed state for cloze cards
       isRevealed.value = false;

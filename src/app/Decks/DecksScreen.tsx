@@ -41,6 +41,8 @@ export default function DecksScreen() {
   const [newDeckName, setNewDeckName] = useState('');
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [selectedDeck, setSelectedDeck] = useState<DeckWithStats | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState('');
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [deckToRename, setDeckToRename] = useState<DeckWithStats | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -164,11 +166,26 @@ export default function DecksScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Show loading modal first
+              setDeleting(true);
+              setDeleteProgress('Preparing to delete...');
+              
+              // Small delay to ensure modal renders before heavy work
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              setDeleteProgress(`Deleting "${deckName}"...`);
               await deckService.deleteDeck(deckId, { deleteCards: true });
+              
+              setDeleteProgress('Saving changes...');
               await PersistenceService.save(db);
+              
+              setDeleting(false);
+              setDeleteProgress('');
               reload();
             } catch (error) {
               logger.error('Error deleting deck:', error);
+              setDeleting(false);
+              setDeleteProgress('');
               Alert.alert('Error', error instanceof Error ? error.message : 'Failed to delete deck');
             }
           },
@@ -689,6 +706,13 @@ export default function DecksScreen() {
         visible={importing} 
         progress={importProgress}
         onCancel={cancelImport}
+      />
+
+      {/* Delete Progress Modal */}
+      <ImportProgressModal 
+        visible={deleting} 
+        progress={deleteProgress}
+        onCancel={undefined}
       />
 
       {/* Deck Customization Modal */}

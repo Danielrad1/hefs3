@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import HomeScreen from '../app/Home/HomeScreen';
 import StudyScreen from '../app/Study/StudyScreen';
-import DiscoverScreen from '../app/Discover/DiscoverScreen';
+import DiscoverStack from './DiscoverStack';
 import DecksStack from './DecksStack';
 import SettingsStack from './SettingsStack';
 import { useTheme } from '../design/theme';
@@ -54,7 +54,7 @@ export default function Tabs() {
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Decks" component={DecksStack} />
       <Tab.Screen name="Study" component={StudyScreen} />
-      <Tab.Screen name="Discover" component={DiscoverScreen} />
+      <Tab.Screen name="Discover" component={DiscoverStack} />
       <Tab.Screen name="Settings" component={SettingsStack} />
     </Tab.Navigator>
   );

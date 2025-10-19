@@ -53,7 +53,10 @@ export class DiscoverService {
 
     try {
       logger.info('[DiscoverService] Fetching catalog from hosting...');
-      const response = await fetch(`${HOSTING_BASE}/decks/decks.json`);
+      const cacheBuster = `?t=${Date.now()}`;
+      const response = await fetch(`${HOSTING_BASE}/decks/decks.json${cacheBuster}`, {
+        cache: 'no-store',
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch catalog: ${response.status}`);
