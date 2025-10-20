@@ -82,10 +82,18 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
 
   // Pre-warm animation worklets on mount to prevent first-flip jank
   React.useEffect(() => {
-    // Trigger a tiny animation to compile worklets (imperceptible to user)
-    revealProgress.value = withTiming(0.001, { duration: 1 }, () => {
+    // Trigger multiple tiny animations to compile all worklets (imperceptible to user)
+    // This prevents the first flip from being slow
+    revealProgress.value = withTiming(0.001, { duration: 1 });
+    translateX.value = withSpring(0.001, { damping: 15, stiffness: 150 });
+    translateY.value = withSpring(0.001, { damping: 15, stiffness: 150 });
+    
+    // Reset after compilation
+    setTimeout(() => {
       revealProgress.value = 0;
-    });
+      translateX.value = 0;
+      translateY.value = 0;
+    }, 10);
   }, []);
 
   // Reset state when card changes (synchronize with card transitions)
@@ -492,8 +500,8 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
 
   // Static shadow - always visible (no animation, no prop changes = no flicker)
 
-  const [swipeLabel, setSwipeLabel] = React.useState('GOOD');
-  const [swipeColor, setSwipeColor] = React.useState('#10B981');
+  // Shared values for swipe label (worklet-only, no React state to prevent flash)
+  const swipeLabel = useSharedValue('GOOD');
 
   const overlayAnimatedStyle = useAnimatedStyle(() => {
     if (!isRevealed.value) return { opacity: 0 };
@@ -507,35 +515,40 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
     // Opacity based on swipe distance (like Tinder)
     const opacity = Math.min(totalDistance / 150, 1);
 
-    // Determine label and color based on swipe direction
-    let label = 'GOOD';
-    let color = '#10B981'; // green
-    
+    // Determine label based on swipe direction (all in worklet)
     if (absY > absX) {
       if (translateY.value > 0) {
-        label = 'AGAIN';
-        color = '#EF4444'; // red
+        swipeLabel.value = 'AGAIN';
       } else {
-        label = 'EASY';
-        color = '#3B82F6'; // blue
+        swipeLabel.value = 'EASY';
       }
     } else {
       if (translateX.value > 0) {
-        label = 'GOOD';
-        color = '#10B981'; // green
+        swipeLabel.value = 'GOOD';
       } else {
-        label = 'HARD';
-        color = '#F59E0B'; // orange
+        swipeLabel.value = 'HARD';
       }
-    }
-    
-    if (totalDistance > 30) {
-      runOnJS(setSwipeLabel)(label);
-      runOnJS(setSwipeColor)(color);
     }
 
     return { opacity };
   });
+  
+  // Animated styles for each label (must be at component level, not in JSX)
+  const againLabelStyle = useAnimatedStyle(() => ({ 
+    opacity: swipeLabel.value === 'AGAIN' ? 1 : 0,
+  }));
+  
+  const hardLabelStyle = useAnimatedStyle(() => ({ 
+    opacity: swipeLabel.value === 'HARD' ? 1 : 0,
+  }));
+  
+  const goodLabelStyle = useAnimatedStyle(() => ({ 
+    opacity: swipeLabel.value === 'GOOD' ? 1 : 0,
+  }));
+  
+  const easyLabelStyle = useAnimatedStyle(() => ({ 
+    opacity: swipeLabel.value === 'EASY' ? 1 : 0,
+  }));
   
   // Position overlay based on swipe direction
   const overlayPositionStyle = useAnimatedStyle(() => {
@@ -712,11 +725,43 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
           </Animated.View>
         </View>
 
-          {/* Tinder-style swipe overlay */}
+          {/* Tinder-style swipe overlay - render all 4 labels, show correct one via opacity */}
           <Animated.View style={[styles.swipeOverlay, overlayPositionStyle, overlayAnimatedStyle]} pointerEvents="none">
-            <View style={[styles.swipeLabelContainer, { borderColor: swipeColor }]}>
-              <Text style={[styles.swipeLabel, { color: swipeColor }]}>{swipeLabel}</Text>
-            </View>
+            {/* AGAIN label */}
+            <Animated.View style={[
+              styles.swipeLabelContainer, 
+              { borderColor: '#EF4444', position: 'absolute' },
+              againLabelStyle
+            ]}>
+              <Text style={[styles.swipeLabel, { color: '#EF4444' }]}>AGAIN</Text>
+            </Animated.View>
+            
+            {/* HARD label */}
+            <Animated.View style={[
+              styles.swipeLabelContainer, 
+              { borderColor: '#F59E0B', position: 'absolute' },
+              hardLabelStyle
+            ]}>
+              <Text style={[styles.swipeLabel, { color: '#F59E0B' }]}>HARD</Text>
+            </Animated.View>
+            
+            {/* GOOD label */}
+            <Animated.View style={[
+              styles.swipeLabelContainer, 
+              { borderColor: '#10B981', position: 'absolute' },
+              goodLabelStyle
+            ]}>
+              <Text style={[styles.swipeLabel, { color: '#10B981' }]}>GOOD</Text>
+            </Animated.View>
+            
+            {/* EASY label */}
+            <Animated.View style={[
+              styles.swipeLabelContainer, 
+              { borderColor: '#3B82F6', position: 'absolute' },
+              easyLabelStyle
+            ]}>
+              <Text style={[styles.swipeLabel, { color: '#3B82F6' }]}>EASY</Text>
+            </Animated.View>
           </Animated.View>
         </Animated.View>
       </GestureDetector>

@@ -26,7 +26,7 @@ interface DeckCardProps {
   onMorePress: () => void;
 }
 
-export default function DeckCard({
+const DeckCard = React.memo(function DeckCard({
   deck,
   level,
   hasChildren,
@@ -153,7 +153,22 @@ export default function DeckCard({
       {cardContent}
     </Pressable>
   );
-}
+}, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.deck.id === nextProps.deck.id &&
+    prevProps.deck.name === nextProps.deck.name &&
+    prevProps.deck.cardCount === nextProps.deck.cardCount &&
+    prevProps.deck.dueCount === nextProps.deck.dueCount &&
+    prevProps.level === nextProps.level &&
+    prevProps.hasChildren === nextProps.hasChildren &&
+    prevProps.isExpanded === nextProps.isExpanded &&
+    prevProps.isCurrentDeck === nextProps.isCurrentDeck &&
+    prevProps.metadata === nextProps.metadata
+  );
+});
+
+export default DeckCard;
 
 const styles = StyleSheet.create({
   deckCard: {

@@ -19,7 +19,7 @@ interface FolderCardProps {
   onMorePress: () => void;
 }
 
-export default function FolderCard({
+const FolderCard = React.memo(function FolderCard({
   folderName,
   metadata,
   deckCount,
@@ -153,7 +153,19 @@ export default function FolderCard({
       {cardContent}
     </Pressable>
   );
-}
+}, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.folderName === nextProps.folderName &&
+    prevProps.deckCount === nextProps.deckCount &&
+    prevProps.totalCards === nextProps.totalCards &&
+    prevProps.dueCards === nextProps.dueCards &&
+    prevProps.isExpanded === nextProps.isExpanded &&
+    prevProps.metadata === nextProps.metadata
+  );
+});
+
+export default FolderCard;
 
 const styles = StyleSheet.create({
   folderCard: {

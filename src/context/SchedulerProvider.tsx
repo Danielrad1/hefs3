@@ -88,31 +88,63 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
 
   // Separate function to update deck list (only called when needed)
   const updateDeckList = useCallback(() => {
-    // Update decks list with due counts (exclude Default deck)
-    const allDecks = db.getAllDecks().filter(d => d.id !== '1');
-    const allCards = db.getAllCards();
+    const startTime = Date.now();
+    logger.info('[SchedulerProvider] updateDeckList START');
     
+    // Update decks list with due counts (exclude Default deck)
+    const allDecksStart = Date.now();
+    const allDecks = db.getAllDecks().filter(d => d.id !== '1');
+    logger.info(`[SchedulerProvider] getAllDecks took ${Date.now() - allDecksStart}ms - ${allDecks.length} decks`);
+    
+    const allCardsStart = Date.now();
+    const allCards = db.getAllCards();
+    logger.info(`[SchedulerProvider] getAllCards took ${Date.now() - allCardsStart}ms - ${allCards.length} cards`);
+    
+    const mappingStart = Date.now();
+    
+    // OPTIMIZED: Single pass through cards instead of nested loops
+    // Build a map of deck name -> cards for O(n) instead of O(n*m)
+    const col = db.getCol();
+    const deckCardsMap = new Map<string, { total: number; due: number }>();
+    
+    // Initialize all decks with zero counts
+    allDecks.forEach(d => {
+      deckCardsMap.set(d.name, { total: 0, due: 0 });
+    });
+    
+    // Single pass: count cards for each deck (including parent decks)
+    allCards.forEach(card => {
+      const cardDeck = db.getDeck(card.did);
+      if (!cardDeck) return;
+      
+      const isDueCard = isDue(card.due, card.type, col);
+      
+      // Update this deck and all parent decks
+      // e.g., "A::B::C" should update "A", "A::B", and "A::B::C"
+      const parts = cardDeck.name.split('::');
+      for (let i = 1; i <= parts.length; i++) {
+        const deckName = parts.slice(0, i).join('::');
+        const counts = deckCardsMap.get(deckName);
+        if (counts) {
+          counts.total++;
+          if (isDueCard) counts.due++;
+        }
+      }
+    });
+    
+    // Map decks to final structure
     setDecks(allDecks.map(d => {
-      // Get all cards for this deck AND its children (nested decks)
-      const deckCards = allCards.filter(card => {
-        const cardDeck = db.getDeck(card.did);
-        if (!cardDeck) return false;
-        // Match exact deck or any child deck (using :: separator)
-        return cardDeck.id === d.id || cardDeck.name.startsWith(d.name + '::');
-      });
-      
-      const dueCards = deckCards.filter(c => {
-        const col = db.getCol();
-        return isDue(c.due, c.type, col);
-      });
-      
+      const counts = deckCardsMap.get(d.name) || { total: 0, due: 0 };
       return {
         id: d.id,
         name: d.name,
-        cardCount: deckCards.length,
-        dueCount: dueCards.length,
+        cardCount: counts.total,
+        dueCount: counts.due,
       };
     }));
+    
+    logger.info(`[SchedulerProvider] deck mapping took ${Date.now() - mappingStart}ms`);
+    logger.info(`[SchedulerProvider] updateDeckList COMPLETE - total ${Date.now() - startTime}ms`);
   }, []);
 
   // Bootstrap with seed data
