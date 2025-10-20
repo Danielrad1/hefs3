@@ -36,38 +36,74 @@ export class DeckMetadataService {
   private folderCache: Map<string, FolderMetadata> = new Map();
   private loaded = false;
   private foldersLoaded = false;
+  private loadPromise: Promise<void> | null = null;
+  private folderLoadPromise: Promise<void> | null = null;
 
   /**
    * Load all metadata from storage
    */
   async load(): Promise<void> {
-    try {
-      const json = await AsyncStorage.getItem(DECK_METADATA_KEY);
-      if (json) {
-        const data: Record<string, DeckMetadata> = JSON.parse(json);
-        this.cache = new Map(Object.entries(data));
-      }
-      this.loaded = true;
-    } catch (error) {
-      logger.error('[DeckMetadata] Failed to load:', error);
-      this.cache = new Map();
-      this.loaded = true;
+    // Return existing load promise if already loading
+    if (this.loadPromise) {
+      return this.loadPromise;
     }
+    
+    // Return immediately if already loaded
+    if (this.loaded) {
+      return Promise.resolve();
+    }
+    
+    // Create new load promise
+    this.loadPromise = (async () => {
+      try {
+        const json = await AsyncStorage.getItem(DECK_METADATA_KEY);
+        if (json) {
+          const data: Record<string, DeckMetadata> = JSON.parse(json);
+          this.cache = new Map(Object.entries(data));
+        }
+        this.loaded = true;
+      } catch (error) {
+        logger.error('[DeckMetadata] Failed to load:', error);
+        this.cache = new Map();
+        this.loaded = true;
+      } finally {
+        this.loadPromise = null;
+      }
+    })();
+    
+    return this.loadPromise;
   }
 
   async loadFolders(): Promise<void> {
-    try {
-      const json = await AsyncStorage.getItem(FOLDER_METADATA_KEY);
-      if (json) {
-        const data: Record<string, FolderMetadata> = JSON.parse(json);
-        this.folderCache = new Map(Object.entries(data));
-      }
-      this.foldersLoaded = true;
-    } catch (error) {
-      logger.error('[FolderMetadata] Failed to load:', error);
-      this.folderCache = new Map();
-      this.foldersLoaded = true;
+    // Return existing load promise if already loading
+    if (this.folderLoadPromise) {
+      return this.folderLoadPromise;
     }
+    
+    // Return immediately if already loaded
+    if (this.foldersLoaded) {
+      return Promise.resolve();
+    }
+    
+    // Create new load promise
+    this.folderLoadPromise = (async () => {
+      try {
+        const json = await AsyncStorage.getItem(FOLDER_METADATA_KEY);
+        if (json) {
+          const data: Record<string, FolderMetadata> = JSON.parse(json);
+          this.folderCache = new Map(Object.entries(data));
+        }
+        this.foldersLoaded = true;
+      } catch (error) {
+        logger.error('[FolderMetadata] Failed to load:', error);
+        this.folderCache = new Map();
+        this.foldersLoaded = true;
+      } finally {
+        this.folderLoadPromise = null;
+      }
+    })();
+    
+    return this.folderLoadPromise;
   }
 
   /**
@@ -81,13 +117,14 @@ export class DeckMetadataService {
   }
 
   /**
-   * Get all metadata
+   * Get all metadata (returns cached map - do not mutate!)
    */
-  async getAllMetadata(): Promise<Map<string, DeckMetadata>> {
+  getAllMetadata(): Map<string, DeckMetadata> {
     if (!this.loaded) {
-      await this.load();
+      logger.warn('[DeckMetadata] getAllMetadata called before load - returning empty map');
+      return new Map();
     }
-    return new Map(this.cache);
+    return this.cache;
   }
 
   /**
@@ -163,13 +200,15 @@ export class DeckMetadataService {
   }
 
   /**
-   * Get all folder metadata
+   * Get all folder metadata (returns cached map - do not mutate!)
    */
-  async getAllFolderMetadata(): Promise<Map<string, FolderMetadata>> {
+  getAllFolderMetadata(): Map<string, FolderMetadata> {
     if (!this.foldersLoaded) {
-      await this.loadFolders();
+      logger.warn('[FolderMetadata] getAllFolderMetadata called before load - returning empty map');
+      return new Map();
     }
-    return new Map(this.folderCache);
+    // Return cache directly instead of cloning
+    return this.folderCache;
   }
 
   /**

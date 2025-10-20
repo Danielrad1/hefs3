@@ -88,19 +88,9 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
 
   // Separate function to update deck list (only called when needed)
   const updateDeckList = useCallback(() => {
-    const startTime = Date.now();
-    logger.info('[SchedulerProvider] updateDeckList START');
-    
     // Update decks list with due counts (exclude Default deck)
-    const allDecksStart = Date.now();
     const allDecks = db.getAllDecks().filter(d => d.id !== '1');
-    logger.info(`[SchedulerProvider] getAllDecks took ${Date.now() - allDecksStart}ms - ${allDecks.length} decks`);
-    
-    const allCardsStart = Date.now();
     const allCards = db.getAllCards();
-    logger.info(`[SchedulerProvider] getAllCards took ${Date.now() - allCardsStart}ms - ${allCards.length} cards`);
-    
-    const mappingStart = Date.now();
     
     // OPTIMIZED: Single pass through cards instead of nested loops
     // Build a map of deck name -> cards for O(n) instead of O(n*m)
@@ -142,9 +132,6 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
         dueCount: counts.due,
       };
     }));
-    
-    logger.info(`[SchedulerProvider] deck mapping took ${Date.now() - mappingStart}ms`);
-    logger.info(`[SchedulerProvider] updateDeckList COMPLETE - total ${Date.now() - startTime}ms`);
   }, []);
 
   // Bootstrap with seed data

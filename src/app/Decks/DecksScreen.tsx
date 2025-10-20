@@ -76,35 +76,18 @@ export default function DecksScreen() {
   } = useDeckImport(reload, reload);
 
   // Load metadata on mount and when screen focuses
-  const loadMetadata = React.useCallback(async () => {
-    const startTime = Date.now();
-    logger.info('[DecksScreen] loadMetadata START');
-    
-    const metadata = await deckMetadataService.getAllMetadata();
-    logger.info(`[DecksScreen] getAllMetadata took ${Date.now() - startTime}ms`);
-    
-    const folderMetaStart = Date.now();
-    const folderMeta = await deckMetadataService.getAllFolderMetadata();
-    logger.info(`[DecksScreen] getAllFolderMetadata took ${Date.now() - folderMetaStart}ms`);
-    
+  const loadMetadata = React.useCallback(() => {
+    const metadata = deckMetadataService.getAllMetadata();
+    const folderMeta = deckMetadataService.getAllFolderMetadata();
     setDeckMetadata(metadata);
     setFolderMetadata(folderMeta);
-    logger.info(`[DecksScreen] loadMetadata COMPLETE - total ${Date.now() - startTime}ms`);
   }, []);
 
   // Reload decks and metadata when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      const focusStartTime = Date.now();
-      logger.info('[DecksScreen] useFocusEffect START');
-      
       reload();
-      logger.info(`[DecksScreen] reload() took ${Date.now() - focusStartTime}ms`);
-      
-      const metadataStart = Date.now();
       loadMetadata();
-      logger.info(`[DecksScreen] loadMetadata() took ${Date.now() - metadataStart}ms`);
-      
       if (!uid) {
         setShowStudyModal(false);
         return;
@@ -112,8 +95,6 @@ export default function DecksScreen() {
       FirstRunGuide.shouldShowStudy(uid)
         .then(setShowStudyModal)
         .catch(() => setShowStudyModal(false));
-      
-      logger.info(`[DecksScreen] useFocusEffect COMPLETE - total ${Date.now() - focusStartTime}ms`);
     }, [reload, loadMetadata, uid])
   );
 
@@ -342,13 +323,7 @@ export default function DecksScreen() {
   };
 
   // Build tree structure from flat deck list
-  const deckTree = React.useMemo(() => {
-    const startTime = Date.now();
-    logger.info('[DecksScreen] buildDeckTree START');
-    const tree = buildDeckTree(decks);
-    logger.info(`[DecksScreen] buildDeckTree took ${Date.now() - startTime}ms for ${decks.length} decks`);
-    return tree;
-  }, [decks]);
+  const deckTree = React.useMemo(() => buildDeckTree(decks), [decks]);
 
   const toggleExpand = (deckName: string) => {
     setExpandedDecks(prev => {
@@ -422,18 +397,10 @@ export default function DecksScreen() {
   };
 
   // Filter decks by search query
-  const filteredDecks = React.useMemo(() => {
-    const startTime = Date.now();
-    logger.info('[DecksScreen] filterDecks START');
-    const filtered = filterDecks(decks, searchQuery);
-    logger.info(`[DecksScreen] filterDecks took ${Date.now() - startTime}ms - ${decks.length} -> ${filtered.length} decks`);
-    return filtered;
-  }, [decks, searchQuery]);
+  const filteredDecks = React.useMemo(() => filterDecks(decks, searchQuery), [decks, searchQuery]);
 
   // Group decks by folder
   const groupedDecks = React.useMemo(() => {
-    const startTime = Date.now();
-    logger.info('[DecksScreen] groupedDecks START');
     const folders: Record<string, DeckWithStats[]> = {};
     const unassigned: DeckWithStats[] = [];
 
@@ -464,15 +431,11 @@ export default function DecksScreen() {
       return orderA - orderB;
     });
 
-    logger.info(`[DecksScreen] groupedDecks took ${Date.now() - startTime}ms - ${sortedFolders.length} folders, ${unassigned.length} unassigned`);
     return { folders, sortedFolders, unassigned };
   }, [filteredDecks, deckMetadata, folderMetadata]);
 
   // Build tree from unassigned decks only (decks not in folders)
   const unassignedDeckTree = React.useMemo(() => {
-    const startTime = Date.now();
-    logger.info('[DecksScreen] unassignedDeckTree START');
-    
     const tree: any[] = [];
     const map = new Map<string, any>();
     
@@ -507,14 +470,11 @@ export default function DecksScreen() {
       }
     });
 
-    logger.info(`[DecksScreen] unassignedDeckTree took ${Date.now() - startTime}ms - ${tree.length} root nodes`);
     return tree;
   }, [groupedDecks.unassigned]);
 
   // Build trees for all folders ONCE (not inside map loop)
   const folderDeckTrees = React.useMemo(() => {
-    const startTime = Date.now();
-    logger.info('[DecksScreen] folderDeckTrees START');
     const trees: Record<string, DeckNode[]> = {};
     
     groupedDecks.sortedFolders.forEach(folderName => {
@@ -558,7 +518,6 @@ export default function DecksScreen() {
       trees[folderName] = tree;
     });
     
-    logger.info(`[DecksScreen] folderDeckTrees took ${Date.now() - startTime}ms - ${groupedDecks.sortedFolders.length} folders processed`);
     return trees;
   }, [groupedDecks.folders, groupedDecks.sortedFolders]);
 

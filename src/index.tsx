@@ -13,6 +13,7 @@ import { PremiumProvider } from './context/PremiumContext';
 import { ThemeProvider } from './design/theme';
 import { PersistenceService } from './services/anki/PersistenceService';
 import { db } from './services/anki/InMemoryDb';
+import { deckMetadataService } from './services/anki/DeckMetadataService';
 import { logger } from './utils/logger';
 
 export default function App() {
@@ -28,6 +29,12 @@ export default function App() {
         } else {
           logger.info('[App] No saved database found, starting fresh');
         }
+        
+        // Preload metadata in parallel to avoid delays later
+        await Promise.all([
+          deckMetadataService.load(),
+          deckMetadataService.loadFolders()
+        ]);
       } catch (error) {
         logger.error('[App] Error loading database:', error);
       } finally {
