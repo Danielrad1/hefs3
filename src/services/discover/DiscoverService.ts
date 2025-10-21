@@ -4,7 +4,7 @@
 
 import { logger } from '../../utils/logger';
 
-const HOSTING_BASE = 'https://hefs-b3e45.web.app';
+const HOSTING_BASE = 'https://enqode-6b13f.web.app';
 
 export interface DeckManifest {
   id: string;

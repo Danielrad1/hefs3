@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,17 +27,16 @@ export default function OnboardingIntroScreen({ navigation }: OnboardingIntroScr
       <View style={styles.content}>
         {/* Hero Section with Gradient Background */}
         <Animated.View entering={FadeInUp.delay(100)} style={styles.hero}>
-          <LinearGradient
-            colors={theme.colors.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.gradientBadge}
-          >
-            <Ionicons name="rocket" size={40} color="#000" />
-          </LinearGradient>
+          <View style={styles.gradientBadge}>
+            <Image 
+              source={require('../../../assets/enqode_main_transparent.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
 
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            Welcome to Memorize
+            Welcome to enqode
           </Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
             Let's set up your personalized learning experience
@@ -134,12 +133,15 @@ const styles = StyleSheet.create({
     gap: s.lg,
   },
   gradientBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: r.xl,
+    width: 100,
+    height: 100,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: s.md,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
   },
   title: {
     fontSize: 34,

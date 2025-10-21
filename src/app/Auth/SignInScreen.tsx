@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,8 +95,15 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
         </View>
 
         <View style={styles.content}>
-          {/* Title */}
+          {/* Logo & Title */}
           <Animated.View entering={FadeInUp.delay(100)} style={styles.titleSection}>
+            <View style={styles.logoContainer}>
+              <Image 
+                source={require('../../../assets/enqode_main_transparent.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
             <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
               Welcome back
             </Text>
@@ -183,7 +191,6 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
                     setShowEmailForm(false);
                     setEmail('');
                     setPassword('');
-                    setIsSignUp(false);
                   }}
                 >
                   <Ionicons name="arrow-back" size={24} color={theme.colors.textPrimary} />
@@ -288,6 +295,18 @@ const styles = StyleSheet.create({
   titleSection: {
     paddingTop: s.xl,
     gap: s.sm,
+    alignItems: 'center',
+  },
+  logoContainer: {
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: s.md,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
   },
   title: {
     fontSize: 32,

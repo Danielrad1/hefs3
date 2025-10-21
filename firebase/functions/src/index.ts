@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase-admin/app';
 import { onRequest } from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
 import { healthCheck } from './handlers/health';
 import { getCurrentUser } from './handlers/user';
 import { backupHandler } from './handlers/backup';
@@ -10,10 +11,13 @@ import { getUsage } from './handlers/usage';
 import { revenueCatWebhook } from './handlers/revenuecat';
 import { authenticate } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
-import { withQuota } from './middleware/quota';
+// import { withQuota } from './middleware/quota'; // TODO: Re-enable when quota limits are restored
 import express from 'express';
 import cors from 'cors';
 import { logger } from './utils/logger';
+
+// Define secrets
+const openaiApiKey = defineSecret('OPENAI_API_KEY');
 
 // Initialize Firebase Admin
 initializeApp();
@@ -47,8 +51,11 @@ app.delete('/backup', authenticate, backupHandler.deleteBackup);
 
 // AI routes with quota enforcement
 logger.info('[Setup] Registering AI routes...');
-app.post('/ai/deck/generate', authenticate, withQuota({ kind: 'deck', freeLimit: 3 }), aiHandler.generateDeck);
-logger.info('[Setup] Registered /ai/deck/generate');
+
+// TODO: MAJOR - RE-ENABLE QUOTA LIMIT FOR DECK GENERATION BEFORE PRODUCTION
+// Temporarily disabled for testing - was: withQuota({ kind: 'deck', freeLimit: 3 })
+app.post('/ai/deck/generate', authenticate, aiHandler.generateDeck);
+logger.info('[Setup] Registered /ai/deck/generate (QUOTA DISABLED FOR TESTING)');
 
 // TODO: MAJOR - RE-ENABLE QUOTA LIMIT FOR HINTS GENERATION BEFORE PRODUCTION
 // Temporarily disabled for testing - was: withQuota({ kind: 'hints', freeLimit: 1 })
@@ -82,6 +89,7 @@ export const api = onRequest(
     timeoutSeconds: 600, // 10 minutes for AI generation
     memory: '512MiB',
     region: 'us-central1',
+    secrets: [openaiApiKey], // Make OPENAI_API_KEY available as process.env
   },
   app
 );

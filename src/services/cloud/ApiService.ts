@@ -105,7 +105,7 @@ export class ApiService {
   static async post<T>(endpoint: string, body?: any, timeoutMs?: number): Promise<T> {
     // Use longer timeout for file parsing and AI generation
     const defaultTimeout = endpoint.includes('/parse/') || endpoint.includes('/ai/') 
-      ? 300000 // 5 minutes for file parsing and AI
+      ? 600000 // 10 minutes for file parsing and AI (hints can take a while for large decks)
       : 120000; // 2 minutes for other requests
     
     const response = await this.request<T>(

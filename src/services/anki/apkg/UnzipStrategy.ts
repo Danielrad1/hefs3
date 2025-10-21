@@ -59,6 +59,9 @@ export class UnzipStrategy {
         logger.info('[UnzipStrategy] Using react-native-zip-archive for streaming unzip');
         progress.report('Unzipping with rn-zip-archive…');
         const destFsPath = this.stripFileScheme(extractedDir);
+        logger.info('[UnzipStrategy] Unzipping from:', srcFsPath);
+        logger.info('[UnzipStrategy] Unzipping to:', destFsPath);
+        
         let unsubscribe: any = null;
         try {
           if (typeof rnza.subscribe === 'function') {
@@ -78,7 +81,8 @@ export class UnzipStrategy {
         return { collectionPath, extractedDir };
       }
     } catch (e) {
-      logger.warn('[UnzipStrategy] react-native-zip-archive unavailable or failed:', e);
+      logger.error('[UnzipStrategy] react-native-zip-archive failed with error:', e);
+      logger.warn('[UnzipStrategy] Falling back to JSZip (may fail for files > 100MB)');
     }
 
     // Cleanup created directory if nothing worked

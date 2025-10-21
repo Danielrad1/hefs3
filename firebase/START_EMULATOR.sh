@@ -40,8 +40,8 @@ sleep 3
 
 echo ""
 echo "✅ Emulator started (PID: $EMULATOR_PID)"
-echo "📍 API URL: http://127.0.0.1:5001/hefs-b3e45/us-central1/api"
-echo "📍 Local IP: http://10.0.0.58:5001/hefs-b3e45/us-central1/api"
+echo "📍 API URL: http://127.0.0.1:5001/enqode-6b13f/us-central1/api"
+echo "📍 Local IP: http://10.0.0.58:5001/enqode-6b13f/us-central1/api"
 echo ""
 echo "To stop: ./STOP_EMULATOR.sh"
 echo ""

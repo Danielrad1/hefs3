@@ -319,6 +319,16 @@ export class OpenAIProvider implements AIProvider {
 
     try {
       logger.info('[OpenAIProvider] Calling OpenAI API for hints...');
+      logger.info('[OpenAIProvider] Model:', this.model);
+      logger.info('[OpenAIProvider] API base URL:', (this.client as any).baseURL);
+      
+      logger.info('[OpenAIProvider] Request params:', {
+        model: this.model,
+        systemPromptLength: systemPrompt.length,
+        userPromptLength: userPrompt.length,
+        responseFormat: 'json_object',
+      });
+      
       const completion = await this.client.chat.completions.create({
         model: this.model,
         messages: [
@@ -363,8 +373,10 @@ export class OpenAIProvider implements AIProvider {
       });
 
       return this.parseHintsResponse(parsed, items, content);
-    } catch (error) {
+    } catch (error: any) {
       logger.error('[OpenAIProvider] Hints generation failed:', error);
+      logger.error('[OpenAIProvider] Error type:', error?.constructor?.name);
+      logger.error('[OpenAIProvider] Error message:', error instanceof Error ? error.message : String(error));
       
       if (error instanceof Error) {
         throw new Error(`Hints generation failed: ${error.message}`);

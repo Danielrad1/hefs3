@@ -1,39 +1,50 @@
 {
   "expo": {
-    "name": "memorize-app",
-    "slug": "memorize-app",
+    "name": "enqode",
+    "slug": "enqode",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "main": "./App.tsx",
-    "scheme": "memorizeapp",
+    "scheme": "enqode",
+    "_comment": "Apple Developer account active - Sign in with Apple and Push Notifications can be enabled in Xcode",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/enqode_main_transparent.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0E0E10"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.memorizeapp",
-      "deploymentTarget": "17.0",
+      "bundleIdentifier": "com.enqode.app",
+      "usesAppleSignIn": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
+        "NSFaceIDUsageDescription": "Use Face ID to unlock the app",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "NSDocumentsFolderUsageDescription": "This app needs access to documents to import Anki decks",
         "NSCameraUsageDescription": "This app needs access to the camera to capture images for flashcards",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select images for flashcards",
         "NSMicrophoneUsageDescription": "This app needs access to the microphone to record audio for flashcards",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["com.googleusercontent.apps.953455180571-8jc7qunauq08q73uiehk7uou8d55a8mf"]
+          }
+        ]
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0E0E10"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.memorizeapp"
+      "package": "com.enqode.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -49,12 +60,22 @@
           "color": "#ffffff",
           "sounds": []
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "17.0"
+          }
+        }
       ]
     ],
     "extra": {
       "eas": {
         "projectId": "b58c2019-3374-450f-96ab-3260e67bb02f"
-      }
+      },
+      "googleIosClientId": "953455180571-8jc7qunauq08q73uiehk7uou8d55a8mf.apps.googleusercontent.com",
+      "googleWebClientId": "953455180571-phelu268iaudi1u5cuhgp0pm3k0ftaan.apps.googleusercontent.com"
     }
   }
 }

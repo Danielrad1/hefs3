@@ -63,9 +63,13 @@ export function HeroHeader({ deck, scrollY, onDownload, onPreview }: HeroHeaderP
             style={styles.vignette}
           />
 
-          {/* Large Emoji Icon */}
+          {/* Large Icon */}
           <View style={styles.heroIconContainer}>
-            <Text style={styles.heroEmoji}>{glyphs.primary.value}</Text>
+            {glyphs.primary.kind === 'icon' ? (
+              <Ionicons name={glyphs.primary.value as any} size={100} color="#FFFFFF" />
+            ) : (
+              <Text style={styles.heroEmoji}>{glyphs.primary.value}</Text>
+            )}
           </View>
 
           {/* Content */}

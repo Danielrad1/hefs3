@@ -69,9 +69,13 @@ export default function DiscoverScreen() {
       const catalog = await DiscoverService.getCatalog();
       setDecks(catalog.decks);
       
-      // Reorder categories: MCAT, LAW first
-      const priority = ['MCAT', 'LAW'];
-      const rest = catalog.categories.filter(c => !priority.includes(c));
+      // Reorder categories: MCAT, Law first (case-insensitive)
+      const priority = catalog.categories.filter(c => 
+        c.toUpperCase() === 'MCAT' || c.toUpperCase() === 'LAW'
+      );
+      const rest = catalog.categories.filter(c => 
+        c.toUpperCase() !== 'MCAT' && c.toUpperCase() !== 'LAW'
+      );
       setCategories([...priority, ...rest]);
     } catch (error) {
       logger.error('Failed to load decks:', error);
@@ -135,7 +139,12 @@ export default function DiscoverScreen() {
     } catch (error: any) {
       setImporting(false);
       setImportProgress('');
-      throw error;
+      logger.error('[DiscoverScreen] Import failed:', error);
+      Alert.alert(
+        'Import Failed',
+        error?.message || 'Failed to import deck. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
   // Organize decks by category (Netflix rows)

@@ -1,4 +1,4 @@
-# Memorize App 🧠
+# enqode 🧠
 
 A modern, TikTok-style spaced repetition flashcard app built with React Native and Expo. Fully compatible with Anki's data format and algorithm.
 

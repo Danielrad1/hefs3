@@ -76,6 +76,7 @@ export class MediaExtractor {
   /**
    * Extract media files from filesystem (streaming unzip path)
    * Uses direct copy/move to avoid large base64 strings
+   * Processes files in parallel batches for better performance
    */
   async extractFromFs(
     extractedDir: string,
@@ -98,46 +99,45 @@ export class MediaExtractor {
     logger.info('[MediaExtractor] Found', Object.keys(mediaMapping).length, 'media files to move');
 
     const entries = Object.entries(mediaMapping);
-    let index = 0;
-    for (const [id, filename] of entries) {
-      index++;
-      const srcPath = `${extractedDir}${id}`;
-      const srcInfo = await FileSystem.getInfoAsync(srcPath);
-      if (!srcInfo.exists || srcInfo.isDirectory) {
-        logger.warn(`[MediaExtractor] Media file ${id} (${filename}) not found on disk after unzip`);
-        continue;
-      }
+    
+    // Process files in parallel batches for faster extraction
+    const BATCH_SIZE = 100;
+    let processedCount = 0;
 
-      // Encode filename for URI path (# and other special chars need encoding in file:// URIs)
-      const encodedFilename = encodeURIComponent(filename);
-      const destPath = `${this.mediaDir}${encodedFilename}`;
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+      const batch = entries.slice(i, i + BATCH_SIZE);
+      
+      await Promise.all(
+        batch.map(async ([id, filename]) => {
+          const srcPath = `${extractedDir}${id}`;
+          const srcInfo = await FileSystem.getInfoAsync(srcPath);
+          if (!srcInfo.exists || srcInfo.isDirectory) {
+            logger.warn(`[MediaExtractor] Media file ${id} (${filename}) not found on disk after unzip`);
+            return;
+          }
 
-      // Log the specific file being processed
-      logger.info(
-        `[MediaExtractor] Processing media ${index}/${entries.length}: ${filename} → ${encodedFilename}`
+          // Encode filename for URI path (# and other special chars need encoding in file:// URIs)
+          const encodedFilename = encodeURIComponent(filename);
+          const destPath = `${this.mediaDir}${encodedFilename}`;
+
+          try {
+            // Prefer move to avoid doubling storage usage
+            await FileSystem.moveAsync({ from: srcPath, to: destPath });
+          } catch (e) {
+            logger.warn('[MediaExtractor] moveAsync failed, falling back to copyAsync', e);
+            await FileSystem.copyAsync({ from: srcPath, to: destPath });
+          }
+
+          // Store filename (no changes needed since we use original names)
+          mediaMap.set(filename, filename);
+        })
       );
 
-      try {
-        // Prefer move to avoid doubling storage usage
-        await FileSystem.moveAsync({ from: srcPath, to: destPath });
-      } catch (e) {
-        logger.warn('[MediaExtractor] moveAsync failed, falling back to copyAsync', e);
-        await FileSystem.copyAsync({ from: srcPath, to: destPath });
-      }
-
-      const writtenInfo = await FileSystem.getInfoAsync(destPath);
-      const size = writtenInfo.exists && !writtenInfo.isDirectory ? (writtenInfo as any).size : 0;
-      logger.info(
-        `[MediaExtractor] Media file placed: ${filename}, exists: ${writtenInfo.exists}, size: ${size}`
-      );
-
-      // Store filename (no changes needed since we use original names)
-      mediaMap.set(filename, filename);
-
-      // Update progress every file for the last 10
-      if (index >= entries.length - 10 || index % 25 === 0) {
-        progress.report(`Placing media… (${index}/${entries.length})`);
-      }
+      processedCount += batch.length;
+      progress.report(`Placing media… (${processedCount}/${entries.length})`);
+      
+      // Log progress every batch
+      logger.info(`[MediaExtractor] Placed batch: ${processedCount}/${entries.length} files`);
     }
 
     logger.info(`[MediaExtractor] Extracted ${mediaMap.size} media files to ${this.mediaDir} (fs move)`);

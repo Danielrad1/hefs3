@@ -405,14 +405,16 @@ export default function HomeScreen() {
         visible={showWelcomeModal}
         icon="hand-left-outline"
         helper="Takes ~1 minute"
-        title="Welcome to Memorize"
-        body="Let’s do a quick guided start. Tap the Discover tab below to browse curated decks, then import one to begin."
-        primaryLabel="Let’s Go"
+        title="Welcome to enqode"
+        body="Let's do a quick guided start. Tap the Discover tab below to browse curated decks, then import one to begin."
+        primaryLabel="Let's Go"
         onPrimary={async () => {
           if (user?.uid) {
             try {
               await FirstRunGuide.markWelcomeShown(user.uid);
-            } catch {}
+            } catch (error) {
+              console.error('Error marking welcome modal as shown:', error);
+            }
           }
           setShowWelcomeModal(false);
           (navigation as any).navigate?.('Discover');

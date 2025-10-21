@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -21,20 +21,19 @@ export default function WelcomeScreen({ onGetStarted, onSignIn }: WelcomeScreenP
       <View style={styles.content}>
         {/* Hero Section */}
         <Animated.View entering={FadeInUp.delay(100)} style={styles.hero}>
-          <LinearGradient
-            colors={theme.colors.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoContainer}
-          >
-            <Ionicons name="flash" size={64} color="#0A0A0B" />
-          </LinearGradient>
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require('../../../assets/enqode_main_transparent.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
           
           <Text style={[styles.appName, { color: theme.colors.textPrimary }]}>
-            Memorize
+            enqode
           </Text>
           <Text style={[styles.tagline, { color: theme.colors.textSecondary }]}>
-            Learn anything faster with spaced repetition
+            memorize anything
           </Text>
         </Animated.View>
 
@@ -125,17 +124,15 @@ const styles = StyleSheet.create({
     gap: s.lg,
   },
   logoContainer: {
-    width: 128,
-    height: 128,
-    borderRadius: r['2xl'],
+    width: 180,
+    height: 180,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: s.lg,
-    shadowColor: '#6EE7F2',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 10,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
   },
   appName: {
     fontSize: 42,

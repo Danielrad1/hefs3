@@ -20,11 +20,11 @@ export default function LegalModal({ visible, onClose, type }: LegalModalProps) 
     sections: [
       {
         heading: 'Information We Collect',
-        content: 'Memorize collects minimal information necessary to provide our flashcard service. This includes your account information (email address), study progress, and deck data. All data is stored securely and encrypted.',
+        content: 'enqode collects minimal information necessary to provide our flashcard service. This includes your account information (email address), study progress, and deck data. All data is stored securely and encrypted.',
       },
       {
         heading: 'How We Use Your Data',
-        content: 'Your data is used solely to provide and improve the Memorize app experience. We use your study history to calculate statistics and optimize spaced repetition algorithms. We never sell your personal information to third parties.',
+        content: 'Your data is used solely to provide and improve the enqode app experience. We use your study history to calculate statistics and optimize spaced repetition algorithms. We never sell your personal information to third parties.',
       },
       {
         heading: 'Data Storage',
@@ -32,15 +32,15 @@ export default function LegalModal({ visible, onClose, type }: LegalModalProps) 
       },
       {
         heading: 'Third-Party Services',
-        content: 'Memorize uses Firebase for authentication and cloud storage. These services are GDPR and CCPA compliant and maintain their own privacy policies. We do not share your data with any other third parties.',
+        content: 'enqode uses Firebase for authentication and cloud storage. These services are GDPR and CCPA compliant and maintain their own privacy policies. We do not share your data with any other third parties.',
       },
       {
         heading: 'Your Rights',
-        content: 'You have the right to access, modify, or delete your personal data at any time. You can export all your data or request complete account deletion from the Settings page. For privacy concerns, contact us at privacy@memorizeapp.com.',
+        content: 'You have the right to access, modify, or delete your personal data at any time. You can export all your data or request complete account deletion from the Settings page. For privacy concerns, contact us at privacy@enqode.com.',
       },
       {
         heading: 'Children\'s Privacy',
-        content: 'Memorize is intended for users 13 years and older. We do not knowingly collect information from children under 13. If we become aware of such data collection, we will delete it immediately.',
+        content: 'enqode is intended for users 13 years and older. We do not knowingly collect information from children under 13. If we become aware of such data collection, we will delete it immediately.',
       },
       {
         heading: 'Changes to Privacy Policy',
@@ -55,31 +55,31 @@ export default function LegalModal({ visible, onClose, type }: LegalModalProps) 
     sections: [
       {
         heading: 'Acceptance of Terms',
-        content: 'By accessing and using Memorize, you accept and agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the app.',
+        content: 'By accessing and using enqode, you accept and agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the app.',
       },
       {
         heading: 'License to Use',
-        content: 'Memorize grants you a personal, non-exclusive, non-transferable license to use the app for your personal learning purposes. You may not copy, modify, distribute, or reverse engineer any part of the app.',
+        content: 'enqode grants you a personal, non-exclusive, non-transferable license to use the app for your personal learning purposes. You may not copy, modify, distribute, or reverse engineer any part of the app.',
       },
       {
         heading: 'User Content',
-        content: 'You retain all rights to the flashcard content you create. By using Memorize, you grant us a license to store and process your content to provide the service. You are responsible for ensuring your content does not violate any laws or third-party rights.',
+        content: 'You retain all rights to the flashcard content you create. By using enqode, you grant us a license to store and process your content to provide the service. You are responsible for ensuring your content does not violate any laws or third-party rights.',
       },
       {
         heading: 'Prohibited Uses',
-        content: 'You may not use Memorize to: (a) violate any laws, (b) infringe on intellectual property rights, (c) transmit harmful code or malware, (d) harass or harm others, (e) attempt to gain unauthorized access to our systems, or (f) use automated systems to access the service.',
+        content: 'You may not use enqode to: (a) violate any laws, (b) infringe on intellectual property rights, (c) transmit harmful code or malware, (d) harass or harm others, (e) attempt to gain unauthorized access to our systems, or (f) use automated systems to access the service.',
       },
       {
         heading: 'Subscription & Payments',
-        content: 'Memorize Pro is a subscription service with recurring billing. You can cancel at any time, but refunds are not provided for partial subscription periods. Subscription prices may change with 30 days notice.',
+        content: 'enqode Pro is a subscription service with recurring billing. You can cancel at any time, but refunds are not provided for partial subscription periods. Subscription prices may change with 30 days notice.',
       },
       {
         heading: 'Disclaimer of Warranties',
-        content: 'Memorize is provided "as is" without warranties of any kind. We do not guarantee that the app will be error-free, uninterrupted, or meet your specific requirements. You use the app at your own risk.',
+        content: 'enqode is provided "as is" without warranties of any kind. We do not guarantee that the app will be error-free, uninterrupted, or meet your specific requirements. You use the app at your own risk.',
       },
       {
         heading: 'Limitation of Liability',
-        content: 'Memorize and its developers shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the app, including loss of data or study progress.',
+        content: 'enqode and its developers shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the app, including loss of data or study progress.',
       },
       {
         heading: 'Termination',
@@ -91,7 +91,7 @@ export default function LegalModal({ visible, onClose, type }: LegalModalProps) 
       },
       {
         heading: 'Contact',
-        content: 'For questions about these terms, contact us at legal@memorizeapp.com.',
+        content: 'For questions about these terms, contact us at legal@enqode.com.',
       },
     ],
   };
@@ -150,7 +150,7 @@ export default function LegalModal({ visible, onClose, type }: LegalModalProps) 
             <View style={[styles.footer, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
               <Ionicons name="mail" size={20} color={theme.colors.textMed} />
               <Text style={[styles.footerText, { color: theme.colors.textMed }]}>
-                Questions? Contact us at {type === 'privacy' ? 'privacy' : 'legal'}@memorizeapp.com
+                Questions? Contact us at {type === 'privacy' ? 'privacy' : 'legal'}@enqode.com
               </Text>
             </View>
           </ScrollView>

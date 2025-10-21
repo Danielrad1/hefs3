@@ -131,6 +131,21 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       setIsGenerating(true);
       setStatus('Generating hints...');
 
+      // Log first 3 items to debug
+      logger.info('[AIHintsGenerating] Sample items being sent (first 3):');
+      items.slice(0, 3).forEach((item, i) => {
+        logger.info(`Item ${i}:`, {
+          id: item.id,
+          model: item.model,
+          frontLength: item.front?.length || 0,
+          backLength: item.back?.length || 0,
+          clozeLength: item.cloze?.length || 0,
+          frontPreview: item.front?.substring(0, 100),
+          backPreview: item.back?.substring(0, 100),
+          clozePreview: item.cloze?.substring(0, 100),
+        });
+      });
+
       const { hints, skipped } = await AiHintsService.generateHintsForCards(items, {
         deckName,
         style: 'concise',
@@ -140,20 +155,37 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         logger.warn('[AIHintsGenerating] Skipped', skipped.length, 'cards:', skipped);
       }
 
-      // If all cards were skipped, show helpful message
+      // If no hints were generated, check if it's due to skipping or an error
       if (hints.length === 0) {
-        Alert.alert(
-          'Unable to Generate Hints',
-          'AI hints require text content to work. Your cards appear to contain only images or audio. Try adding text descriptions to your cards.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                navigation.goBack();
+        // If all cards were skipped due to validation, show specific message
+        if (skipped.length === items.length) {
+          Alert.alert(
+            'Unable to Generate Hints',
+            'AI hints require text content to work. Your cards appear to contain only images or audio. Try adding text descriptions to your cards.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  navigation.goBack();
+                },
               },
-            },
-          ]
-        );
+            ]
+          );
+        } else {
+          // Backend returned 0 hints but didn't skip all cards - likely a backend error
+          Alert.alert(
+            'Generation Failed',
+            'Something went wrong while generating hints. Please try again later.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  navigation.goBack();
+                },
+              },
+            ]
+          );
+        }
         return;
       }
 
@@ -212,29 +244,33 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       setGeneratedCount(hints.length);
       setIsGenerating(false);
 
-      // Show success modal after short delay
+      // Close the generation screen and go back to deck detail
       setTimeout(() => {
-        setShowSuccessModal(true);
+        navigation.goBack();
       }, 500);
     } catch (error) {
       logger.error('[AIHintsGenerating] Generation failed:', error);
       setStatus('Generation failed. Please try again.');
       setIsGenerating(false);
       
-      setTimeout(() => {
-        // Go back to hints config screen
-        navigation.goBack();
-        Alert.alert(
-          'Generation Failed',
-          error instanceof Error ? error.message : 'Failed to generate hints. Please try again.',
-        );
-      }, 1500);
+      // Show alert immediately and go back
+      Alert.alert(
+        'Generation Failed',
+        error instanceof Error ? error.message : 'Failed to generate hints. Please try again.',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ],
+      );
     }
   }, [isGenerating, items, deckName, deckId, navigation]);
 
   useEffect(() => {
     generateHints();
-  }, [generateHints]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // Prevent back navigation during generation
   useEffect(() => {
@@ -373,7 +409,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         <View style={styles.tipContainer}>
           <Ionicons name="time-outline" size={20} color="#8B5CF6" />
           <Text style={[styles.tip, { color: theme.colors.textSecondary }]}>
-            This may take a couple of minutes. Please stay patient—we're ensuring hint quality for {items.length} cards.
+            This may take a couple of minutes—we're ensuring hint quality for {items.length} cards. Feel free to continue studying; hints will be ready when you're done!
           </Text>
         </View>
       </View>
@@ -386,10 +422,15 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
           setShowSuccessModal(false);
           // Set the active deck and navigate to Study tab
           setDeck(deckId);
-          const parent = navigation.getParent();
-          if (parent) {
-            parent.navigate('Study');
-          }
+          // Go back to deck detail first
+          navigation.goBack();
+          // Then navigate to Study tab
+          setTimeout(() => {
+            const parent = navigation.getParent();
+            if (parent) {
+              parent.navigate('Study' as never);
+            }
+          }, 100);
         }}
         onClose={() => {
           setShowSuccessModal(false);

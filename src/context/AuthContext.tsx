@@ -35,19 +35,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Listen for auth state changes
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged((firebaseUser: any) => {
-      setUser(mapFirebaseUser(firebaseUser));
-      setLoading(false);
-    });
+    let unsubscribe: (() => void) | undefined;
+    
+    // Small delay to ensure Firebase native module initializes
+    const timeout = setTimeout(() => {
+      try {
+        unsubscribe = auth().onAuthStateChanged((firebaseUser: any) => {
+          setUser(mapFirebaseUser(firebaseUser));
+          setLoading(false);
+        });
+      } catch (error) {
+        logger.error('[Auth] Failed to set up auth listener:', error);
+        setLoading(false);
+      }
+    }, 100);
 
-    return unsubscribe;
+    return () => {
+      clearTimeout(timeout);
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   // Handle Google OAuth response
   useEffect(() => {
     if (googleResponse?.type === 'success') {
+      logger.info('[Auth] Google OAuth success, exchanging token...');
+      logger.info('[Auth] Google response:', JSON.stringify(googleResponse, null, 2));
       const { id_token } = googleResponse.params;
       handleGoogleToken(id_token);
+    } else if (googleResponse?.type === 'error') {
+      logger.error('[Auth] Google OAuth error:', googleResponse.error);
+    } else if (googleResponse?.type === 'cancel') {
+      logger.info('[Auth] Google OAuth cancelled by user');
     }
   }, [googleResponse]);
 
@@ -137,10 +158,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const handleGoogleToken = async (idToken: string) => {
     try {
+      logger.info('[Auth] Creating Firebase credential from Google token...');
       const credential = auth.GoogleAuthProvider.credential(idToken);
-      await auth().signInWithCredential(credential);
+      logger.info('[Auth] Signing in with Firebase credential...');
+      const result = await auth().signInWithCredential(credential);
+      logger.info('[Auth] ✅ Firebase sign-in successful!');
+      logger.info('[Auth] User:', {
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        photoURL: result.user.photoURL,
+      });
     } catch (error) {
-      logger.error('[Auth] Google token exchange error:', error);
+      logger.error('[Auth] ❌ Google token exchange error:', error);
+      logger.error('[Auth] Error details:', JSON.stringify(error, null, 2));
       const friendlyMessage = mapAuthError(error);
       const enhancedError = new Error(friendlyMessage);
       (enhancedError as any).code = (error as any)?.code;

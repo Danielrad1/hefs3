@@ -113,30 +113,6 @@ export function DeckDetailModal({
               </View>
             </LinearGradient>
 
-            {/* Card Preview Section */}
-            <View style={styles.previewSection}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-                Preview Cards
-              </Text>
-              <Pressable 
-                style={[styles.previewCard, { backgroundColor: theme.colors.bg }]}
-                onPress={() => setShowingCardSide(showingCardSide === 'front' ? 'back' : 'front')}
-              >
-                <View style={styles.cardSideIndicator}>
-                  <Text style={[styles.cardSideText, { color: theme.colors.textTertiary }]}>
-                    {showingCardSide === 'front' ? 'FRONT' : 'BACK'}
-                  </Text>
-                  <Ionicons name="swap-horizontal" size={16} color={theme.colors.textTertiary} />
-                </View>
-                <Text style={[styles.previewCardText, { color: theme.colors.textPrimary }]}>
-                  {showingCardSide === 'front' ? sampleCards[0].front : sampleCards[0].back}
-                </Text>
-                <Text style={[styles.tapToFlip, { color: theme.colors.textTertiary }]}>
-                  Tap to flip
-                </Text>
-              </Pressable>
-            </View>
-
             {/* Description */}
             <View style={styles.descriptionSection}>
               <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
