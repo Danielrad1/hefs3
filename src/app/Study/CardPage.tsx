@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, StyleSheet, Dimensions, Text, ScrollView, Pressable, Modal } from 'react-native';
+import { View, StyleSheet, Dimensions, Text, ScrollView, Pressable, Modal, InteractionManager } from 'react-native';
 import Animated, { 
   useAnimatedStyle, 
   withTiming, 
@@ -10,7 +10,8 @@ import Animated, {
   withSequence,
   Extrapolate,
   useAnimatedScrollHandler,
-  Easing
+  Easing,
+  SharedValue
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView, GestureType } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,7 +35,9 @@ const SWIPE_THRESHOLD = 150; // Increased threshold to prevent accidental rating
 type CardPageProps = {
   card: Card;
   onAnswer: (difficulty: Difficulty) => void;
-  onSwipeChange?: (translateX: number, translateY: number, isRevealed: boolean) => void;
+  translateXShared?: SharedValue<number>; // Expose translation for parent worklet computations
+  translateYShared?: SharedValue<number>; // Expose translation for parent worklet computations
+  isRevealedShared?: SharedValue<boolean>; // Expose revealed state for parent worklet computations
   onReveal?: () => void;
   disabled?: boolean; // Disable gestures when card is in background
   hint?: CardHint | null; // AI-generated hint for this card
@@ -44,16 +47,11 @@ type CardPageProps = {
   onHintRevealed?: (depth: 1 | 2 | 3) => void; // Callback when user reveals a hint level
 };
 
-const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, onReveal, disabled = false, hint, onRequestEnableHints, aiHintsEnabled = false, hintsLoading = false, onHintRevealed }: CardPageProps) {
+const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared, translateYShared, isRevealedShared, onReveal, disabled = false, hint, onRequestEnableHints, aiHintsEnabled = false, hintsLoading = false, onHintRevealed }: CardPageProps) {
   const theme = useTheme();
   const { selection, ratingEasy, ratingGood, ratingHard, ratingAgain } = useHaptics();
   const panRef = useRef<GestureType | undefined>(undefined);
   const scrollRef = useRef<Animated.ScrollView>(null);
-  
-  // Safe logging function to call from worklets
-  const log = React.useCallback((tag: string, msg: string) => {
-    console.log(`[CardPage ${tag}] ${msg}`);
-  }, []);
   
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -65,7 +63,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   const scrollY = useSharedValue(0);
   const contentH = useSharedValue(0);
   const viewportH = useSharedValue(0);
-  const scrollEnabled = useSharedValue(true); // Track if content actually needs scrolling
+  const scrollEnabled = useSharedValue(true); // Track if content actually needs scrolling (worklet-side)
   
   // Gesture-start gating: check if at bottom when gesture STARTS (not mid-gesture)
   const verticalRatingAllowed = useSharedValue(false);
@@ -79,6 +77,17 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   const [revealed, setRevealed] = React.useState(false);
   const [showHintModal, setShowHintModal] = React.useState(false);
   const [showTipModal, setShowTipModal] = React.useState(false);
+  const [isScrollEnabled, setIsScrollEnabled] = React.useState(true);
+
+  const syncScrollEnabled = React.useCallback((enabled: boolean) => {
+    setIsScrollEnabled((prev) => (prev === enabled ? prev : enabled));
+  }, []);
+
+  // Callback for batched reveal state updates (defined outside worklet for runOnJS)
+  const updateRevealedState = React.useCallback(() => {
+    setRevealed(true);
+    if (onReveal) onReveal();
+  }, [onReveal]);
 
   // Pre-warm animation worklets on mount to prevent first-flip jank
   React.useEffect(() => {
@@ -103,9 +112,12 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
     setShowHintModal(false);
     setShowTipModal(false);
     isRevealed.value = false;
+    if (isRevealedShared) isRevealedShared.value = false;
     revealProgress.value = 0;
     translateX.value = 0;
     translateY.value = 0;
+    if (translateXShared) translateXShared.value = 0;
+    if (translateYShared) translateYShared.value = 0;
   }, [card.id]);
 
   // Removed shadow animation - static shadows for better performance
@@ -114,10 +126,12 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
     'worklet';
     if (!isRevealed.value) {
       isRevealed.value = true;
-      runOnJS(setRevealed)(true);
-      if (onReveal) {
-        runOnJS(onReveal)();
+      // Sync to parent shared value for worklet access
+      if (isRevealedShared) {
+        isRevealedShared.value = true;
       }
+      // Batch state updates together in a single runOnJS call
+      runOnJS(updateRevealedState)();
       // Cloze cards: instant reveal (no crossfade needed)
       // Normal cards: smooth crossfade
       const isCloze = card.front.includes('{{c');
@@ -148,6 +162,9 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       runOnJS(selection)();
       // Reset revealed state for cloze cards
       isRevealed.value = false;
+      if (isRevealedShared) {
+        isRevealedShared.value = false;
+      }
       runOnJS(setRevealed)(false);
     }
   };
@@ -162,7 +179,6 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
     onBeginDrag: (e) => {
       'worklet';
       isScrolling.value = true;
-      runOnJS(log)('SCROLL_BEGIN', `y=${e.contentOffset.y.toFixed(0)}`);
     },
     onScroll: (e) => {
       'worklet';
@@ -172,16 +188,17 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       
       // CRITICAL: Disable scrolling if content fits in viewport
       const contentFits = (contentH.value - viewportH.value) <= 5;
-      scrollEnabled.value = !contentFits;
+      const nextEnabled = !contentFits;
       
-      if (contentFits) {
-        runOnJS(log)('SCROLL_DISABLED', `content=${contentH.value.toFixed(0)} viewport=${viewportH.value.toFixed(0)}`);
+      if (scrollEnabled.value !== nextEnabled) {
+        scrollEnabled.value = nextEnabled;
+        runOnJS(syncScrollEnabled)(nextEnabled);
       }
+      
     },
     onEndDrag: (e) => {
       'worklet';
       isScrolling.value = false;
-      runOnJS(log)('SCROLL_END', `y=${e.contentOffset.y.toFixed(0)}`);
     },
   });
   
@@ -223,26 +240,17 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       scrollYWhenPanStarted.value = scrollY.value; // Remember where we started
       gestureStartTime.value = Date.now(); // Track when gesture started for delayed feedback
       
-      const msg = `scrollY=${scrollY.value.toFixed(0)} atTop=${atTop} atBottom=${atBottom} fits=${fits} vertAllowed=${verticalRatingAllowed.value} revealed=${isRevealed.value}`;
-      runOnJS(log)('BEGIN', msg);
     })
     .onUpdate((event) => {
       'worklet';
       // Only allow rating swipes when answer is fully visible
       if (!isRevealed.value || revealProgress.value !== 1) {
-        runOnJS(log)('UPDATE_BLOCKED', `revealed=${isRevealed.value} progress=${revealProgress.value}`);
         return;
       }
       
       const absX = Math.abs(event.translationX);
       const absY = Math.abs(event.translationY);
       const totalMovement = absX + absY;
-      
-      // Debug: Log first update
-      if (totalMovement > 5 && totalMovement < 15) {
-        const msg = `UPDATE movement=${totalMovement.toFixed(0)} isScrolling=${isScrolling.value}`;
-        runOnJS(log)('UPDATE', msg);
-      }
       
       // Determine gesture direction once we have meaningful movement
       const isVertical = absY > absX;
@@ -252,7 +260,6 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       if (totalMovement > 10) {
         if (!gestureIsHorizontal.value && !gestureIsScroll.value && isHorizontal) {
           gestureIsHorizontal.value = true;
-          runOnJS(log)('LOCKED_HORIZONTAL', `absX=${absX.toFixed(0)}`);
         }
       }
       
@@ -270,10 +277,6 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
         
         if (!isImpossibleScroll) {
           gestureIsScroll.value = true;
-          const msg = `Scroll active ${Math.abs(scrollY.value - scrollYWhenPanStarted.value).toFixed(0)}px`;
-          runOnJS(log)('LOCKED_SCROLLING', msg);
-        } else {
-          runOnJS(log)('SCROLL_IGNORED', `${swipeDirection} at ${atTop ? 'top' : 'bottom'}`);
         }
       }
       
@@ -282,8 +285,6 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
         // Lock if vertical movement without permission (not at bottom)
         if (totalMovement > 10 && !verticalRatingAllowed.value) {
           gestureIsScroll.value = true;
-          const msg = `Vertical without permission absY=${absY.toFixed(0)}`;
-          runOnJS(log)('LOCKED_SCROLL', msg);
         }
       }
       
@@ -291,47 +292,40 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
       if (gestureIsScroll.value) {
         translateX.value = 0;
         translateY.value = 0;
-        // Don't trigger swipe change callback - prevents colored lights flash
+        // Sync to parent shared values for worklet overlay computation
+        if (translateXShared) translateXShared.value = 0;
+        if (translateYShared) translateYShared.value = 0;
       } else if (gestureIsHorizontal.value) {
         // Locked as horizontal - only allow horizontal movement
         translateX.value = event.translationX;
         translateY.value = 0;
-        
-        // Instant color feedback for fast swipes
-        if (onSwipeChange) {
-          runOnJS(onSwipeChange)(translateX.value, translateY.value, true);
-        }
+        // Sync to parent shared values for worklet overlay computation
+        if (translateXShared) translateXShared.value = event.translationX;
+        if (translateYShared) translateYShared.value = 0;
       } else {
         // Not locked yet - allow both directions based on permissions
         translateX.value = event.translationX;
         translateY.value = verticalRatingAllowed.value ? event.translationY : 0;
-        
-        // Instant color feedback for fast swipes
-        if (onSwipeChange) {
-          runOnJS(onSwipeChange)(translateX.value, translateY.value, true);
-        }
+        // Sync to parent shared values for worklet overlay computation
+        if (translateXShared) translateXShared.value = event.translationX;
+        if (translateYShared) translateYShared.value = verticalRatingAllowed.value ? event.translationY : 0;
       }
     })
     .onEnd((event) => {
-      const totalDist = Math.abs(event.translationX) + Math.abs(event.translationY);
-      runOnJS(log)('END_CALLED', `revealed=${isRevealed.value} progress=${revealProgress.value} totalDist=${totalDist.toFixed(0)}`);
-      
       if (isRevealed.value && revealProgress.value === 1) {
         // Use event translation to determine TRUE gesture direction (before we modified it)
         const eventAbsX = Math.abs(event.translationX);
         const eventAbsY = Math.abs(event.translationY);
         const isHorizontalGesture = eventAbsX >= eventAbsY;
         
-        const endMsg = `isScroll=${gestureIsScroll.value} horiz=${isHorizontalGesture} x=${translateX.value.toFixed(0)} y=${translateY.value.toFixed(0)}`;
-        runOnJS(log)('END', endMsg);
-        
         // If vertical gesture was locked as scroll, block it
         // But horizontal gestures can still rate (user may have scrolled then swiped horizontally)
         if (gestureIsScroll.value && !isHorizontalGesture) {
-          runOnJS(log)('BLOCKED', 'Vertical scroll gesture');
           translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
           translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
-          if (onSwipeChange) runOnJS(onSwipeChange)(0, 0, true);
+          // Sync to parent shared values
+          if (translateXShared) translateXShared.value = withSpring(0, { damping: 15, stiffness: 150 });
+          if (translateYShared) translateYShared.value = withSpring(0, { damping: 15, stiffness: 150 });
           return; // Exit early - this was a scroll, not a rating
         }
         
@@ -350,9 +344,6 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
         // Horizontal: always allowed, Vertical: only if allowed at gesture start
         if (isStrongSwipe && (isHorizontalSwipe || verticalRatingAllowed.value)) {
           const dir = isHorizontalSwipe ? (endX > 0 ? 'good' : 'hard') : (endY > 0 ? 'again' : 'easy');
-          const rateMsg = `dir=${dir} horiz=${isHorizontalSwipe} x=${endX.toFixed(0)} y=${endY.toFixed(0)}`;
-          runOnJS(log)('RATING', rateMsg);
-          
           let difficulty: Difficulty;
 
           if (!isHorizontalSwipe) {
@@ -397,7 +388,9 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
         } else {
           translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
           translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
-          if (onSwipeChange) runOnJS(onSwipeChange)(0, 0, true);
+          // Sync to parent shared values
+          if (translateXShared) translateXShared.value = withSpring(0, { damping: 15, stiffness: 150 });
+          if (translateYShared) translateYShared.value = withSpring(0, { damping: 15, stiffness: 150 });
         }
       }
     });
@@ -680,7 +673,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
               bounces={false}
               overScrollMode="never"
               removeClippedSubviews={false}
-              scrollEnabled={scrollEnabled.value}
+              scrollEnabled={isScrollEnabled}
               contentContainerStyle={styles.scrollContent}
             >
                 {/* Spacer to establish scroll height */}
@@ -844,10 +837,12 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, onSwipeChange, o
   );
 }, (prevProps, nextProps) => {
   // Memo returns TRUE to SKIP re-render, FALSE to re-render
-  // Re-render if card ID OR disabled state changes (gestures need to update)
+  // Re-render if card ID, disabled state, OR hint changes
+  // Hint updates are cheap (just icon visibility) and shouldn't cause re-mount
   const cardIdSame = prevProps.card.id === nextProps.card.id;
   const disabledSame = prevProps.disabled === nextProps.disabled;
-  const shouldSkip = cardIdSame && disabledSame;
+  const hintSame = prevProps.hint === nextProps.hint;
+  const shouldSkip = cardIdSame && disabledSame && hintSame;
   
   return shouldSkip;
 });

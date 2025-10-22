@@ -285,13 +285,26 @@ export class MediaService {
    * Garbage collect unused media
    * Deletes media files not referenced in any note fields
    */
-  async gcUnused(): Promise<number> {
+  async gcUnused(onProgress?: (message: string) => void): Promise<number> {
     const allMedia = this.db.getAllMedia();
     const allNotes = this.db.getAllNotes();
+    const emitProgress = (message: string) => {
+      if (!message) return;
+      onProgress?.(message);
+      logger.info(`[MediaService] ${message}`);
+    };
+    const yieldEvery = async (index: number, interval = 2000) => {
+      if (index > 0 && index % interval === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+    };
 
     // Collect all referenced filenames
     const referencedFilenames = new Set<string>();
-    allNotes.forEach((note) => {
+    const noteScanStart = Date.now();
+    emitProgress('Scanning notes for media references...');
+    for (let noteIndex = 0; noteIndex < allNotes.length; noteIndex++) {
+      const note = allNotes[noteIndex];
       const fields = note.flds;
       
       // Find image references: <img src="filename">
@@ -306,18 +319,36 @@ export class MediaService {
       while ((match = audioRegex.exec(fields)) !== null) {
         referencedFilenames.add(match[1]);
       }
-    });
+      
+      if ((noteIndex + 1) % 800 === 0) {
+        emitProgress(`Scanning notes for media references (${noteIndex + 1}/${allNotes.length})...`);
+      }
+      await yieldEvery(noteIndex);
+    }
+    logger.info(`[MediaService] Scanned ${allNotes.length} notes for media references in ${Date.now() - noteScanStart}ms (found ${referencedFilenames.size} unique filenames)`);
 
     // Delete unreferenced media
     let deletedCount = 0;
-    for (const media of allMedia) {
+    const totalMedia = allMedia.length;
+    const mediaDeletionStart = Date.now();
+    emitProgress('Deleting unused media files...');
+    for (let mediaIndex = 0; mediaIndex < totalMedia; mediaIndex++) {
+      const media = allMedia[mediaIndex];
       if (!referencedFilenames.has(media.filename)) {
+        if (deletedCount === 0 || (deletedCount + 1) % 5 === 0) {
+          emitProgress(`Removing unused media (${deletedCount + 1})...`);
+        }
         await this.deleteMedia(media.id);
         deletedCount++;
       }
+      
+      if ((mediaIndex + 1) % 500 === 0) {
+        emitProgress(`Processed ${mediaIndex + 1}/${totalMedia} media files...`);
+      }
+      await yieldEvery(mediaIndex);
     }
 
-    logger.info(`[MediaService] Garbage collected ${deletedCount} unused media files`);
+    logger.info(`[MediaService] Deleted ${deletedCount} unused media files from ${totalMedia} media entries in ${Date.now() - mediaDeletionStart}ms`);
     return deletedCount;
   }
 

@@ -93,7 +93,11 @@ export class DeckService {
   /**
    * Delete a deck and optionally move cards to another deck
    */
-  async deleteDeck(id: string, options?: { moveCardsTo?: string; deleteCards?: boolean }): Promise<void> {
+  async deleteDeck(
+    id: string,
+    options?: { moveCardsTo?: string; deleteCards?: boolean },
+    onProgress?: (message: string) => void
+  ): Promise<void> {
     if (id === DEFAULT_DECK_ID) {
       throw new Error('Cannot delete default deck');
     }
@@ -104,78 +108,154 @@ export class DeckService {
     }
 
     // Handle cards in this deck
-    const cards = this.db.getCardsByDeck(id);
+    const cards = [...this.db.getCardsByDeck(id)];
+    const emitProgress = (message: string) => {
+      if (!message) return;
+      onProgress?.(message);
+      logger.info(`[DeckService] ${message}`);
+    };
+    const yieldEvery = async (index: number, interval = 2000) => {
+      if (index > 0 && index % interval === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+    };
     
-    if (options?.deleteCards) {
-      // Actually delete cards and their notes
-      const noteIds = new Set<string>();
-      cards.forEach((card) => {
-        noteIds.add(card.nid);
-        this.db.deleteCard(card.id);
-      });
-      
-      // Delete notes that are no longer used
-      noteIds.forEach((noteId) => {
-        const remainingCards = this.db.getAllCards().filter(c => c.nid === noteId);
-        if (remainingCards.length === 0) {
+    let noteUsageIndex: Map<string, number> | null = null;
+    let totalDeletedNotes = 0;
+    const decrementNoteCount = (noteId: string, context: string): { deleted: boolean; remaining: number } => {
+      if (!noteUsageIndex) {
+        return { deleted: false, remaining: 0 };
+      }
+      const prev = noteUsageIndex.get(noteId);
+      if (prev === undefined) {
+        logger.warn(`[DeckService] Note ${noteId} missing in usage index while deleting card from ${context}; recomputing from DB snapshot.`);
+        const remaining = this.db.getAllCards().filter((c) => c.nid === noteId).length;
+        if (remaining <= 0) {
           this.db.deleteNote(noteId);
+          return { deleted: true, remaining: 0 };
         }
-      });
+        noteUsageIndex.set(noteId, remaining);
+        return { deleted: false, remaining };
+      }
+      const next = prev - 1;
+      if (next <= 0) {
+        noteUsageIndex.delete(noteId);
+        this.db.deleteNote(noteId);
+        logger.info(`[DeckService] Deleted note ${noteId} after removing final card from ${context}`);
+        return { deleted: true, remaining: 0 };
+      }
+      noteUsageIndex.set(noteId, next);
+      return { deleted: false, remaining: next };
+    };
+
+    if (options?.deleteCards) {
+      const indexStart = Date.now();
+      const allCardsSnapshot = this.db.getAllCards();
+      noteUsageIndex = new Map<string, number>();
+      for (const card of allCardsSnapshot) {
+        noteUsageIndex.set(card.nid, (noteUsageIndex.get(card.nid) ?? 0) + 1);
+      }
+      logger.info(`[DeckService] Built note usage index for ${noteUsageIndex.size} notes from ${allCardsSnapshot.length} cards in ${Date.now() - indexStart}ms`);
+
+      // Actually delete cards and their notes
+      emitProgress('Deleting cards (0/' + cards.length + ')...');
+      logger.info(`[DeckService] Removing ${cards.length} cards from deck "${deck.name}" (${deck.id})`);
+      const cardDeletionStart = Date.now();
+      let deletedNotes = 0;
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        this.db.deleteCard(card.id);
+        const { deleted } = decrementNoteCount(card.nid, `deck "${deck.name}"`);
+        if (deleted) {
+          deletedNotes++;
+        }
+        if ((i + 1) % 500 === 0 || i + 1 === cards.length) {
+          emitProgress(`Deleting cards (${i + 1}/${cards.length})...`);
+        }
+        await yieldEvery(i);
+      }
+      logger.info(`[DeckService] Removed ${cards.length} cards from deck "${deck.name}" in ${Date.now() - cardDeletionStart}ms (deleted notes: ${deletedNotes})`);
+      
+      totalDeletedNotes += deletedNotes;
+      emitProgress(`Deleted ${deletedNotes} notes from deck "${deck.name}"`);
     } else if (options?.moveCardsTo) {
       // Move cards to target deck
       const targetDeck = this.db.getDeck(options.moveCardsTo);
       if (!targetDeck) {
         throw new Error(`Target deck ${options.moveCardsTo} not found`);
       }
-      
-      cards.forEach((card) => {
+      emitProgress('Moving cards to selected deck...');
+      logger.info(`[DeckService] Moving ${cards.length} cards from deck "${deck.name}" (${deck.id}) to deck "${targetDeck.name}" (${targetDeck.id}).`);
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
         this.db.updateCard(card.id, { did: options.moveCardsTo });
-      });
+        await yieldEvery(i);
+      }
     } else {
       // Move cards to default deck
-      cards.forEach((card) => {
+      emitProgress('Moving cards to default deck...');
+      logger.info(`[DeckService] Moving ${cards.length} cards from deck "${deck.name}" (${deck.id}) to default deck (${DEFAULT_DECK_ID}).`);
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
         this.db.updateCard(card.id, { did: DEFAULT_DECK_ID });
-      });
+        await yieldEvery(i);
+      }
     }
 
     // Delete child decks
     const prefix = deck.name + '::';
     const childDecks = this.db.getAllDecks().filter((d) => d.name.startsWith(prefix));
+    if (childDecks.length > 0) {
+      logger.info(`[DeckService] Found ${childDecks.length} child decks under "${deck.name}" for cascading delete.`);
+    }
     
-    childDecks.forEach((child) => {
-      const childCards = this.db.getCardsByDeck(child.id);
+    for (let childIndex = 0; childIndex < childDecks.length; childIndex++) {
+      const child = childDecks[childIndex];
+      const childCards = [...this.db.getCardsByDeck(child.id)];
+      emitProgress(`Deleting deck "${child.name}"...`);
+      logger.info(`[DeckService] Deleting deck "${child.name}" (${child.id}) with ${childCards.length} cards.`);
       
       if (options?.deleteCards) {
-        const noteIds = new Set<string>();
-        childCards.forEach((card) => {
-          noteIds.add(card.nid);
+        const childDeletionStart = Date.now();
+        let childDeletedNotes = 0;
+        for (let i = 0; i < childCards.length; i++) {
+          const card = childCards[i];
           this.db.deleteCard(card.id);
-        });
-        
-        noteIds.forEach((noteId) => {
-          const remainingCards = this.db.getAllCards().filter(c => c.nid === noteId);
-          if (remainingCards.length === 0) {
-            this.db.deleteNote(noteId);
+          const { deleted } = decrementNoteCount(card.nid, `child deck "${child.name}"`);
+          if (deleted) {
+            childDeletedNotes++;
           }
-        });
+          if ((i + 1) % 500 === 0 || i + 1 === childCards.length) {
+            emitProgress(`Deleting cards from "${child.name}" (${i + 1}/${childCards.length})...`);
+          }
+          await yieldEvery(i);
+        }
+        totalDeletedNotes += childDeletedNotes;
+        logger.info(`[DeckService] Child deck "${child.name}" card deletion completed in ${Date.now() - childDeletionStart}ms (deleted notes: ${childDeletedNotes})`);
+        emitProgress(`Deleted ${childDeletedNotes} notes from "${child.name}"`);
       } else {
         const targetDeckId = options?.moveCardsTo || DEFAULT_DECK_ID;
-        childCards.forEach((card) => {
+        for (let i = 0; i < childCards.length; i++) {
+          const card = childCards[i];
           this.db.updateCard(card.id, { did: targetDeckId });
-        });
+          await yieldEvery(i);
+        }
       }
       
       this.db.deleteDeck(child.id);
-    });
+      await yieldEvery(childIndex);
+    }
 
     // Delete the deck itself
     this.db.deleteDeck(id);
     
     // Clean up orphaned media files
     if (options?.deleteCards) {
-      logger.info('[DeckService] Cleaning up orphaned media files...');
-      const deletedCount = await this.mediaService.gcUnused();
-      logger.info(`[DeckService] Deleted ${deletedCount} orphaned media files`);
+      const msg = '[DeckService] Cleaning up orphaned media files...';
+      logger.info(msg);
+      emitProgress('Cleaning up media files...');
+      const deletedCount = await this.mediaService.gcUnused(onProgress);
+      logger.info(`[DeckService] Deleted ${deletedCount} orphaned media files (total notes deleted: ${totalDeletedNotes})`);
     }
   }
 

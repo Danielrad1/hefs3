@@ -89,11 +89,36 @@ export class DiscoverService {
     const FileSystem = require('expo-file-system/legacy');
     
     try {
-      logger.info('[DiscoverService] Downloading deck:', deck.name);
+      logger.info('[DiscoverService] Starting download for deck:', deck.name);
+      logger.info('[DiscoverService] Download URL:', deck.downloadUrl);
+      logger.info('[DiscoverService] Expected size:', deck.size, 'bytes');
+      
+      // Check if URL looks valid
+      if (!deck.downloadUrl || deck.downloadUrl.length < 10) {
+        throw new Error('Invalid download URL: ' + deck.downloadUrl);
+      }
+      
+      if (!deck.downloadUrl.startsWith('http://') && !deck.downloadUrl.startsWith('https://')) {
+        throw new Error('Download URL must be HTTP/HTTPS: ' + deck.downloadUrl);
+      }
       
       // Create a local file path in cache
       const filename = `${deck.id}.apkg`;
       const localPath = `${FileSystem.cacheDirectory}${filename}`;
+      logger.info('[DiscoverService] Target path:', localPath);
+      
+      // Check if file already exists and delete it
+      const fileInfo = await FileSystem.getInfoAsync(localPath);
+      if (fileInfo.exists) {
+        logger.info('[DiscoverService] Existing file found, deleting...');
+        await FileSystem.deleteAsync(localPath, { idempotent: true });
+      }
+      
+      // Throttle progress updates to prevent excessive re-renders
+      let lastProgress = 0;
+      let lastEmitTime = 0;
+      const MIN_PROGRESS_DELTA = 1; // Only emit if progress changed by ≥1%
+      const MIN_TIME_DELTA = 120; // Only emit if ≥120ms elapsed
       
       // Download with progress
       const downloadResumable = FileSystem.createDownloadResumable(
@@ -101,30 +126,84 @@ export class DiscoverService {
         localPath,
         {},
         (downloadProgress: any) => {
+          logger.info('[DiscoverService] Download progress:', {
+            written: downloadProgress.totalBytesWritten,
+            expected: downloadProgress.totalBytesExpectedToWrite,
+            percent: ((downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite) * 100).toFixed(1) + '%'
+          });
+          
           const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-          onProgress?.(progress * 100);
+          const progressPercent = progress * 100;
+          const now = Date.now();
+          
+          // Throttle: only emit if significant change or enough time passed
+          if (
+            Math.abs(progressPercent - lastProgress) >= MIN_PROGRESS_DELTA ||
+            now - lastEmitTime >= MIN_TIME_DELTA
+          ) {
+            lastProgress = progressPercent;
+            lastEmitTime = now;
+            onProgress?.(progressPercent);
+          }
         }
       );
 
+      logger.info('[DiscoverService] Starting download...');
       const result = await downloadResumable.downloadAsync();
       
       if (!result) {
-        throw new Error('Download failed');
+        logger.error('[DiscoverService] Download result is null/undefined');
+        throw new Error('Download failed: No result returned');
       }
       
-      logger.info('[DiscoverService] Download complete:', result.uri);
+      logger.info('[DiscoverService] Download result:', {
+        uri: result.uri,
+        status: result.status,
+        headers: result.headers
+      });
+      
+      // Verify the downloaded file
+      const downloadedFileInfo = await FileSystem.getInfoAsync(result.uri);
+      logger.info('[DiscoverService] Downloaded file info:', downloadedFileInfo);
+      
+      if (!downloadedFileInfo.exists) {
+        throw new Error('Download failed: File does not exist after download');
+      }
+      
+      if (downloadedFileInfo.size === 0) {
+        throw new Error('Download failed: File is empty (0 bytes)');
+      }
+      
+      if (downloadedFileInfo.size < 100) {
+        logger.warn('[DiscoverService] File is suspiciously small:', downloadedFileInfo.size, 'bytes');
+      }
+      
+      logger.info('[DiscoverService] Download complete and verified:', result.uri, 'Size:', downloadedFileInfo.size, 'bytes');
       return result.uri;
-    } catch (error) {
-      logger.error('[DiscoverService] Deck download failed:', error);
+    } catch (error: any) {
+      logger.error('[DiscoverService] Deck download failed:', {
+        error: error?.message || error,
+        stack: error?.stack,
+        deckName: deck.name,
+        downloadUrl: deck.downloadUrl
+      });
       throw error;
     }
   }
 
   /**
-   * Clear cache
+   * Clear cache and force refresh
    */
   static clearCache(): void {
     this.cache = { data: null, timestamp: 0 };
     logger.info('[DiscoverService] Cache cleared');
+  }
+
+  /**
+   * Force refresh catalog (bypass cache)
+   */
+  static async forceRefresh(): Promise<{ decks: DeckManifest[]; categories: string[] }> {
+    this.clearCache();
+    return this.getCatalog();
   }
 }

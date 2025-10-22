@@ -21,6 +21,7 @@ import { DeckDetailModal } from './DeckDetailModal';
 import { HeroHeader } from './HeroHeader';
 import { FilterChips } from './FilterChips';
 import { buildDeckTheme, getDeckGlyphs } from './DeckTheme';
+import { CategoryRow } from './CategoryRow';
 import { useScheduler } from '../../context/SchedulerProvider';
 import OnboardingModal from '../../components/OnboardingModal';
 import { FirstRunGuide } from '../../guided/FirstRunGuide';
@@ -85,7 +86,7 @@ export default function DiscoverScreen() {
     }
   };
 
-  const importDeckFile = async (fileUri: string, deck: DeckManifest) => {
+  const importDeckFile = useCallback(async (fileUri: string, deck: DeckManifest) => {
     const ApkgParser = require('../../services/anki/ApkgParser').ApkgParser;
     const { db } = require('../../services/anki/InMemoryDb');
     const PersistenceService = require('../../services/anki/PersistenceService').PersistenceService;
@@ -146,7 +147,8 @@ export default function DiscoverScreen() {
         [{ text: 'OK' }]
       );
     }
-  };
+  }, [reload]);
+  
   // Organize decks by category (Netflix rows)
   const decksByCategory = useMemo(() => {
     const organized: Record<string, DeckManifest[]> = {};
@@ -175,258 +177,85 @@ export default function DiscoverScreen() {
     );
   }, [decks, searchQuery]);
 
+  // Memoize featured deck to prevent re-computation
+  const featuredDeck = useMemo(() => {
+    if (decks.length === 0) return null;
+    return decks.find(d => d.id === 'milesdown-mcat')
+      || decks.find(d => /milesdown/i.test(d.name))
+      || decks[0];
+  }, [decks]);
 
-  // Helper to get coin style based on variant with accent color and lighting
-  const getCoinStyle = (variant: 'circle' | 'squircle' | 'ring', accentColor: string) => {
-    const seed = Math.abs(accentColor.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0));
-    const sizeVariation = ((seed % 9) - 4); // -4 to +4
-    const size = 88 + sizeVariation;
-    const base = { width: size, height: size, alignItems: 'center' as const, justifyContent: 'center' as const, overflow: 'hidden' as const };
-    switch (variant) {
-      case 'circle':
-        return { ...base, borderRadius: size / 2, backgroundColor: 'rgba(255,255,255,0.22)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.55)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4 };
-      case 'squircle':
-        return { ...base, borderRadius: size * 0.27, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.55)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4 };
-      case 'ring':
-        return { ...base, borderRadius: size / 2, borderWidth: 2, borderColor: accentColor + 'AA', shadowColor: accentColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 6 };
-    }
-  };
+  // Stable callback for card press
+  const handleCardPress = useCallback(async (deck: DeckManifest) => {
+    setShowImportModal(false);
+    try { await FirstRunGuide.markDiscoverShown(uid); } catch {}
+    setSelectedDeck(deck);
+  }, [uid]);
 
-  const NetflixCard = ({ deck, adjacentEmojis = [], scrollX, index }: { deck: DeckManifest; adjacentEmojis?: string[]; scrollX?: SharedValue<number>; index?: number }) => {
-    const isDownloading = downloadingId === deck.id;
-    const deckTheme = useMemo(() => buildDeckTheme(deck), [deck.id]);
-    const glyphs = useMemo(() => getDeckGlyphs(deck, adjacentEmojis), [deck.id, adjacentEmojis.join(',')]);
-    const pressScale = useSharedValue(1);
-    const opacity = useSharedValue(0);
-
-    useEffect(() => {
-      opacity.value = withTiming(1, { duration: 300 });
-    }, []);
-
-    const animatedStyle = useAnimatedStyle(() => {
-      let scale = pressScale.value;
-      
-      // Scale-on-center effect for rails
-      if (scrollX && index !== undefined) {
-        const inputRange = [
-          (index - 1) * (CARD_WIDTH + CARD_SPACING),
-          index * (CARD_WIDTH + CARD_SPACING),
-          (index + 1) * (CARD_WIDTH + CARD_SPACING),
-        ];
-        const centerScale = interpolate(
-          scrollX.value,
-          inputRange,
-          [0.92, 1.0, 0.92],
-          Extrapolate.CLAMP
-        );
-        scale = scale * centerScale;
-      }
-      
-      return {
-        transform: [{ scale }],
-        opacity: opacity.value,
-      };
-    });
-
-    const handlePressIn = () => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      pressScale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
-    };
-
-    const handlePressOut = () => {
-      pressScale.value = withSpring(1, { damping: 15, stiffness: 300 });
-    };
-
-    const handlePress = async () => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setShowImportModal(false);
-      try { await FirstRunGuide.markDiscoverShown(uid); } catch {}
-      setSelectedDeck(deck);
-    };
-
-    return (
-      <Animated.View style={[styles.netflixCard, animatedStyle]}>
-        <Pressable
-          onPress={handlePress}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          disabled={isDownloading || importing}
-        >
-          {/* Unique Seeded Card */}
-          <LinearGradient
-            colors={deckTheme.colors}
-            start={{ x: deckTheme.angle.x, y: 0 }}
-            end={{ x: 1 - deckTheme.angle.x, y: 1 }}
-            style={styles.posterCard}
-          >
-            {/* Single subtle background shape */}
-            {deckTheme.shape === 'rings' && (
-              <View style={[styles.shape, { top: '50%', left: '50%', marginLeft: -80, marginTop: -80, width: 160, height: 160, borderRadius: 80, borderWidth: 20, borderColor: 'rgba(255,255,255,0.05)' }]} />
-            )}
-            {deckTheme.shape === 'corner-circles' && (
-              <View style={[styles.shape, { top: -50, right: -50, width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.06)' }]} />
-            )}
-            {deckTheme.shape === 'diagonal' && (
-              <View style={[styles.shape, { top: 0, left: -100, right: -100, bottom: 0, transform: [{ rotate: '15deg' }], backgroundColor: 'rgba(255,255,255,0.04)' }]} />
-            )}
-            
-            {/* Subtle noise texture */}
-            <View style={[styles.shape, { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.03)', opacity: 0.5 }]} />
-
-            {/* Dark Overlay for Text Legibility */}
-            <LinearGradient
-              colors={['transparent', 'transparent', 'rgba(0,0,0,0.85)']}
-              locations={[0, 0.5, 1]}
-              style={styles.posterOverlay}
-            />
-
-            {/* Content */}
-            <View style={styles.posterContent}>
-              {/* Icon/Emoji Coin with Variants */}
-              <View style={[styles.posterIconContainer, glyphs.composition === 'topLeft' && { alignItems: 'flex-start', paddingLeft: 8 }]}>
-                <View style={[
-                  getCoinStyle(glyphs.coinVariant, deckTheme.accentColor),
-                  { transform: [{ rotate: `${glyphs.rotation}deg` }] }
-                ]}>
-                  {/* Radial highlight for lighting */}
-                  <LinearGradient
-                    colors={['rgba(255,255,255,0.08)', 'transparent']}
-                    style={StyleSheet.absoluteFillObject}
-                    start={{ x: 0.3, y: 0.3 }}
-                    end={{ x: 0.7, y: 0.7 }}
-                  />
-                  
-                  {/* Primary glyph (icon or emoji) */}
-                  {glyphs.primary.kind === 'icon' ? (
-                    <Ionicons name={glyphs.primary.value as any} size={52 + glyphs.sizeVariation} color="#FFFFFF" style={{ textShadowColor: 'rgba(0,0,0,0.25)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }} />
-                  ) : (
-                    <Text style={[styles.coinEmoji, { fontSize: 52 + glyphs.sizeVariation }]}>{glyphs.primary.value}</Text>
-                  )}
-                </View>
-              </View>
-
-              {/* Bottom Info */}
-              <View style={styles.posterInfo}>
-                <Text style={styles.posterTitle} numberOfLines={2}>
-                  {deck.name}
-                </Text>
-                <Text style={styles.posterMeta}>
-                  {deck.cardCount} • {deck.difficulty === 'beginner' ? 'Easy' : deck.difficulty === 'intermediate' ? 'Med' : 'Hard'}
-                </Text>
-              </View>
-            </View>
-
-            {isDownloading && (
-              <View style={styles.downloadingOverlay}>
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              </View>
-            )}
-          </LinearGradient>
-        </Pressable>
-      </Animated.View>
-    );
-  };
-
-  const CategoryRow = ({ category, decks }: { category: string; decks: DeckManifest[] }) => {
-    const scrollX = useSharedValue(0);
-    
-    if (decks.length === 0) {
-      return (
-        <View style={styles.emptySearch}>
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-            No results found
-          </Text>
-        </View>
-      );
-    }
-
-    const categoryColor = buildDeckTheme(decks[0]).colors[0];
-
-    return (
-      <View style={[styles.netflixSection, { backgroundColor: theme.colors.surface }]}>
-        {/* Section Header */}
-        <View style={[styles.sectionHeader, { borderBottomColor: theme.colors.border }]}>
-          <View style={styles.headerLeft}>
-            <LinearGradient
-              colors={[categoryColor, categoryColor + '80']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.categoryDot}
-            />
-            <View style={styles.titleContainer}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
-                {category}
-              </Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.colors.textTertiary }]}>
-                {decks.length} deck{decks.length !== 1 ? 's' : ''} available
-              </Text>
-            </View>
-          </View>
-          <Pressable 
-            style={[styles.viewAllButton, { borderColor: theme.colors.border }]}
-            onPress={() => navigation.navigate('CategoryDecks', { 
-              category, 
-              decks,
-              onSelectDeck: (deck: DeckManifest) => setSelectedDeck(deck)
-            })}
-          >
-            <Text style={[styles.viewAllText, { color: theme.colors.textSecondary }]}>View All</Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
-          </Pressable>
-        </View>
-        
-        {/* Horizontal Scroll */}
-        <Animated.FlatList
-          data={decks}
-          renderItem={({ item, index }) => {
-            // Get adjacent emojis to avoid repetition
-            const adjacentEmojis: string[] = [];
-            if (index > 0) {
-              const prevGlyphs = getDeckGlyphs(decks[index - 1]);
-              adjacentEmojis.push(prevGlyphs.primary.value);
-            }
-            if (index < decks.length - 1) {
-              const nextGlyphs = getDeckGlyphs(decks[index + 1]);
-              adjacentEmojis.push(nextGlyphs.primary.value);
-            }
-            return <NetflixCard deck={item} adjacentEmojis={adjacentEmojis} scrollX={scrollX} index={index} />;
-          }}
-          onScroll={(event) => {
-            scrollX.value = event.nativeEvent.contentOffset.x;
-          }}
-          scrollEventThrottle={16}
-          keyExtractor={item => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={CARD_WIDTH + CARD_SPACING}
-          decelerationRate="fast"
-          snapToAlignment="start"
-          contentContainerStyle={{ paddingHorizontal: SIDE_PADDING, gap: CARD_SPACING, paddingBottom: 20 }}
-          getItemLayout={(_, index) => ({
-            length: CARD_WIDTH + CARD_SPACING,
-            offset: (CARD_WIDTH + CARD_SPACING) * index,
-            index,
-          })}
-          removeClippedSubviews
-          initialNumToRender={3}
-          maxToRenderPerBatch={5}
-          windowSize={7}
-        />
-      </View>
-    );
-  };
-
-  const handleDownload = async (deck: DeckManifest) => {
+  const handleDownload = useCallback(async (deck: DeckManifest) => {
     try {
       setDownloadingId(deck.id);
       setDownloadProgress(0);
+      setImporting(false);
+      setImportProgress('');
+      
+      logger.info('[DiscoverScreen] Starting download for:', deck.name);
+      logger.info('[DiscoverScreen] Download URL:', deck.downloadUrl);
       
       // Download the deck file with progress
       const localUri = await DiscoverService.downloadDeck(deck, (progress) => {
+        logger.info('[DiscoverScreen] Progress update:', progress.toFixed(1) + '%');
         setDownloadProgress(progress);
       });
       
-      // Import the downloaded file
+      logger.info('[DiscoverScreen] Download returned URI:', localUri);
+      
+      // Verify file exists and has size before importing
+      const FileSystem = require('expo-file-system/legacy');
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      logger.info('[DiscoverScreen] Downloaded file verification:', fileInfo);
+      
+      if (!fileInfo.exists) {
+        throw new Error('Downloaded file does not exist at: ' + localUri);
+      }
+      
+      if (fileInfo.size === 0) {
+        throw new Error('Downloaded file is empty (0 bytes). Download URL may be incorrect or returning an error page.');
+      }
+      
+      // If file is suspiciously small, read the content to see if it's an error message
+      if (fileInfo.size < 1000) {
+        logger.warn('[DiscoverScreen] File is only', fileInfo.size, 'bytes - reading content to check for errors...');
+        const FileSystem = require('expo-file-system/legacy');
+        const content = await FileSystem.readAsStringAsync(localUri);
+        logger.error('[DiscoverScreen] Small file content:', content);
+        
+        // Check if it's a Firebase error response
+        if (content.includes('"error"') && content.includes('"code"')) {
+          try {
+            const errorResponse = JSON.parse(content);
+            if (errorResponse.error?.code === 404) {
+              throw new Error('Deck file not found in Firebase Storage. The .apkg files need to be uploaded to Firebase Storage first.');
+            } else if (errorResponse.error?.code === 403) {
+              throw new Error('Permission denied accessing Firebase Storage. Check storage security rules.');
+            } else {
+              throw new Error('Firebase Storage error: ' + (errorResponse.error?.message || content));
+            }
+          } catch (parseError) {
+            // If not JSON, throw generic error
+            throw new Error('Downloaded file is too small (' + fileInfo.size + ' bytes). Content: ' + content);
+          }
+        }
+        
+        throw new Error('Downloaded file is too small (' + fileInfo.size + ' bytes). Expected at least 1KB for a valid deck file.');
+      }
+      
+      logger.info('[DiscoverScreen] File verified, starting import...');
+      
+      // Reset download progress and start showing import progress
+      setDownloadProgress(100); // Show download complete
+      
+      // Import the downloaded file (this will set importing=true and update importProgress)
       const parsed = await importDeckFile(localUri, deck);
 
       // Mark guide complete and schedule study
@@ -445,8 +274,19 @@ export default function DiscoverScreen() {
     } finally {
       setDownloadingId(null);
       setDownloadProgress(0);
+      setImporting(false);
+      setImportProgress('');
     }
-  };
+  }, [importDeckFile, uid]);
+
+  // Stable callbacks for HeroHeader (defined after handleDownload)
+  const handleFeaturedDownload = useCallback(() => {
+    if (featuredDeck) handleDownload(featuredDeck);
+  }, [featuredDeck, handleDownload]);
+
+  const handleFeaturedPreview = useCallback(() => {
+    if (featuredDeck) setSelectedDeck(featuredDeck);
+  }, [featuredDeck]);
 
   if (loading) {
     return (
@@ -513,21 +353,14 @@ export default function DiscoverScreen() {
         }}
         scrollEventThrottle={16}
       >
-        {!searchQuery.trim() && decks.length > 0 && (() => {
-          // Featured deck: MilesDown MCAT by priority
-          const featuredDeck = decks.find(d => d.id === 'milesdown-mcat')
-            || decks.find(d => /milesdown/i.test(d.name))
-            || decks[0];
-          
-          return (
-            <HeroHeader
-              deck={featuredDeck}
-              scrollY={scrollY}
-              onDownload={() => handleDownload(featuredDeck)}
-              onPreview={() => setSelectedDeck(featuredDeck)}
-            />
-          );
-        })()}
+        {!searchQuery.trim() && featuredDeck && (
+          <HeroHeader
+            deck={featuredDeck}
+            scrollY={scrollY}
+            onDownload={handleFeaturedDownload}
+            onPreview={handleFeaturedPreview}
+          />
+        )}
 
         {!searchQuery.trim() && (
           <FilterChips
@@ -539,18 +372,36 @@ export default function DiscoverScreen() {
 
         {searchQuery.trim() ? (
           /* Search Results */
-          <CategoryRow category="Search Results" decks={searchResults} />
+          <CategoryRow category="Search Results" decks={searchResults} onCardPress={handleCardPress} theme={theme} />
         ) : selectedCategory === 'All' ? (
           /* All Netflix Rows by Category */
           categories.map(category => {
             const categoryDecks = decksByCategory[category];
             if (!categoryDecks || categoryDecks.length === 0) return null;
 
-            return <CategoryRow key={category} category={category} decks={categoryDecks} />;
+            return (
+              <CategoryRow 
+                key={category} 
+                category={category} 
+                decks={categoryDecks} 
+                onCardPress={handleCardPress} 
+                theme={theme}
+                onViewAll={() => navigation.navigate('CategoryDecks', { 
+                  category, 
+                  decks: categoryDecks,
+                  onSelectDeck: (deck: DeckManifest) => setSelectedDeck(deck)
+                })}
+              />
+            );
           })
         ) : (
           /* Filtered Category */
-          <CategoryRow category={selectedCategory} decks={decksByCategory[selectedCategory] || []} />
+          <CategoryRow 
+            category={selectedCategory} 
+            decks={decksByCategory[selectedCategory] || []} 
+            onCardPress={handleCardPress} 
+            theme={theme}
+          />
         )}
       </Animated.ScrollView>
 
@@ -639,150 +490,6 @@ const styles = StyleSheet.create({
   // Netflix Scroll
   netflixScroll: {
     flex: 1,
-  },
-  // Netflix Row (Category)
-  netflixRow: {
-    marginBottom: 24,
-  },
-  rowTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    letterSpacing: -0.3,
-  },
-  // Netflix Section
-  netflixSection: {
-    marginBottom: 24,
-    borderRadius: 20,
-    paddingTop: 24,
-    paddingBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    marginBottom: 16,
-    borderBottomWidth: 1,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    flex: 1,
-  },
-  categoryDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  titleContainer: {
-    flex: 1,
-    gap: 4,
-  },
-  sectionTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: -1,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    letterSpacing: 0.2,
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1.5,
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  // Poster Card
-  netflixCard: {
-    width: CARD_WIDTH,
-  },
-  posterCard: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  posterOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  shape: {
-    position: 'absolute',
-  },
-  posterContent: {
-    flex: 1,
-    justifyContent: 'space-between',
-    padding: 14,
-  },
-  posterIconContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coinEmoji: {
-    fontSize: 52,
-    textShadowColor: 'rgba(0,0,0,0.25)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  posterInfo: {
-    gap: 4,
-  },
-  posterTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    lineHeight: 18,
-    letterSpacing: -0.3,
-  },
-  posterMeta: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.85)',
-  },
-  downloadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 20,
-  },
-  // Search Results
-  searchResults: {
-    marginBottom: 24,
-  },
-  emptySearch: {
-    paddingHorizontal: 16,
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 16,
   },
   progressText: {
     fontSize: 12,

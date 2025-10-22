@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Text, Alert } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Extrapolate } from 'react-native-reanimated';
+import { View, StyleSheet, Text, Alert, InteractionManager } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../design';
@@ -41,8 +41,10 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const [coachStep, setCoachStep] = useState<'reveal' | 'swipe'>('reveal');
   const coachCompletedRef = React.useRef(false);
   
-  const overlayColor = useSharedValue('rgba(0, 0, 0, 0)');
-  const currentCardSwipeDistance = useSharedValue(0);
+  // Shared values for UI-thread overlay computation
+  const currentTranslateX = useSharedValue(0);
+  const currentTranslateY = useSharedValue(0);
+  const currentIsRevealed = useSharedValue(false);
 
   // DO NOT bootstrap here - it overwrites imported decks!
   // Bootstrap is only called from Settings after import or on first launch
@@ -120,10 +122,9 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   );
   
   // Preload images and dimensions for current and next cards
-  // Deferred to prevent blocking UI - fire and forget
+  // Deferred behind interaction manager to never block UI interactions
   useEffect(() => {
-    // Defer preloading to next frame to not block rendering
-    const timer = setTimeout(() => {
+    const handle = InteractionManager.runAfterInteractions(() => {
       if (current) {
         ImageCache.preloadImagesFromHtml(current.front).catch(() => {});
         ImageCache.preloadImagesFromHtml(current.back).catch(() => {});
@@ -136,18 +137,19 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         ImageCache.ensureDimensionsFromHtml(next.front).catch(() => {});
         ImageCache.ensureDimensionsFromHtml(next.back).catch(() => {});
       }
-    }, 100); // Small delay to let UI render first
-    return () => clearTimeout(timer);
+    });
+    return () => handle.cancel();
   }, [current, next]);
   
   // Reset overlay and revealed state when card changes
   useEffect(() => {
-    overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 300 });
-    currentCardSwipeDistance.value = 0; // Reset next card scale immediately
+    currentTranslateX.value = 0;
+    currentTranslateY.value = 0;
+    currentIsRevealed.value = false;
     setIsCurrentRevealed(false);
     setResponseStartTime(Date.now());
     setCurrentCardMaxHintDepth(null); // Reset hint tracking for new card
-  }, [current, overlayColor, currentCardSwipeDistance]);
+  }, [current, currentTranslateX, currentTranslateY, currentIsRevealed]);
 
   const handleAnswer = React.useCallback((difficulty: Difficulty) => {
     if (!current) return;
@@ -187,44 +189,41 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       setShowCoach(false);
     }
 
-    // Fade out color overlay smoothly as card flies away
-    overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 400 });
+    // Reset translations (card flies away, overlay fades)
+    currentTranslateX.value = withTiming(0, { duration: 400 });
+    currentTranslateY.value = withTiming(0, { duration: 400 });
     
     // Delay state update to let card fly away animation complete
     setTimeout(() => {
       answer(difficulty, responseTimeMs);
     }, 250);
-  }, [current, responseStartTime, overlayColor, answer, currentCardMaxHintDepth]);
+  }, [current, responseStartTime, currentTranslateX, currentTranslateY, answer, currentCardMaxHintDepth]);
 
-  const handleSwipeChange = React.useCallback((translateX: number, translateY: number, isRevealed: boolean) => {
-    if (!isRevealed) {
-      overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 400 });
-      currentCardSwipeDistance.value = 0;
-      return;
+  // No longer needed - overlay computed on UI thread
+
+  // Compute overlay color entirely on UI thread from shared values
+  const overlayStyle = useAnimatedStyle(() => {
+    'worklet';
+    if (!currentIsRevealed.value) {
+      return { backgroundColor: 'rgba(0, 0, 0, 0)' };
     }
 
-    const absX = Math.abs(translateX);
-    const absY = Math.abs(translateY);
+    const absX = Math.abs(currentTranslateX.value);
+    const absY = Math.abs(currentTranslateY.value);
     const totalDistance = absX + absY;
     
-    // Update swipe distance for next card scale animation
-    currentCardSwipeDistance.value = totalDistance;
-    
-    if (totalDistance < 10) {
-      // Smooth fade out when releasing - animate the color itself
-      overlayColor.value = withTiming('rgba(0, 0, 0, 0)', { duration: 400 });
-      currentCardSwipeDistance.value = withTiming(0, { duration: 400 });
-      return;
+    if (totalDistance < 30) {
+      return { backgroundColor: 'rgba(0, 0, 0, 0)' };
     }
     
-    // Calculate opacity based on distance (increased for better visibility)
+    // Calculate opacity based on distance
     const opacity = Math.min(totalDistance / 150, 0.45);
 
     // Determine color based on swipe direction
     let color = 'rgba(0, 0, 0, 0)';
     
     if (absY > absX) {
-      if (translateY > 0) {
+      if (currentTranslateY.value > 0) {
         // Red for Again (down swipe)
         color = `rgba(239, 68, 68, ${opacity})`;
       } else {
@@ -232,7 +231,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         color = `rgba(59, 130, 246, ${opacity})`;
       }
     } else {
-      if (translateX > 0) {
+      if (currentTranslateX.value > 0) {
         // Green for Good (right swipe)
         color = `rgba(16, 185, 129, ${opacity})`;
       } else {
@@ -241,42 +240,10 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       }
     }
 
-    // Fast fade-in for color feedback (100ms)
-    overlayColor.value = withTiming(color, { duration: 100 });
-  }, [overlayColor, currentCardSwipeDistance]);
-
-  const overlayStyle = useAnimatedStyle(() => {
-    return {
-      backgroundColor: overlayColor.value,
-    };
+    return { backgroundColor: color };
   });
 
-  // Next card scale animation based on current card swipe distance
-  // MUST be before conditional returns to avoid hook ordering issues
-  const nextCardStyle = useAnimatedStyle(() => {
-    // Scale from 0.94 to 1.0 as current card swipes away (more dramatic effect)
-    const scale = interpolate(
-      currentCardSwipeDistance.value,
-      [0, 100],
-      [0.94, 1.0],
-      Extrapolate.CLAMP
-    );
-    
-    // Move up slightly as it scales (creates depth effect)
-    const translateY = interpolate(
-      currentCardSwipeDistance.value,
-      [0, 100],
-      [20, 0],
-      Extrapolate.CLAMP
-    );
-    
-    return {
-      transform: [
-        { scale },
-        { translateY },
-      ],
-    };
-  }, [currentCardSwipeDistance]);
+  // Removed next-card scale animation to prevent size bug during transitions
 
   // Memoized callbacks for preview card
   const emptyOnAnswer = React.useCallback(() => {}, []);
@@ -385,7 +352,6 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         card: next,
         zIndex: 1,
         isCurrent: false,
-        style: nextCardStyle,
       });
     }
     if (current) {
@@ -393,11 +359,10 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         card: current,
         zIndex: 10,
         isCurrent: true,
-        style: null,
       });
     }
     return cardList;
-  }, [next, current, nextCardStyle]);
+  }, [next, current]);
 
   // Show message if no deck is selected
   if (currentDeckId === null) {
@@ -435,24 +400,23 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       {/* Card stack - all cards in same flat structure for React reconciliation */}
       <View style={styles.cardStack}>
-        {cards.map(({ card, zIndex, isCurrent, style }) => {
+        {cards.map(({ card, zIndex, isCurrent }) => {
           const cardHint = hints.get(String(card.id)) || null;
-          // Include hint availability in key to force re-render when hints load
-          const cardKey = `${card.id}-${cardHint ? 'with-hint' : 'no-hint'}`;
           return (
-            <React.Fragment key={cardKey}>
+            <React.Fragment key={card.id}>
               <Animated.View
                 style={[
                   styles.cardWrapper,
                   { zIndex },
-                  style,
                 ]}
                 pointerEvents={isCurrent ? 'auto' : 'none'}
               >
                 <CardPage
                   card={card}
                   onAnswer={handleAnswer}
-                  onSwipeChange={handleSwipeChange}
+                  translateXShared={isCurrent ? currentTranslateX : undefined}
+                  translateYShared={isCurrent ? currentTranslateY : undefined}
+                  isRevealedShared={isCurrent ? currentIsRevealed : undefined}
                   onReveal={handleReveal}
                   disabled={!isCurrent}
                   hint={cardHint}
@@ -547,3 +511,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
 });
+
+// Performance note: All swipe feedback (overlay color, next-card scale) computed on UI thread
+// via worklet derived values from shared translateX/Y. Zero JS bridge traffic during gestures.

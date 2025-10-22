@@ -201,6 +201,11 @@ const ICON_VARIANTS: Record<string, Glyph[]> = {
     { kind: 'icon', value: 'chatbox-ellipses' },
     { kind: 'icon', value: 'globe' },
     { kind: 'icon', value: 'school' },
+    { kind: 'icon', value: 'reader' },
+    { kind: 'icon', value: 'newspaper' },
+    { kind: 'icon', value: 'create' },
+    { kind: 'icon', value: 'pencil' },
+    { kind: 'icon', value: 'text' },
   ],
   medical: [
     { kind: 'icon', value: 'medical' },
@@ -208,29 +213,46 @@ const ICON_VARIANTS: Record<string, Glyph[]> = {
     { kind: 'icon', value: 'pulse' },
     { kind: 'icon', value: 'fitness' },
     { kind: 'icon', value: 'body' },
+    { kind: 'icon', value: 'heart' },
+    { kind: 'icon', value: 'water' },
+    { kind: 'icon', value: 'nutrition' },
+    { kind: 'icon', value: 'bandage' },
+    { kind: 'icon', value: 'thermometer' },
   ],
   law: [
     { kind: 'icon', value: 'briefcase' },
     { kind: 'icon', value: 'document-text' },
     { kind: 'icon', value: 'shield' },
     { kind: 'icon', value: 'business' },
+    { kind: 'icon', value: 'hammer' },
+    { kind: 'icon', value: 'scale' },
+    { kind: 'icon', value: 'ribbon' },
+    { kind: 'icon', value: 'trophy' },
   ],
   music: [
     { kind: 'icon', value: 'musical-notes' },
     { kind: 'icon', value: 'headset' },
     { kind: 'icon', value: 'mic' },
+    { kind: 'icon', value: 'volume-high' },
+    { kind: 'icon', value: 'radio' },
   ],
   geography: [
     { kind: 'icon', value: 'globe' },
     { kind: 'icon', value: 'map' },
     { kind: 'icon', value: 'compass' },
     { kind: 'icon', value: 'location' },
+    { kind: 'icon', value: 'navigate' },
+    { kind: 'icon', value: 'pin' },
   ],
   general: [
     { kind: 'icon', value: 'book' },
     { kind: 'icon', value: 'bulb' },
     { kind: 'icon', value: 'star' },
     { kind: 'icon', value: 'rocket' },
+    { kind: 'icon', value: 'flash' },
+    { kind: 'icon', value: 'flame' },
+    { kind: 'icon', value: 'sparkles' },
+    { kind: 'icon', value: 'diamond' },
   ],
 };
 
@@ -239,24 +261,10 @@ const BADGE_ICONS = ['star', 'star-outline', 'bookmark', 'bookmark-outline', 'he
 
 export function getDeckGlyphs(deck: DeckManifest, adjacentEmojis: string[] = []): DeckGlyphs {
   const seed = hashInt(deck.id);
-  const domain = getDomain(deck) as keyof typeof EMOJI_VARIANTS;
+  const domain = getDomain(deck) as keyof typeof ICON_VARIANTS;
   
-  // Primary: 75% icon, 25% emoji
-  const useIcon = (seed % 4) !== 0;
-  let primary: Glyph;
-  
-  if (useIcon) {
-    primary = pick(ICON_VARIANTS[domain] || ICON_VARIANTS.general, seed);
-  } else {
-    // Emoji as primary - avoid adjacent duplicates
-    primary = pick(EMOJI_VARIANTS[domain], seed);
-    let attempts = 0;
-    while (adjacentEmojis.includes(primary.value) && attempts < 10) {
-      const newSeed = seed + attempts + 1;
-      primary = pick(EMOJI_VARIANTS[domain], newSeed);
-      attempts++;
-    }
-  }
+  // Always use icons (no emojis)
+  const primary: Glyph = pick(ICON_VARIANTS[domain] || ICON_VARIANTS.general, seed);
   
   // Coin variant
   const coinVariant = pick<CoinVariant>(['circle', 'squircle', 'ring'], Math.floor(seed / 11));

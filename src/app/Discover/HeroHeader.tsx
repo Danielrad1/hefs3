@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,7 @@ interface HeroHeaderProps {
   onPreview: () => void;
 }
 
-export function HeroHeader({ deck, scrollY, onDownload, onPreview }: HeroHeaderProps) {
+export const HeroHeader = React.memo(function HeroHeader({ deck, scrollY, onDownload, onPreview }: HeroHeaderProps) {
   const glyphs = getDeckGlyphs(deck);
   const deckTheme = buildDeckTheme(deck);
   
@@ -103,7 +103,7 @@ export function HeroHeader({ deck, scrollY, onDownload, onPreview }: HeroHeaderP
       </Animated.View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   heroWrapper: {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, Modal, StyleSheet, Pressable, ActivityIndicator, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -45,10 +45,56 @@ export function DeckDetailModal({
 
   if (!deck) return null;
 
-  const deckTheme = buildDeckTheme(deck);
-  const glyphs = getDeckGlyphs(deck);
+  const deckTheme = useMemo(() => buildDeckTheme(deck), [deck.id]);
+  const glyphs = useMemo(() => getDeckGlyphs(deck), [deck.id]);
   const difficultyColor = deck.difficulty === 'beginner' ? '#10B981' : deck.difficulty === 'intermediate' ? '#F59E0B' : '#EF4444';
   const sizeInMB = (deck.size / 1024 / 1024).toFixed(1);
+
+  // Memoize the hero section to prevent gradient re-renders during progress updates
+  const heroSection = useMemo(() => (
+    <LinearGradient
+      colors={deckTheme.colors}
+      start={{ x: deckTheme.angle.x, y: 0 }}
+      end={{ x: 1 - deckTheme.angle.x, y: 1 }}
+      style={styles.heroSection}
+    >
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.6)']}
+        style={styles.heroOverlay}
+      />
+      
+      {/* Icon */}
+      <View style={styles.heroIcon}>
+        {glyphs.primary.kind === 'icon' ? (
+          <Ionicons name={glyphs.primary.value as any} size={64} color="#FFFFFF" />
+        ) : (
+          <Text style={styles.heroEmoji}>{glyphs.primary.value}</Text>
+        )}
+      </View>
+
+      {/* Title */}
+      <Text style={styles.heroTitle}>
+        {deck.name}
+      </Text>
+
+      {/* Meta Row */}
+      <View style={styles.heroMeta}>
+        <View style={styles.heroMetaItem}>
+          <Ionicons name="layers" size={14} color="rgba(255,255,255,0.9)" />
+          <Text style={styles.heroMetaText}>{deck.cardCount}</Text>
+        </View>
+        <View style={styles.heroDivider} />
+        <View style={styles.heroMetaItem}>
+          <Ionicons name="time" size={14} color="rgba(255,255,255,0.9)" />
+          <Text style={styles.heroMetaText}>{Math.ceil(deck.cardCount / 20)} min</Text>
+        </View>
+        <View style={styles.heroDivider} />
+        <Text style={styles.heroMetaText}>
+          {deck.difficulty === 'beginner' ? 'Easy' : deck.difficulty === 'intermediate' ? 'Med' : 'Hard'}
+        </Text>
+      </View>
+    </LinearGradient>
+  ), [deck.id, deck.name, deck.cardCount, deck.difficulty, deckTheme, glyphs]);
 
   return (
     <Modal
@@ -69,49 +115,8 @@ export function DeckDetailModal({
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Hero Section with Gradient */}
-            <LinearGradient
-              colors={deckTheme.colors}
-              start={{ x: deckTheme.angle.x, y: 0 }}
-              end={{ x: 1 - deckTheme.angle.x, y: 1 }}
-              style={styles.heroSection}
-            >
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.6)']}
-                style={styles.heroOverlay}
-              />
-              
-              {/* Icon */}
-              <View style={styles.heroIcon}>
-                {glyphs.primary.kind === 'icon' ? (
-                  <Ionicons name={glyphs.primary.value as any} size={64} color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.heroEmoji}>{glyphs.primary.value}</Text>
-                )}
-              </View>
-
-              {/* Title */}
-              <Text style={styles.heroTitle}>
-                {deck.name}
-              </Text>
-
-              {/* Meta Row */}
-              <View style={styles.heroMeta}>
-                <View style={styles.heroMetaItem}>
-                  <Ionicons name="layers" size={14} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.heroMetaText}>{deck.cardCount}</Text>
-                </View>
-                <View style={styles.heroDivider} />
-                <View style={styles.heroMetaItem}>
-                  <Ionicons name="time" size={14} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.heroMetaText}>{Math.ceil(deck.cardCount / 20)} min</Text>
-                </View>
-                <View style={styles.heroDivider} />
-                <Text style={styles.heroMetaText}>
-                  {deck.difficulty === 'beginner' ? 'Easy' : deck.difficulty === 'intermediate' ? 'Med' : 'Hard'}
-                </Text>
-              </View>
-            </LinearGradient>
+            {/* Hero Section with Gradient (memoized to prevent re-renders) */}
+            {heroSection}
 
             {/* Description */}
             <View style={styles.descriptionSection}>

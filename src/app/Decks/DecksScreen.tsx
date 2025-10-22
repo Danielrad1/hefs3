@@ -174,7 +174,15 @@ export default function DecksScreen() {
               await new Promise(resolve => setTimeout(resolve, 100));
               
               setDeleteProgress(`Deleting "${deckName}"...`);
-              await deckService.deleteDeck(deckId, { deleteCards: true });
+              await deckService.deleteDeck(
+                deckId,
+                { deleteCards: true },
+                (message) => {
+                  if (message) {
+                    setDeleteProgress(message);
+                  }
+                }
+              );
               
               setDeleteProgress('Saving changes...');
               await PersistenceService.save(db);
