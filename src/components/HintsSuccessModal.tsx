@@ -8,14 +8,16 @@ import { r } from '../design/radii';
 interface HintsSuccessModalProps {
   visible: boolean;
   cardsWithHints: number;
+  deckName?: string;
   onStudyNow: () => void;
   onClose: () => void;
 }
 
-export default function HintsSuccessModal({ visible, cardsWithHints, onStudyNow, onClose }: HintsSuccessModalProps) {
+export default function HintsSuccessModal({ visible, cardsWithHints, deckName, onStudyNow, onClose }: HintsSuccessModalProps) {
   const theme = useTheme();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const deckLabel = deckName ? `“${deckName}”` : 'this deck';
 
   useEffect(() => {
     if (visible) {
@@ -60,12 +62,12 @@ export default function HintsSuccessModal({ visible, cardsWithHints, onStudyNow,
 
           {/* Description */}
           <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-            {cardsWithHints} cards now have smart hints to help you learn 40% faster.
+            {cardsWithHints} cards in {deckLabel} now have smart hints ready to go.
           </Text>
 
           {/* CTA */}
           <Text style={[styles.cta, { color: theme.colors.textPrimary }]}>
-            Try them out during your next study session!
+            You can study this deck right now and start using the new hints.
           </Text>
 
           {/* Buttons */}
@@ -75,7 +77,7 @@ export default function HintsSuccessModal({ visible, cardsWithHints, onStudyNow,
               onPress={onStudyNow}
             >
               <Ionicons name="book" size={20} color="#000" style={{ marginRight: s.xs }} />
-              <Text style={styles.primaryButtonText}>Study Now</Text>
+              <Text style={styles.primaryButtonText}>Study This Deck</Text>
             </Pressable>
 
             <Pressable

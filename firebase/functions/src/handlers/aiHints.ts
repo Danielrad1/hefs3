@@ -49,7 +49,7 @@ export async function generateHints(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Use default model from config (GPT-5 Nano)
+    // Use default model from config (GPT-5 Nano 2025-08-07)
     const provider = new OpenAIProvider(apiKey, AI_CONFIG.defaultModel);
     
     logger.info('[aiHints] Starting generation with provider:', provider.getName());

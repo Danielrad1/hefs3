@@ -17,6 +17,19 @@ export async function authenticate(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Auto-detect emulator mode and bypass auth
+    const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
+    if (isEmulator) {
+      logger.warn('[Auth] 🔧 Running in EMULATOR mode - bypassing authentication');
+      (req as AuthenticatedRequest).user = {
+        uid: 'emulator-user',
+        email: 'dev@emulator.local',
+        premium: false,
+      } as DecodedToken;
+      next();
+      return;
+    }
+
     const authHeader = req.headers.authorization;
     
     if (!authHeader?.startsWith('Bearer ')) {

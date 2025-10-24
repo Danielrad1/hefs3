@@ -32,7 +32,8 @@ app.use(express.json({ limit: '10mb' })); // Increase payload limit for backups
 
 // Debug middleware - log all requests
 app.use((req, res, next) => {
-  logger.debug(`[Express] ${req.method} ${req.path}`);
+  logger.warn(`[Express] 🔔 INCOMING REQUEST: ${req.method} ${req.path}`);
+  logger.warn(`[Express] From: ${req.get('origin') || req.ip}`);
   logger.debug(`[Express] Headers:`, req.headers);
   logger.debug(`[Express] Body:`, req.body ? JSON.stringify(req.body).substring(0, 200) : 'empty');
   next();

@@ -255,10 +255,18 @@ export default function HomeScreen() {
           <View style={[styles.sessionCard, { backgroundColor: theme.colors.surface2 }]}>
             <View style={styles.sessionRow}>
               <View style={styles.todayColumn}>
-                <Text style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}>
+                <Text 
+                  style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.5}
+                >
                   {globalSnapshot.todayDue}
                 </Text>
-                <Text style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}>
+                <Text 
+                  style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}
+                  numberOfLines={1}
+                >
                   DUE
                 </Text>
               </View>
@@ -266,13 +274,19 @@ export default function HomeScreen() {
               <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
 
               <View style={styles.todayColumn}>
-                <Text style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}>
+                <Text 
+                  style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.5}
+                >
                   {globalSnapshot.todayLearn}
                 </Text>
                 <Text 
                   style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
+                  minimumFontScale={0.7}
                 >
                   LEARNING
                 </Text>
@@ -281,10 +295,18 @@ export default function HomeScreen() {
               <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
 
               <View style={styles.todayColumn}>
-                <Text style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}>
+                <Text 
+                  style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.5}
+                >
                   {globalSnapshot.todayNewLimit}
                 </Text>
-                <Text style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}>
+                <Text 
+                  style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}
+                  numberOfLines={1}
+                >
                   NEW
                 </Text>
               </View>
@@ -296,10 +318,14 @@ export default function HomeScreen() {
                   style={[styles.todayColumnValue, { color: theme.colors.textHigh }]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
+                  minimumFontScale={0.5}
                 >
                   {homeStats.todayReviewCount > 0 ? `${homeStats.todayAccuracy}%` : '—'}
                 </Text>
-                <Text style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}>
+                <Text 
+                  style={[styles.todayColumnLabel, { color: theme.colors.textMed }]}
+                  numberOfLines={1}
+                >
                   DONE
                 </Text>
               </View>
@@ -552,24 +578,29 @@ const styles = StyleSheet.create({
   todayColumn: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: s.xs,
+    paddingHorizontal: 2,
+    minWidth: 0,
   },
   todayColumnValue: {
     fontSize: 22,
     fontWeight: '800',
     lineHeight: 24,
     marginBottom: 2,
+    width: '100%',
+    textAlign: 'center',
   },
   todayColumnLabel: {
     fontSize: 10,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    width: '100%',
+    textAlign: 'center',
   },
   statDivider: {
     width: 1,
     height: 44,
-    marginHorizontal: s.lg,
+    marginHorizontal: s.sm,
   },
   // Performance Card
   performanceCard: {

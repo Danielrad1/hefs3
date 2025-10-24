@@ -3,6 +3,17 @@ import { auth } from '../../config/firebase';
 import { logger } from '../../utils/logger';
 
 const API_BASE = Constants.expoConfig?.extra?.apiBaseUrl as string;
+const IS_LOCAL = Constants.expoConfig?.extra?.isLocal === true;
+
+// Log environment on startup
+const ENV = Constants.expoConfig?.extra?.environment || 'unknown';
+const MODE_ICON = IS_LOCAL ? '🔧' : '☁️';
+console.log('\n' + '='.repeat(50));
+console.log(`${MODE_ICON} ${IS_LOCAL ? 'LOCAL EMULATOR MODE' : 'PRODUCTION CLOUD MODE'}`);
+console.log('='.repeat(50));
+console.log(`Environment: ${ENV}`);
+console.log(`API Base: ${API_BASE}`);
+console.log('='.repeat(50) + '\n');
 
 export interface ApiError {
   code: string;
@@ -46,7 +57,7 @@ export class ApiService {
       const headers = await this.getAuthHeaders();
       const url = `${API_BASE}${endpoint}`;
 
-      logger.info(`[ApiService] ${options.method || 'GET'} ${endpoint}`);
+      logger.info(`[ApiService] ${options.method || 'GET'} ${url}`);
 
       // Create abort controller for timeout
       const controller = new AbortController();

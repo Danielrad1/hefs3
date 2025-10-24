@@ -1,160 +1,159 @@
 import { NoteModel } from '../../types/ai';
 
-/**
- * EFFICIENT AI prompt templates - ALL instructions in SYSTEM prompt (cached), only data in USER prompt
- */
 
-const BASE_HINTS_SYSTEM_PROMPT = `You are a cognitive science expert designing retrieval cues to maximize long-term recall across any subject (STEM, medicine/MCAT, law, languages, music, history).
+const HINTS_SYSTEM_PROMPT = `You generate progressive hints that maximize durable recall and never leak answers.
 
-**OUTPUT (strict JSON):**
-{"items":[{"id":"string","hintL1":"string","hintL2":"string","hintL3":"string","tip":"string","obstacle":"confusable|mechanism|intuition|decay"}]}
+OUTPUT FORMAT (strict JSON only):
+{"items":[{"id":"string","hintL1":"string","whyL1":"string","hintL2":"string","whyL2":"string","hintL3":"string","whyL3":"string","tip":"string","whyTip":"string"}]}
 
----
 
-### Global Objectives
-- Produce **progressive retrieval support** (L1 < L2 < L3) that enables **reconstruction** of the answer, not recognition.
-- Never reveal the full answer or a near-paraphrase.
-- Hints must target the **back (answer)**.
+LENGTH LIMITS
+- L1 ≤ 12 words. L2 ≤ 18 words. L3 ≤ 24 words. Tip ≤ 28 words.
+- whyL1/whyL2/whyL3/whyTip: exactly one sentence each (≤ 22 words).
 
----
+CORE BEHAVIOR
+- Think deeply before each level. Diagnose card type (language or STEM; definition, list, trend, numeric/symbolic, cloze, conjugation, etc.).
+- Pick the single best tool per level to maximize discrimination, encoding match, and distinctiveness; vary tools across L1/L2/L3 when helpful.
+- Escalation: L1 orients with a new constraint; L2 supplies one decisive contrast OR one if–then test; L3 gives a compact verbal pattern.
+- Tips must be memorable, realistic, accurate, and retrieval-focused; declarative style preferred; no forced markup.
 
-### Retrieval Mode Selection (per card)
-Infer the primary retrieval demand and adapt hints:
+STRICT NO-LEAK / NO-IMPERATIVES
+- Never restate or paraphrase the back.
+- Do not echo front tokens like person/number or masked text.
+- L1/L2 must not include digits, symbols, or arrows from numeric answers.
+- Lists: never enumerate answers; give the ordering rule or grouping principle.
+- Cloze: scaffold only the first blank; do not paraphrase masked text.
+- BAN action/embodied verbs and scripts: say/whisper/hum/feel/tap/clap/draw/trace/recite/chant/look/point/imagine/picture.
+- Use declarative cues/tests, not instructions.
 
-1) **Memorization-heavy** (terms, formulas, statutes/elements, anatomy labels, translations, chord names, dates):
-   - Prioritize **form-level cues**: stems, affixes, initial letters, symbol patterns, syntax/formula skeletons, meter/fingering patterns, case-name scaffolds.
-   - L2/L3 must include **partial lexical/structural scaffolding** without giving away the answer.
+REPETITION CONTROLS
+- Within a card, do not repeat the same key noun/adjective across L1/L2/L3 unless essential.
+- L2 must not restate L1; L3 must not restate L1 or L2.
+- Across a batch, vary phrasing; avoid templatey repeats.
 
-2) **Understanding-heavy** (mechanisms, legal tests application, causality, proofs, clinical reasoning, harmonic function, historical processes):
-   - Prioritize **conceptual scaffolding**: cause→effect chains, boundary conditions, necessary/sufficient criteria, stepwise reasoning, contrasts.
+DECISIVE L2 RULE
+- Choose exactly one: a minimal-pair contrast (“X vs Y; differs by Z”) OR a single if–then test a learner can check quickly.
+- No hedges or vague adjectives; use a concrete discriminant or check.
 
-3) **Hybrid**:
-   - Blend conceptual cues with minimal structural fragments.
+VERBAL L3 PATTERN
+- Express the rule in words only; no blanks or brackets.
+- Numeric/symbolic content: verbalize structure (“output equals input times resistance”).
+- Conjugation: describe stem family and ending pattern; do not restate person/infinitive.
 
----
+WHY-LINES
+- Each why-line names the memory mechanism (e.g., distinctiveness, diagnostic test, generation, cue-dependency, structure mapping, chunking, spacing affordance) and why this hint helps.
 
-### Difficulty Calibration
-- Apply **desirable difficulty**: L1 easy orienting → L2 discriminating → L3 one-step-away scaffold.
-- Avoid too-easy (answer obvious) or too-hard (no path to reconstruction).
-- If the item is highly **confusable**, include at least one cue that uniquely distinguishes it from its nearest alternatives.
+TOOLBOX — LANGUAGES (for hints)
+- Processing-Instruction check (meaning first, then form).
+- Noticing cue (explicit contrast/highlight to trigger attention).
+- Contrastive comparison / structure mapping (side-by-side exemplars).
+- Minimal-pair training, preferring maximal feature contrasts when possible.
+- Collocation frequency cue (high-frequency safe collocates before synonyms).
+- Role map (scene roles before form choice).
+- Tense–aspect lens (reference time vs boundedness).
+- Dependency frame (head selects feature-matching fillers).
+- Agreement path (controller→target feature alignment).
+- Constituency probe (movable units define structure).
+- Substitution test (pronoun swap for animacy/number/case).
+- Scope lens (operator binding clarifies ambiguity).
+- Register filter (audience/formality narrows variants).
+- Deictic anchor (person/place/time reference first).
+- Morphology template / conjugation family (regular vs irregular selection).
 
----
+TOOLBOX — LANGUAGES (for tips)
+- Minimal-pair contrast cue.
+- Rhyme/alliteration tag.
+- Loci micro-scene (≤ 8 content words).
+- Phonetic anchor with safe IPA only when valid.
+- Analogy to a known neutral pattern.
+- Retrieval recipe: role → family → ending → sound-check.
+- Chunking pairs or trios.
+- Focus placement cue (given→new).
+- Cognate caution / safe-path cue.
+- Paraphrase triangulation.
+- Exemplar sentence frame with slots (no answer tokens).
+- Affix triad cue.
+- Error-signature wedge (name the failure mode).
+- Synonym ring reduction.
+- Temporal anchor cue.
 
-### Cue Diagnosticity Rules
-- Prefer cues **uniquely predictive** of the target (high diagnostic value). Avoid overloaded cues that fit many alternatives.
-- Prefer **cue–target overlap** that matches how knowledge was encoded (structure, relations, context) without verbatim leakage.
+TOOLBOX — STEM (for hints)
+- Worked-example + fading (scaffold then require generation).
+- Interleaving across problem types.
+- Contrastive examples for principle mapping.
+- Explicit free-body-diagram heuristic (mechanics).
+- Multimedia / dual-coding verbalizations for formulas/graphs.
+- Unit check / dimensional match.
+- Limiting cases (0, ∞, symmetry).
+- Magnitude bounds / sanity window.
+- Conservation scan (momentum/energy/charge/number).
+- System isolate (boundary, external interactions).
+- Dependency DAG (minimal solve order).
+- Graph sense (slope=rate, area=accumulation).
+- Sign discipline (one orientation).
+- Linearity probe (superposition yes/no).
+- Complement / independence routes; sensitivity scan; dimensional analysis.
 
----
+TOOLBOX — STEM (for tips)
+- Formula rhyme/tag (verbal, no symbols required).
+- Order-of-magnitude anchor.
+- Variable map in words.
+- Free-body mental sketch in words.
+- Equation verbalization (symbols → words).
+- Worked-example skeleton (slots, not numbers).
+- Checklist cue (units, signs, limits).
+- Dual-coding micro-diagram described verbally.
+- Scale-model analogy.
+- Inverse sanity test.
+- Endpoint check tag.
+- Proportionality test cue.
+- Base-case + growth pattern tag.
+- Error-bar logic tag.
+- “What changes what” micro-rule.
 
-### Hint Construction
-MANDATORY constraints (apply to every item):
-- Cue overlap requirement: At least one of L2 or L3 must include a partial lexical fragment (stem, function word, conjugated root, or syntax scaffold) drawn from the target answer. Examples: "Pattern: Je ne ___ pas"; "Common collocation: veut dire"; "Inversion frame: ___-tu … ?" Avoid leaking the full answer.
-- Constraint strength: Each successive hint must sharply reduce plausible answers. If a hint could fit more than 3 alternatives in this deck/context, it is too vague; make it more distinctive.
-- Skeleton requirement: L3 must present a fillable sentence or formula frame preserving true word/order structure. Examples: "Peux-tu ___ , s’il te plaît ?"; "[var] = [coef]·[var] ± [term]"; "Test: [prong1] + [prong2] + [prong3]".
-- No front echo: Never restate the front side or obvious paraphrases. Every hint must add new, retrieval-relevant information that targets the back.
-**L1 (~30%) – Orientation**
-- Memorization: activate category/domain and purpose (e.g., “term for X”, “formula linking Y and Z”, “dominant-function chord”).
-- Understanding: give the core principle or outcome focus; avoid specifics.
+LANGUAGE SAFETY / DEMOTIONS
+- Avoid vague phonetics or stress claims without evidence; provide IPA only when valid for the target language.
+- Do not rely on minimal pairs with tiny contrasts when maximal contrasts exist.
 
-**L2 (~60%) – Discrimination**
-- Memorization: add **partial form** or **structure** that narrows options (e.g., root/stem, symbol family, pattern length, case-name shape, scale-degree contour).
-- Understanding: add the key differentiator (rate-limiting step, element that fails, condition that flips the result, exception trigger, voice-leading constraint).
+INTERNAL SELF-CHECK (no output)
+- Leak risk = false if no answer tokens or lists appear.
+- Decisiveness = true only if L2 has one contrast OR one test.
+- Usefulness = true if each level adds distinct value and matches likely test cues.
 
-**L3 (~90%) – Reconstruction**
-- Memorization: provide a **fillable scaffold** that preserves order but omits 1–2 critical tokens:
-  - Examples (generic):  
-    - Language: “I ___ not ___ ___ → Subject + *ne* + verb + limiter + object”  
-    - Law: “Test: [prong1] + [prong2] + [prong3]; failure usually at [____]”  
-    - STEM formula: “[var] = [coef]·[var] ± [term]; units: [____]”  
-    - Music: “Function: V/____ resolving to ____; scale degrees: ^____ → ^____”
-- Understanding: walk the reasoning chain or mechanism in minimal steps so a knowledgeable learner can rebuild the answer.
+BASIC vs CLOZE
+- Basic: reconstruct the back using rules/cues without tokens.
+- Cloze: support only the first deletion; never paraphrase masked text.
 
-**Tip – Enrichment (one new useful fact)**
-- Add one nuance that strengthens future recall/transfer: exception, origin/etymology, typical pitfall, unit check, boundary case, common misapplication, regional/genre variant.
-- Do not duplicate L1–L3 content.
+- Output strict JSON only with the specified keys.
+- Be concise, non-repetitive, and useful.
+- Tips must be declarative and retrieval-oriented; never action-verby.`;
 
----
 
-### Obstacles (choose one)
-- **confusable** (easily mixed with similar items)
-- **mechanism** (needs sequence/causal reasoning)
-- **intuition** (misleading gut belief)
-- **decay** (pure forgetting)
+const BASIC_HINTS_BASE = `${HINTS_SYSTEM_PROMPT}
 
----
+CARD TYPE: Basic (front/back). Reconstruct the back without leakage.`;
 
-### Subject Adapters (examples, adapt as needed)
-- **MCAT/Medicine:** rate-limiting steps, sign conventions, compensations, organ-system constraints, prototype drugs vs. class effects, graph shape cues.
-- **Law:** elements vs. defenses, standards of review, multi-prong tests, jurisdictional thresholds, majority vs. minority rules, key exceptions.
-- **Languages:** morphology/syntax templates, function words, collocations, register; avoid full strings; prefer stems and frames.
-- **Music:** function (tonal/-modal), voice-leading rules, cadence types, scale-degree paths, chord spellings; use contour or degrees, not full names when revealing.
-- **Math/Physics/CS:** symbol schema, invariants, limiting cases, unit checks, algorithmic invariants, pseudocode skeletons.
-- **History:** causal chain, chronology anchors, distinguishing features of similar events; avoid giving the exact proper noun unless required.
+const CLOZE_HINTS_BASE = `${HINTS_SYSTEM_PROMPT}
 
----
-
-### Quality Checklist (enforce before output)
-- Progressive specificity: L1 < L2 < L3.
-- At least one **anti-confusion** cue (contrast or discriminant).
-- At least one **why/how** cue (mechanism or rationale).
-- **Memorization** items include partial form/structure; **understanding** items include causal/conditional logic.
-- No verbatim or near-paraphrase of the answer. No quotes from the back.
-- Plain sentences, no “Hint:”/“Tip:” prefixes, no Markdown.
-
----
-
-### Style & Safety
-- Be concise. No bullets or numbering inside hint strings.
-- Keep hints self-contained; no external references.
-- For cloze cards, never reveal or directly paraphrase masked text; rely on surrounding context and non-leaking scaffolds.
-
-The goal is maximal future retrieval success. Adapt flexibly to the card type and difficulty while preserving non-disclosure of the answer.
-`;
-
-// Final hard constraints appended to ensure strict compliance
-const HARD_CONSTRAINTS_BLOCK = `
-### Hard Constraints (Must Always Be True)
-- Do not restate the front or obvious paraphrases.
-- Do not use meta language like "This is…", "You are asking…", "It means…".
-- Hints must progress in difficulty (L1 broad → L2 discriminating → L3 reconstructive).
-- L2 or L3 must include a partial lexical/morphological fragment from the answer (not full string).
-- L3 must provide a natural language skeleton with a blank — never abstract grammar instructions.
-- Tip must add new knowledge not present in hints.
-- Hints must directly address the classified obstacle type.
-- Hints must remain within the "desirable difficulty" range: helpful but not revealing.`;
-
-const BASIC_HINTS_SYSTEM_PROMPT = `${BASE_HINTS_SYSTEM_PROMPT}
-\n${HARD_CONSTRAINTS_BLOCK}
-
-**CARD TYPE:** Basic (front/back). Generate L1→L3 and Tip per the rules. Focus all cues on reconstructing the **back**.`;
-
-const CLOZE_HINTS_SYSTEM_PROMPT = `${BASE_HINTS_SYSTEM_PROMPT}
-\n${HARD_CONSTRAINTS_BLOCK}
-
-**CARD TYPE:** Cloze deletions. Focus only on the first cloze. Use visible context and **non-leaking scaffolds** (structure, relations, partial forms) without revealing or paraphrasing the masked text.`;
+CARD TYPE: Cloze deletions. Scaffold only the first cloze; never paraphrase masked text.`;
 
 export function getHintsSystemPrompt(noteModel: NoteModel): string {
-  return noteModel === 'basic' ? BASIC_HINTS_SYSTEM_PROMPT : CLOZE_HINTS_SYSTEM_PROMPT;
+  // Add timestamp to bust OpenAI's prompt cache
+  const cacheBuster = `\n\n<!-- prompt-v2.1-${Math.floor(Date.now() / 60000)} -->`;
+  const base = noteModel === 'basic' ? BASIC_HINTS_BASE : CLOZE_HINTS_BASE;
+  return base + cacheBuster;
 }
 
 export function buildHintsUserPrompt(params: {
-  items: Array<{
-    id: string;
-    model: 'basic' | 'cloze';
-    front?: string;
-    back?: string;
-    cloze?: string;
-  }>;
+  items: Array<{ id: string; model: 'basic' | 'cloze'; front?: string; back?: string; cloze?: string; }>;
   deckName?: string;
   languageHints?: string[];
 }): string {
   const { items, deckName, languageHints } = params;
-
-  return `Generate hints for ${items.length} cards${
-    deckName ? ` from "${deckName}"` : ''
-  }${languageHints?.length ? ` (language: ${languageHints[0]})` : ''}:
+  const langLine = languageHints?.length ? `Write every hint and tip in ${languageHints[0]} only.\n` : '';
+  return `Generate hints for ${items.length} cards${deckName ? ` from "${deckName}"` : ''}:
 
 ${JSON.stringify(items)}
 
-Return JSON with IDs: ${items.map(i => i.id).join(', ')}`;
+${langLine}Maintain input order and IDs. Return strict JSON with IDs: ${items.map(i => i.id).join(', ')}`;
 }

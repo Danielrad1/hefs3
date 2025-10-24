@@ -5,7 +5,7 @@
 
 export const AI_CONFIG = {
   // Default model to use for deck generation
-  defaultModel: 'gpt-5-nano-2025-08-07', // 400k tokens, $0.05/1M input
+  defaultModel: 'gpt-5-mini-2025-08-07',
   
   // Available models with their capabilities
   models: [
@@ -27,7 +27,7 @@ export const AI_CONFIG = {
       description: 'Fastest, most cost-efficient version of GPT-5. Great for summarization and classification.',
     },
     {
-      id: 'gpt-5-mini',
+      id: 'gpt-5-mini-2025-08-07',
       name: 'GPT-5 Mini',
       provider: 'OpenAI',
       capabilities: {

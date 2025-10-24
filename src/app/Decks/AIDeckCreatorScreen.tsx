@@ -178,19 +178,20 @@ export default function AIDeckCreatorScreen() {
     
     // Validation
     if (!prompt.trim() && !notesText.trim()) {
-      Alert.alert('Need Content', 'Describe what you want to learn or import your notes');
+      Alert.alert('Missing Input', 'Please enter either a prompt or paste your notes.');
       return;
     }
 
     const limit = parseInt(itemLimit) || 50;
 
-    // Check quota before generation (client-side)
-    if (!isPremiumEffective && usage) {
-      if (usage.deckGenerations >= usage.limits.deck) {
-        setShowPremiumModal(true);
-        return;
-      }
-    }
+    // TODO: MAJOR - RE-ENABLE QUOTA CHECK BEFORE PRODUCTION
+    // Temporarily disabled for testing
+    // if (!isPremiumEffective && usage) {
+    //   if (usage.deckGenerations >= usage.limits.decks) {
+    //     setShowPremiumModal(true);
+    //     return;
+    //   }
+    // }
 
     // Navigate to loading screen with handler
     navigation.navigate('AIGenerating' as any);
@@ -244,10 +245,12 @@ export default function AIDeckCreatorScreen() {
 
   const handleCountPress = (count: string) => {
     const countNum = parseInt(count);
-    if (!isPremiumEffective && countNum > 25) {
-      setShowPremiumModal(true);
-      return;
-    }
+    // TODO: MAJOR - RE-ENABLE PREMIUM CHECK BEFORE PRODUCTION
+    // Temporarily disabled for testing
+    // if (!isPremiumEffective && countNum > 25) {
+    //   setShowPremiumModal(true);
+    //   return;
+    // }
     setItemLimit(count);
   };
 
@@ -370,8 +373,11 @@ export default function AIDeckCreatorScreen() {
             </Text>
             <View style={styles.countOptions}>
               {['25', '50', '75', '100'].map((count) => {
-                const countNum = parseInt(count);
-                const isLocked = !isPremiumEffective && countNum > 25;
+                // TODO: MAJOR - RE-ENABLE LOCK BADGE BEFORE PRODUCTION
+                // Temporarily disabled for testing
+                // const countNum = parseInt(count);
+                // const isLocked = !isPremiumEffective && countNum > 25;
+                const isLocked = false;
                 return (
                   <Pressable
                     key={count}
@@ -413,14 +419,17 @@ export default function AIDeckCreatorScreen() {
                   { 
                     backgroundColor: !['25', '50', '75', '100'].includes(itemLimit) ? theme.colors.overlay.primary : theme.colors.surface2,
                     borderColor: !['25', '50', '75', '100'].includes(itemLimit) ? theme.colors.primary : theme.colors.border,
-                    opacity: !isPremiumEffective ? 0.5 : 1,
+                    // TODO: MAJOR - RE-ENABLE OPACITY LOCK BEFORE PRODUCTION
+                    // opacity: !isPremiumEffective ? 0.5 : 1,
                   },
                 ]}
                 onPress={() => {
-                  if (!isPremiumEffective) {
-                    setShowPremiumModal(true);
-                    return;
-                  }
+                  // TODO: MAJOR - RE-ENABLE PREMIUM CHECK BEFORE PRODUCTION
+                  // Temporarily disabled for testing
+                  // if (!isPremiumEffective) {
+                  //   setShowPremiumModal(true);
+                  //   return;
+                  // }
                   Alert.prompt(
                     'Custom Amount',
                     'Enter number of cards (max 150)',
@@ -444,11 +453,12 @@ export default function AIDeckCreatorScreen() {
                   );
                 }}
               >
-                {!isPremiumEffective && (
+                {/* TODO: MAJOR - RE-ENABLE PRO BADGE BEFORE PRODUCTION */}
+                {/* {!isPremiumEffective && (
                   <View style={[styles.proBadge, { backgroundColor: theme.colors.warning }]}>
                     <Text style={styles.proBadgeText}>PRO</Text>
                   </View>
-                )}
+                )} */}
                 <Text style={[
                   styles.countText,
                   { color: !['25', '50', '75', '100'].includes(itemLimit) ? theme.colors.primary : theme.colors.textHigh }

@@ -125,7 +125,6 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
   };
 
   const allCards = db.getCardsByDeck(deckId);
-  const estimatedTime = Math.ceil(allCards.length / 50);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
@@ -193,12 +192,12 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
           </View>
         </View>
 
-        {/* Deck Info */}
+        {/* Deck Info (time estimate removed) */}
         <View style={[styles.deckInfoCard, { backgroundColor: theme.colors.surface }]}>
           <View style={styles.deckInfoRow}>
             <Ionicons name="layers-outline" size={20} color={theme.colors.textSecondary} />
             <Text style={[styles.deckInfoText, { color: theme.colors.textSecondary }]}>
-              {allCards.length} cards • ~{estimatedTime}min to generate
+              {allCards.length} cards
             </Text>
           </View>
         </View>

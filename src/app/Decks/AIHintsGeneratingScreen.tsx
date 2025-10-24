@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Alert, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { StackActions } from '@react-navigation/native';
 import { useTheme } from '../../design/theme';
 import { usePremium } from '../../context/PremiumContext';
 import { s } from '../../design/spacing';
@@ -120,6 +121,17 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
     ).start();
   }, []);
 
+  const closeAiHintsFlow = useCallback(() => {
+    const state = navigation.getState?.();
+    const popCount = state ? Math.min(2, state.index + 1) : 1;
+
+    if (popCount > 0) {
+      navigation.dispatch(StackActions.pop(popCount));
+    } else if (navigation.canGoBack?.()) {
+      navigation.goBack();
+    }
+  }, [navigation]);
+
   const generateHints = useCallback(async () => {
     // Prevent multiple simultaneous executions
     if (isGenerating) {
@@ -191,9 +203,18 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
 
       setStatus('Saving hints...');
 
+      // Log full hint objects
+      logger.info('[AIHintsGenerating] ===== FULL HINT OBJECTS =====');
+      logger.info(`Total hints received: ${hints.length}`);
+      hints.forEach((hint, idx) => {
+        logger.info(`\n[Hint ${idx + 1}/${hints.length}] COMPLETE JSON:`);
+        console.log(JSON.stringify(hint, null, 2));
+      });
+      logger.info('[AIHintsGenerating] ===== END FULL HINTS =====\n');
+
       // Convert results to CardHint format and save
-      logger.info('[AIHintsGenerating] ===== GENERATED HINTS =====');
-      const hintsToSave = hints.map(result => {
+      logger.info('[AIHintsGenerating] ===== SAVING TO DATABASE =====');
+      const hintsToSave = hints.map((result, idx) => {
         const inputItem = items.find(i => i.id === result.id);
         const contentHash = CardHintsService.generateContentHash({
           front: inputItem?.front,
@@ -201,19 +222,16 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
           cloze: inputItem?.cloze,
         });
 
-        // Log each card with its hints
-        logger.info(`\n[Card ${result.id}]`);
-        logger.info('Front:', inputItem?.front?.substring(0, 100) + (inputItem?.front && inputItem.front.length > 100 ? '...' : ''));
-        logger.info('Back:', inputItem?.back?.substring(0, 100) + (inputItem?.back && inputItem.back.length > 100 ? '...' : ''));
-        if (inputItem?.cloze) {
-          logger.info('Cloze:', inputItem.cloze.substring(0, 100) + (inputItem.cloze.length > 100 ? '...' : ''));
+        // Log summary for each card
+        logger.info(`\n[${idx + 1}/${hints.length}] Card ${result.id}:`);
+        logger.info('  Front:', inputItem?.front?.substring(0, 80));
+        logger.info('  💡 L1:', result.hintL1);
+        logger.info('  💡 L2:', result.hintL2);
+        logger.info('  💡 L3:', result.hintL3);
+        logger.info('  ✨ Tip:', result.tip);
+        if (result.metadata) {
+          logger.info('  📊 Metadata:', JSON.stringify(result.metadata, null, 2));
         }
-        logger.info('🎯 Obstacle:', result.obstacle || 'not specified');
-        logger.info('💡 Hint L1:', result.hintL1);
-        logger.info('💡 Hint L2:', result.hintL2);
-        logger.info('💡 Hint L3:', result.hintL3);
-        logger.info('✨ Tip:', result.tip);
-        logger.info('---');
 
         return {
           cardId: result.id,
@@ -240,18 +258,15 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       // Increment usage after successful generation
       await incrementUsage('hints');
 
-      setStatus('Complete!');
+      setStatus('Hints ready!');
       setGeneratedCount(hints.length);
       setIsGenerating(false);
-
-      // Close the generation screen and go back to deck detail
-      setTimeout(() => {
-        navigation.goBack();
-      }, 500);
+      setShowSuccessModal(true);
     } catch (error) {
       logger.error('[AIHintsGenerating] Generation failed:', error);
       setStatus('Generation failed. Please try again.');
       setIsGenerating(false);
+      setShowSuccessModal(false);
       
       // Show alert immediately and go back
       Alert.alert(
@@ -418,24 +433,21 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       <HintsSuccessModal
         visible={showSuccessModal}
         cardsWithHints={generatedCount}
+        deckName={deckName}
         onStudyNow={() => {
           setShowSuccessModal(false);
           // Set the active deck and navigate to Study tab
           setDeck(deckId);
-          // Go back to deck detail first
-          navigation.goBack();
-          // Then navigate to Study tab
+          const parent = navigation.getParent?.();
+          closeAiHintsFlow();
+          // Then navigate to Study tab once stack finishes closing
           setTimeout(() => {
-            const parent = navigation.getParent();
-            if (parent) {
-              parent.navigate('Study' as never);
-            }
+            parent?.navigate('Study' as never);
           }, 100);
         }}
         onClose={() => {
           setShowSuccessModal(false);
-          // Navigate back to deck detail
-          navigation.replace('DeckDetail', { deckId });
+          closeAiHintsFlow();
         }}
       />
     </SafeAreaView>

@@ -244,7 +244,7 @@ export class OpenAIProvider implements AIProvider {
     noteModel: 'basic' | 'cloze',
     options?: any // Accept all HintsOptions
   ): Promise<HintsOutputItem[]> {
-    const BATCH_SIZE = 10;
+    const BATCH_SIZE = 25;
     const batches: Array<typeof items> = [];
     
     // Split into batches of 10
@@ -309,6 +309,10 @@ export class OpenAIProvider implements AIProvider {
       languageHints: options?.languageHints,
     });
 
+    logger.warn('[OpenAIProvider] ========== HINTS GENERATION DIAGNOSTICS ==========');
+    logger.warn(`[OpenAIProvider] Model being used: ${this.model}`);
+    logger.warn(`[OpenAIProvider] System prompt first 200 chars: ${systemPrompt.substring(0, 200)}`);
+    logger.warn('[OpenAIProvider] ========================================');
     logger.debug('[OpenAIProvider] Hints system prompt length:', systemPrompt.length);
     logger.debug('[OpenAIProvider] Hints user prompt length:', userPrompt.length);
     logger.debug('[OpenAIProvider] ===== SYSTEM PROMPT =====');
@@ -350,12 +354,15 @@ export class OpenAIProvider implements AIProvider {
           const outputCost = (usage.completion_tokens / 1_000_000) * modelConfig.pricing.outputPer1M;
           const totalCost = inputCost + outputCost;
           
-          logger.info('[OpenAIProvider] Hints token usage:', {
-            input: usage.prompt_tokens,
-            output: usage.completion_tokens,
-            total: usage.total_tokens,
-            cost: `$${totalCost.toFixed(6)}`,
-          });
+          logger.warn('[OpenAIProvider] ========== HINTS TOKEN USAGE & COST ==========');
+          logger.warn(`[OpenAIProvider] Model: ${modelConfig.name} (${this.model})`);
+          logger.warn(`[OpenAIProvider] Input tokens: ${usage.prompt_tokens.toLocaleString()}`);
+          logger.warn(`[OpenAIProvider] Output tokens: ${usage.completion_tokens.toLocaleString()}`);
+          logger.warn(`[OpenAIProvider] Total tokens: ${usage.total_tokens.toLocaleString()}`);
+          logger.warn(`[OpenAIProvider] Input cost: $${inputCost.toFixed(6)}`);
+          logger.warn(`[OpenAIProvider] Output cost: $${outputCost.toFixed(6)}`);
+          logger.warn(`[OpenAIProvider] TOTAL COST: $${totalCost.toFixed(6)}`);
+          logger.warn('[OpenAIProvider] ========================================');
         }
       }
 
@@ -405,12 +412,17 @@ export class OpenAIProvider implements AIProvider {
         continue;
       }
 
-      // Extract all 3 hint levels (HTML formatted)
+      // Extract all hint levels and why explanations
       const hintL1 = String(item.hintL1 || '').trim();
       const hintL2 = String(item.hintL2 || '').trim();
       const hintL3 = String(item.hintL3 || '').trim();
       const tip = String(item.tip || '').trim();
-      const obstacle = item.obstacle || 'mechanism'; // Default to mechanism if not provided
+      
+      // Extract why fields (optional)
+      const whyL1 = item.whyL1 ? String(item.whyL1).trim() : undefined;
+      const whyL2 = item.whyL2 ? String(item.whyL2).trim() : undefined;
+      const whyL3 = item.whyL3 ? String(item.whyL3).trim() : undefined;
+      const whyTip = item.whyTip ? String(item.whyTip).trim() : undefined;
 
       // Log warnings but accept all items
       if (!hintL1 || !hintL2 || !hintL3) {
@@ -419,7 +431,6 @@ export class OpenAIProvider implements AIProvider {
           hasL2: !!hintL2,
           hasL3: !!hintL3,
           hasTip: !!tip,
-          obstacle,
           hasError: !!item.error,
           errorMessage: item.error,
           rawItem: JSON.stringify(item).substring(0, 200),
@@ -452,7 +463,11 @@ export class OpenAIProvider implements AIProvider {
         hintL2,
         hintL3,
         tip,
-        obstacle,
+        whyL1,
+        whyL2,
+        whyL3,
+        whyTip,
+        obstacle: item.obstacle,
         metadata: item.metadata,
       });
     }

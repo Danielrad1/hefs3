@@ -100,6 +100,11 @@ export interface HintsOutputItem {
   hintL2: string; // Constraint - add relational cue (HTML)
   hintL3: string; // Partial-info - more scaffolding (HTML, last resort)
   tip: string;    // Post-reveal elaboration (HTML formatted)
+  // Why explanations (memory mechanics rationale)
+  whyL1?: string; // Why L1 helps (one sentence)
+  whyL2?: string; // Why L2 helps (one sentence)
+  whyL3?: string; // Why L3 helps (one sentence)
+  whyTip?: string; // Why tip helps (one sentence)
   obstacle?: 'confusable' | 'mechanism' | 'intuition' | 'decay'; // Diagnosed retrieval obstacle
   // Optional metadata for debugging/analysis
   metadata?: {
