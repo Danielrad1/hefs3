@@ -47,7 +47,7 @@ function SettingItem({ icon, title, subtitle, onPress, rightElement, showChevron
   
   return (
     <Pressable style={[styles.settingItem, { backgroundColor: theme.colors.surface2 }]} onPress={onPress} disabled={!onPress}>
-      <View style={[styles.iconContainer, { backgroundColor: '#9CA3AF' }]}>
+      <View style={[styles.iconContainer, { backgroundColor: theme.colors.accent }]}>
         <Ionicons name={icon} size={22} color="#FFFFFF" />
       </View>
       <View style={styles.settingContent}>

@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   modal: {
     width: '100%',
     maxWidth: 500,
-    maxHeight: '85%',
+    maxHeight: '80%',
     borderRadius: r.xl,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -184,12 +184,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   content: {
-    maxHeight: '70%',
+    flexShrink: 1,
   },
   contentContainer: {
     padding: s.xl,
     paddingTop: s.xl + 20,
-    paddingBottom: s.md,
+    paddingBottom: s.lg,
   },
   heroIcon: {
     width: 100,
@@ -269,8 +269,9 @@ const styles = StyleSheet.create({
     paddingTop: 3,
   },
   footer: {
-    padding: s.xl,
+    paddingHorizontal: s.xl,
     paddingTop: s.lg,
+    paddingBottom: s.lg,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },

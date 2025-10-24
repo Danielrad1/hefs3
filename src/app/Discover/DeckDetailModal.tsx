@@ -48,7 +48,7 @@ export function DeckDetailModal({
   const deckTheme = useMemo(() => buildDeckTheme(deck), [deck.id]);
   const glyphs = useMemo(() => getDeckGlyphs(deck), [deck.id]);
   const difficultyColor = deck.difficulty === 'beginner' ? '#10B981' : deck.difficulty === 'intermediate' ? '#F59E0B' : '#EF4444';
-  const sizeInMB = (deck.size / 1024 / 1024).toFixed(1);
+  const sizeInMB = deck.size ? (deck.size / 1024 / 1024).toFixed(1) : '0.0';
 
   // Memoize the hero section to prevent gradient re-renders during progress updates
   const heroSection = useMemo(() => (
@@ -135,11 +135,13 @@ export function DeckDetailModal({
                 <Text style={[styles.detailLabel, { color: theme.colors.textTertiary }]}>Language</Text>
                 <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>{deck.language}</Text>
               </View>
-              <View style={[styles.detailCard, { backgroundColor: theme.colors.bg }]}>
-                <Ionicons name="download" size={24} color={theme.colors.accent} />
-                <Text style={[styles.detailLabel, { color: theme.colors.textTertiary }]}>Size</Text>
-                <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>{sizeInMB} MB</Text>
-              </View>
+              {deck.size && (
+                <View style={[styles.detailCard, { backgroundColor: theme.colors.bg }]}>
+                  <Ionicons name="document" size={24} color={theme.colors.accent} />
+                  <Text style={[styles.detailLabel, { color: theme.colors.textTertiary }]}>Size</Text>
+                  <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>{sizeInMB} MB</Text>
+                </View>
+              )}
             </View>
 
             {/* Tags */}
