@@ -7,13 +7,11 @@ const IS_LOCAL = Constants.expoConfig?.extra?.isLocal === true;
 
 // Log environment on startup
 const ENV = Constants.expoConfig?.extra?.environment || 'unknown';
-const MODE_ICON = IS_LOCAL ? '🔧' : '☁️';
-console.log('\n' + '='.repeat(50));
-console.log(`${MODE_ICON} ${IS_LOCAL ? 'LOCAL EMULATOR MODE' : 'PRODUCTION CLOUD MODE'}`);
-console.log('='.repeat(50));
-console.log(`Environment: ${ENV}`);
-console.log(`API Base: ${API_BASE}`);
-console.log('='.repeat(50) + '\n');
+logger.info('[ApiService] Initialized', {
+  environment: ENV,
+  mode: IS_LOCAL ? 'LOCAL_EMULATOR' : 'PRODUCTION_CLOUD',
+  apiBase: API_BASE,
+});
 
 export interface ApiError {
   code: string;

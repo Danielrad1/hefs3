@@ -38,6 +38,7 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState<string | null>(null);
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleEmailSignIn = async () => {
     if (!email || !password) {
@@ -212,19 +213,33 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
                   autoFocus
                 />
                 
-                <TextInput
-                  style={[styles.input, { 
-                    backgroundColor: theme.colors.surface,
-                    color: theme.colors.textPrimary,
-                    borderColor: theme.colors.border,
-                  }]}
-                  placeholder="Password (min 6 characters)"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  editable={loading === null}
-                />
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.passwordInput, { 
+                      backgroundColor: theme.colors.surface,
+                      color: theme.colors.textPrimary,
+                      borderColor: theme.colors.border,
+                    }]}
+                    placeholder="Password (min 6 characters)"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    textContentType="oneTimeCode"
+                    autoComplete="off"
+                    editable={loading === null}
+                  />
+                  <Pressable 
+                    style={styles.eyeButton}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons 
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
+                      size={20} 
+                      color={theme.colors.textTertiary} 
+                    />
+                  </Pressable>
+                </View>
 
                 <Pressable
                   style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
@@ -421,6 +436,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1.5,
     minHeight: 56,
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingHorizontal: s.lg,
+    paddingVertical: s.lg,
+    paddingRight: 48,
+    borderRadius: r.lg,
+    fontSize: 16,
+    borderWidth: 1.5,
+    minHeight: 56,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: s.md,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    paddingHorizontal: s.sm,
   },
   primaryButton: {
     paddingVertical: s.lg,

@@ -1,8 +1,25 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { Platform } from 'react-native';
 import { useAuth } from './AuthContext';
 import { logger } from '../utils/logger';
 import { auth } from '../config/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+
+// Lazy import to avoid initializing native module at import time
+let Purchases: any = null;
+let CustomerInfo: any = null;
+let PurchasesOfferings: any = null;
+let PurchasesPackage: any = null;
+
+if (Platform.OS === 'ios') {
+  try {
+    const PurchasesModule = require('react-native-purchases');
+    Purchases = PurchasesModule.default || PurchasesModule;
+  } catch (err) {
+    logger.warn('[Premium] Failed to load react-native-purchases module:', err);
+  }
+}
 
 export interface UsageData {
   monthKey: string;
@@ -19,7 +36,10 @@ export interface PremiumContextType {
   usage: UsageData | null;
   loading: boolean;
   error: string | null;
+  offerings: any | null;
+  monthlyPackage: any | null;
   subscribe: () => Promise<void>;
+  restore: () => Promise<void>;
   refreshEntitlements: () => Promise<void>;
   fetchUsage: () => Promise<void>;
   incrementUsage: (kind: 'deck' | 'hints') => Promise<void>;
@@ -45,14 +65,18 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rcInitialized, setRcInitialized] = useState(false);
+  const [offerings, setOfferings] = useState<any | null>(null);
+  const [monthlyPackage, setMonthlyPackage] = useState<any | null>(null);
 
   /**
-   * Check premium status from Firebase custom claims
+   * Check premium status from Firebase custom claims and optionally RC entitlements
    */
   const checkPremiumStatus = useCallback(async () => {
     try {
       if (!user) {
         setIsPremiumEffective(false);
+        setUsage(null);
         return;
       }
 
@@ -64,15 +88,38 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       }
 
       const tokenResult = await currentUser.getIdTokenResult();
-      const isPremium = tokenResult.claims.premium === true;
+      const isPremiumFromClaim = tokenResult.claims.premium === true;
       
-      logger.debug(`[Premium] User premium status: ${isPremium}`);
+      // Optional: Check RC entitlement for immediate unlock if enabled
+      const enableFallback = Constants.expoConfig?.extra?.enableRcEntitlementFallback === true;
+      let isPremiumFromRC = false;
+      
+      if (enableFallback && rcInitialized) {
+        try {
+          const customerInfo = await Purchases.getCustomerInfo();
+          
+          // Check for 'Pro' entitlement (case-sensitive!)
+          isPremiumFromRC = customerInfo.entitlements.active['Pro'] !== undefined;
+          logger.debug(`[Premium] RC entitlement 'Pro' active: ${isPremiumFromRC}`);
+        } catch (rcErr) {
+          logger.warn('[Premium] Could not check RC entitlement:', rcErr);
+        }
+      }
+      
+      const isPremium = isPremiumFromClaim || (enableFallback && isPremiumFromRC);
+      
+      logger.debug('[Premium] Status check complete', {
+        claim: isPremiumFromClaim,
+        rc: isPremiumFromRC,
+        fallbackEnabled: enableFallback,
+        effective: isPremium
+      });
       setIsPremiumEffective(isPremium);
     } catch (err) {
       logger.error('[Premium] Error checking premium status:', err);
       setError(err instanceof Error ? err.message : 'Failed to check premium status');
     }
-  }, [user]);
+  }, [user, rcInitialized]);
 
   /**
    * Fetch usage data from local storage (client-side tracking)
@@ -115,14 +162,25 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     } catch (err) {
       logger.error('[Premium] Error fetching usage:', err);
       // Don't set error - just use default values
+      const limits = isPremiumEffective ? { deck: 999999, hints: 999999 } : { deck: 3, hints: 1 };
       setUsage({
         monthKey: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
         deckGenerations: 0,
         hintGenerations: 0,
-        limits: { deck: 3, hints: 1 },
+        limits,
       });
     }
-  }, [user]);
+  }, [user, isPremiumEffective]);
+
+  /**
+   * Update limits when premium status changes
+   */
+  useEffect(() => {
+    if (usage) {
+      const newLimits = isPremiumEffective ? { deck: 999999, hints: 999999 } : { deck: 3, hints: 1 };
+      setUsage({ ...usage, limits: newLimits });
+    }
+  }, [isPremiumEffective]);
 
   /**
    * Increment usage count for a specific feature
@@ -142,11 +200,12 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       if (stored) {
         data = JSON.parse(stored);
       } else {
+        const limits = isPremiumEffective ? { deck: 999999, hints: 999999 } : { deck: 3, hints: 1 };
         data = {
           monthKey,
           deckGenerations: 0,
           hintGenerations: 0,
-          limits: { deck: 3, hints: 1 },
+          limits,
         };
       }
       
@@ -169,11 +228,117 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   }, [user]);
 
   /**
+   * Initialize RevenueCat SDK on mount
+   */
+  useEffect(() => {
+    const initializeRC = async () => {
+      try {
+        // Only initialize on iOS
+        if (Platform.OS !== 'ios') {
+          logger.info('[Premium] RevenueCat only available on iOS, skipping initialization');
+          return;
+        }
+
+        const rcPublicKey = Constants.expoConfig?.extra?.rcPublicKey;
+        const enableIAP = Constants.expoConfig?.extra?.enableIAP !== false;
+        
+        if (!enableIAP) {
+          logger.info('[Premium] IAP disabled via feature flag');
+          return;
+        }
+        
+        if (!rcPublicKey) {
+          logger.warn('[Premium] RC public key not found in config');
+          return;
+        }
+
+        // Check if Purchases module is available
+        if (!Purchases || typeof Purchases.configure !== 'function') {
+          logger.error('[Premium] Purchases module not available - native module may not be linked');
+          return;
+        }
+
+        const enableFallback = Constants.expoConfig?.extra?.enableRcEntitlementFallback === true;
+        
+        logger.info('[Premium] Initializing RevenueCat SDK', {
+          environment: Constants.expoConfig?.extra?.environment,
+          enableEntitlementFallback: enableFallback,
+        });
+        
+        Purchases.configure({ apiKey: rcPublicKey });
+        
+        // Add customer info listener for entitlement changes
+        Purchases.addCustomerInfoUpdateListener((info: any) => {
+          logger.debug('[Premium] Customer info updated', {
+            hasProEntitlement: info.entitlements.active['Pro'] !== undefined,
+          });
+          // Re-check premium status when entitlements change
+          checkPremiumStatus();
+        });
+        
+        setRcInitialized(true);
+        logger.info('[Premium] RevenueCat initialized successfully');
+      } catch (err) {
+        logger.error('[Premium] Failed to initialize RevenueCat:', err);
+        logger.error('[Premium] This is expected if running on Android or if native module failed to link');
+      }
+    };
+
+    // Small delay to ensure native modules are ready
+    const timer = setTimeout(initializeRC, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  /**
+   * Handle auth state changes - map Firebase UID to RC app_user_id
+   */
+  useEffect(() => {
+    const syncRCUser = async () => {
+      if (!rcInitialized) return;
+      
+      try {
+        if (user?.uid) {
+          logger.info('[Premium] Logging in to RevenueCat', { uid: user.uid });
+          await Purchases.logIn(user.uid);
+          
+          // Fetch offerings after login
+          const newOfferings = await Purchases.getOfferings();
+          setOfferings(newOfferings);
+          
+          // Select monthly package
+          const currentOffering = newOfferings.current || newOfferings.all['default'];
+          if (currentOffering) {
+            const monthly = currentOffering.availablePackages.find(
+              (pkg: any) => pkg.packageType === 'MONTHLY'
+            );
+            setMonthlyPackage(monthly || null);
+            if (monthly) {
+              logger.debug('[Premium] Monthly package found', {
+                identifier: monthly.identifier,
+              });
+            }
+          }
+        } else {
+          logger.info('[Premium] Logging out from RevenueCat');
+          await Purchases.logOut();
+          setOfferings(null);
+          setMonthlyPackage(null);
+        }
+      } catch (err) {
+        logger.error('[Premium] Error syncing RC user:', err);
+      }
+    };
+
+    syncRCUser();
+  }, [user, rcInitialized]);
+
+  /**
    * Initialize premium state on mount and when user changes
    */
   useEffect(() => {
     const initialize = async () => {
       setLoading(true);
+      setError(null);
       await Promise.all([
         checkPremiumStatus(),
         fetchUsage(),
@@ -212,22 +377,64 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   }, [checkPremiumStatus, fetchUsage]);
 
   /**
-   * Open paywall and handle subscription
-   * Note: This is a placeholder. Actual implementation requires RevenueCat SDK
-   * Install: npx expo install react-native-purchases
+   * Handle subscription purchase
    */
   const subscribe = useCallback(async () => {
     try {
-      // TODO: Implement RevenueCat integration
-      // 1. Initialize Purchases SDK
-      // 2. Fetch offerings
-      // 3. Present paywall modal
-      // 4. On successful purchase, call refreshEntitlements()
+      if (!monthlyPackage) {
+        throw new Error('Monthly package not available. Please try again later.');
+      }
+
+      logger.info('[Premium] Starting purchase flow');
       
-      logger.warn('[Premium] Subscribe not yet implemented - requires RevenueCat SDK');
-      throw new Error('Subscription feature coming soon. Please check back later.');
+      // Execute purchase
+      const { customerInfo } = await Purchases.purchasePackage(monthlyPackage);
+      
+      logger.info('[Premium] Purchase successful', {
+        hasProEntitlement: customerInfo.entitlements.active['pro'] !== undefined,
+      });
+      
+      // Force token refresh to get updated custom claims
+      await auth().currentUser?.getIdToken(true);
+      
+      // Refresh entitlements
+      await refreshEntitlements();
+      
+      logger.info('[Premium] Purchase complete, entitlements refreshed');
+    } catch (err: any) {
+      // Check if user cancelled
+      if (err?.userCancelled) {
+        logger.info('[Premium] Purchase cancelled by user');
+        throw new Error('cancelled');
+      }
+      
+      logger.error('[Premium] Purchase error:', err);
+      throw err;
+    }
+  }, [monthlyPackage, refreshEntitlements]);
+
+  /**
+   * Restore previous purchases
+   */
+  const restore = useCallback(async () => {
+    try {
+      logger.info('[Premium] Starting restore');
+      
+      const customerInfo = await Purchases.restorePurchases();
+      
+      logger.info('[Premium] Restore successful', {
+        hasProEntitlement: customerInfo.entitlements.active['pro'] !== undefined,
+      });
+      
+      // Force token refresh to get updated custom claims
+      await auth().currentUser?.getIdToken(true);
+      
+      // Refresh entitlements
+      await refreshEntitlements();
+      
+      logger.info('[Premium] Restore complete, entitlements refreshed');
     } catch (err) {
-      logger.error('[Premium] Subscribe error:', err);
+      logger.error('[Premium] Restore error:', err);
       throw err;
     }
   }, [refreshEntitlements]);
@@ -237,7 +444,10 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     usage,
     loading,
     error,
+    offerings,
+    monthlyPackage,
     subscribe,
+    restore,
     refreshEntitlements,
     fetchUsage,
     incrementUsage,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,11 +22,11 @@ const THEME_OPTIONS = [
 ];
 
 const COLOR_SCHEMES = [
-  { id: 'sunset', name: 'Sunset', colors: ['#8B5CF6', '#F59E0B', '#FB7185'], gradient: ['#6366F1', '#8B5CF6'], icon: 'partly-sunny' as const },
-  { id: 'ocean', name: 'Ocean', colors: ['#6366F1', '#06B6D4', '#14B8A6'], gradient: ['#3B82F6', '#6366F1'], icon: 'water' as const },
-  { id: 'forest', name: 'Forest', colors: ['#8B5CF6', '#10B981', '#84CC16'], gradient: ['#10B981', '#8B5CF6'], icon: 'leaf' as const },
-  { id: 'neon', name: 'Neon', colors: ['#A855F7', '#22D3EE', '#F0ABFC'], gradient: ['#EC4899', '#A855F7'], icon: 'flash' as const },
-  { id: 'royal', name: 'Royal', colors: ['#7C3AED', '#F59E0B', '#4F46E5'], gradient: ['#4F46E5', '#7C3AED'], icon: 'diamond' as const },
+  { id: 'sunset', name: 'Sunset', colors: ['#8B5CF6', '#F59E0B', '#FB7185'], gradient: ['#6366F1', '#8B5CF6'] as const, icon: 'partly-sunny' as const },
+  { id: 'ocean', name: 'Ocean', colors: ['#6366F1', '#06B6D4', '#14B8A6'], gradient: ['#3B82F6', '#6366F1'] as const, icon: 'water' as const },
+  { id: 'forest', name: 'Forest', colors: ['#8B5CF6', '#10B981', '#84CC16'], gradient: ['#10B981', '#8B5CF6'] as const, icon: 'leaf' as const },
+  { id: 'neon', name: 'Neon', colors: ['#A855F7', '#22D3EE', '#F0ABFC'], gradient: ['#EC4899', '#A855F7'] as const, icon: 'flash' as const },
+  { id: 'royal', name: 'Royal', colors: ['#7C3AED', '#F59E0B', '#4F46E5'], gradient: ['#4F46E5', '#7C3AED'] as const, icon: 'diamond' as const },
 ];
 
 export default function ThemeStep({ onNext, onBack }: ThemeStepProps) {
@@ -34,6 +34,12 @@ export default function ThemeStep({ onNext, onBack }: ThemeStepProps) {
   const { setThemePreference, setColorScheme } = useThemeActions();
   const [selectedMode, setSelectedMode] = useState<ThemeMode>('dark');
   const [selectedScheme, setSelectedScheme] = useState('sunset');
+
+  // Apply default theme on mount
+  useEffect(() => {
+    setThemePreference('dark');
+    setColorScheme('sunset');
+  }, []);
 
   const handleModeSelect = (mode: ThemeMode) => {
     setSelectedMode(mode);
@@ -95,7 +101,7 @@ export default function ThemeStep({ onNext, onBack }: ThemeStepProps) {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Color Palette</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>
+          <View style={styles.colorScroll}>
             {COLOR_SCHEMES.map((scheme) => {
               const isSelected = selectedScheme === scheme.id;
               return (
@@ -119,7 +125,7 @@ export default function ThemeStep({ onNext, onBack }: ThemeStepProps) {
                 </Pressable>
               );
             })}
-          </ScrollView>
+          </View>
         </View>
       </ScrollView>
 
@@ -143,7 +149,7 @@ const styles = StyleSheet.create({
   modeOptions: { flexDirection: 'row', gap: s.md },
   modeCard: { flex: 1, alignItems: 'center', padding: s.lg, borderRadius: r.lg, borderWidth: 2, gap: s.sm },
   modeLabel: { fontSize: 16, fontWeight: '700' },
-  colorScroll: { gap: s.md, paddingRight: s.xl },
+  colorScroll: { flexDirection: 'row', gap: s.md, flexWrap: 'wrap' },
   colorCard: { width: 140, borderRadius: r.lg, borderWidth: 2, overflow: 'hidden' },
   colorGradient: { height: 80, justifyContent: 'center', alignItems: 'center' },
   colorSwatches: { flexDirection: 'row', height: 32 },

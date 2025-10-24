@@ -33,20 +33,32 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
 
   const handleGenerate = async () => {
     try {
-      // TODO: MAJOR - RE-ENABLE QUOTA CHECK BEFORE PRODUCTION
-      // Temporarily disabled for testing
-      // if (!isPremiumEffective && usage) {
-      //   if (usage.hintGenerations >= usage.limits.hints) {
-      //     setShowPremiumModal(true);
-      //     return;
-      //   }
-      // }
+      // Check quota before generating
+      if (!isPremiumEffective && usage) {
+        if (usage.hintGenerations >= usage.limits.hints) {
+          setShowPremiumModal(true);
+          return;
+        }
+      }
 
       // Get all cards from the deck
       let cards = db.getCardsByDeck(deckId);
 
       if (cards.length === 0) {
         Alert.alert('No Cards', 'This deck has no cards.');
+        return;
+      }
+
+      // Limit free users to 250 cards for hint generation
+      if (!isPremiumEffective && cards.length > 250) {
+        Alert.alert(
+          'Upgrade to Premium',
+          `Free users can generate hints for up to 250 cards. This deck has ${cards.length} cards.\n\nUpgrade to Premium for unlimited hint generation.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Upgrade', onPress: () => setShowPremiumModal(true) },
+          ]
+        );
         return;
       }
 

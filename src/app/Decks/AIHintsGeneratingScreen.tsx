@@ -203,35 +203,16 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
 
       setStatus('Saving hints...');
 
-      // Log full hint objects
-      logger.info('[AIHintsGenerating] ===== FULL HINT OBJECTS =====');
-      logger.info(`Total hints received: ${hints.length}`);
-      hints.forEach((hint, idx) => {
-        logger.info(`\n[Hint ${idx + 1}/${hints.length}] COMPLETE JSON:`);
-        console.log(JSON.stringify(hint, null, 2));
+      logger.info('[AIHintsGenerating] Saving hints to database', {
+        totalHints: hints.length,
       });
-      logger.info('[AIHintsGenerating] ===== END FULL HINTS =====\n');
-
-      // Convert results to CardHint format and save
-      logger.info('[AIHintsGenerating] ===== SAVING TO DATABASE =====');
-      const hintsToSave = hints.map((result, idx) => {
+      const hintsToSave = hints.map((result) => {
         const inputItem = items.find(i => i.id === result.id);
         const contentHash = CardHintsService.generateContentHash({
           front: inputItem?.front,
           back: inputItem?.back,
           cloze: inputItem?.cloze,
         });
-
-        // Log summary for each card
-        logger.info(`\n[${idx + 1}/${hints.length}] Card ${result.id}:`);
-        logger.info('  Front:', inputItem?.front?.substring(0, 80));
-        logger.info('  💡 L1:', result.hintL1);
-        logger.info('  💡 L2:', result.hintL2);
-        logger.info('  💡 L3:', result.hintL3);
-        logger.info('  ✨ Tip:', result.tip);
-        if (result.metadata) {
-          logger.info('  📊 Metadata:', JSON.stringify(result.metadata, null, 2));
-        }
 
         return {
           cardId: result.id,
@@ -248,7 +229,6 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
           contentHash,
         };
       });
-      logger.info('[AIHintsGenerating] ===== END HINTS =====');
 
       await cardHintsService.setMany(deckId, hintsToSave);
       

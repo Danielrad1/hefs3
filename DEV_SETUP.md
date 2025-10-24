@@ -101,6 +101,60 @@ npx expo start --clear
 
 ---
 
+## RevenueCat / In-App Purchases Setup
+
+### Environment Variables
+
+The following environment variables are already configured in `.env.development` and `.env.production`:
+
+```bash
+# RevenueCat Configuration
+RC_PUBLIC_API_KEY=appl_JdSKlqnGFOiUZaoHzucezqYPafn
+ENABLE_IAP=true
+ENABLE_RC_ENTITLEMENT_FALLBACK=false
+```
+
+- `RC_PUBLIC_API_KEY`: RevenueCat public SDK key (safe to commit)
+- `ENABLE_IAP`: Toggle to disable IAP features for testing
+- `ENABLE_RC_ENTITLEMENT_FALLBACK`: Allow instant unlock using RC entitlements before webhook/claim sync
+
+### Firebase Functions Secret
+
+Set the webhook token as a Firebase secret (do this once):
+
+```bash
+cd firebase
+firebase functions:secrets:set REVENUECAT_WEBHOOK_TOKEN
+# When prompted, enter: 21cc8a9df63b0cca356aba0a07c3994456111e078b949d7adacbdf0902b824ed
+```
+
+### Native Rebuild Required
+
+Because RevenueCat uses native modules, you must rebuild the dev client after installing:
+
+```bash
+# iOS
+npx expo run:ios
+
+# Or use the rebuild script
+./rebuild-ios.sh
+```
+
+### Testing Purchases
+
+1. **Sandbox Testing**: Use iOS sandbox Apple ID
+2. **Sandbox renewals expire quickly** (compressed schedule)
+3. **Test restore**: Settings → Account → Restore Purchases
+4. **Check logs** for `[Premium]` and `[RevenueCat]` entries
+
+### Webhook Configuration
+
+- **URL**: `https://us-central1-enqode-6b13f.cloudfunctions.net/api/iap/revenuecat/webhook`
+- **Auth**: Bearer token (set via Firebase secret above)
+- **Events**: The webhook handles all subscription lifecycle events
+
+---
+
 ## File Reference
 
 | File | Purpose |
@@ -109,6 +163,8 @@ npx expo start --clear
 | `.env.production` | Production builds only |
 | `firebase/START_EMULATOR.sh` | Starts local backend |
 | `firebase/STOP_EMULATOR.sh` | Stops local backend |
+| `src/context/PremiumContext.tsx` | RevenueCat SDK initialization & purchase flow |
+| `firebase/functions/src/handlers/revenuecat.ts` | Webhook handler for subscription events |
 
 ---
 
@@ -117,4 +173,5 @@ npx expo start --clear
 ✅ **Backend:** Auto-detects emulator, bypasses auth  
 ✅ **Frontend:** Reads from `.env.development`  
 ✅ **Default mode:** Local emulator  
-✅ **One-line switch:** Comment/uncomment in `.env.development`
+✅ **One-line switch:** Comment/uncomment in `.env.development`  
+✅ **IAP:** RevenueCat integrated with iOS monthly subscriptions

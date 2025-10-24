@@ -95,7 +95,7 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const theme = useTheme();
   const { user, signOut } = useAuth();
-  const { isPremiumEffective, usage, subscribe } = usePremium();
+  const { isPremiumEffective, usage, subscribe, restore } = usePremium();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [dailyReminder, setDailyReminder] = useState(false);
   const [dailyGoal, setDailyGoal] = useState(15);
@@ -106,6 +106,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [tempDisplayName, setTempDisplayName] = useState('');
   const [tempGoal, setTempGoal] = useState('15');
+  const [restoring, setRestoring] = useState(false);
 
   useEffect(() => { loadSettings(); }, [user]);
 
@@ -203,6 +204,19 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
+  const handleRestorePurchases = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setRestoring(true);
+    try {
+      await restore();
+      Alert.alert('Success', 'Your purchases have been restored!');
+    } catch (error) {
+      Alert.alert('Restore Failed', error instanceof Error ? error.message : 'Could not restore purchases. Please try again.');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   const handleSignOut = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -247,19 +261,38 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               </View>
               <View style={styles.premiumFooter}>
                 <Ionicons name="checkmark-circle" size={16} color="rgba(255, 255, 255, 0.9)" />
-                <Text style={styles.premiumFooterText}>3-day free trial • Cancel anytime</Text>
+                <Text style={styles.premiumFooterText}>$9.99/month • Cancel anytime</Text>
               </View>
             </LinearGradient>
           </Pressable>
         )}
 
         {isPremiumEffective && (
-          <View style={[styles.premiumActiveBanner, { backgroundColor: theme.colors.surface2, borderColor: theme.colors.success }]}>
-            <View style={styles.premiumActiveContent}>
-              <Ionicons name="checkmark-circle" size={32} color={theme.colors.success} />
+          <View style={[styles.premiumActiveBanner, { backgroundColor: theme.colors.success + '15', borderColor: theme.colors.success }]}>
+            <View style={styles.premiumActiveHeader}>
+              <View style={[styles.premiumActiveIcon, { backgroundColor: theme.colors.success }]}>
+                <Ionicons name="star" size={24} color="#FFFFFF" />
+              </View>
               <View style={styles.premiumActiveText}>
                 <Text style={[styles.premiumActiveTitle, { color: theme.colors.textHigh }]}>Premium Active</Text>
-                <Text style={[styles.premiumActiveSubtitle, { color: theme.colors.textMed }]}>You have full access to all features</Text>
+                <Text style={[styles.premiumActiveSubtitle, { color: theme.colors.textMed }]}>All features unlocked</Text>
+              </View>
+              <View style={[styles.premiumCheckBadge, { backgroundColor: theme.colors.success }]}>
+                <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+              </View>
+            </View>
+            <View style={styles.premiumFeaturesList}>
+              <View style={styles.premiumFeatureItem}>
+                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
+                <Text style={[styles.premiumFeatureText, { color: theme.colors.textMed }]}>Unlimited AI generations</Text>
+              </View>
+              <View style={styles.premiumFeatureItem}>
+                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
+                <Text style={[styles.premiumFeatureText, { color: theme.colors.textMed }]}>Advanced statistics</Text>
+              </View>
+              <View style={styles.premiumFeatureItem}>
+                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
+                <Text style={[styles.premiumFeatureText, { color: theme.colors.textMed }]}>All premium themes</Text>
               </View>
             </View>
           </View>
@@ -342,6 +375,14 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         <View style={styles.section}>
           {user && !user.isAnonymous && (
             <SettingItem icon="person-circle" title={user.email || 'Account'} subtitle={user.emailVerified ? 'Verified' : 'Not verified'} showChevron={false} />
+          )}
+          {Platform.OS === 'ios' && (
+            <SettingItem 
+              icon="refresh" 
+              title="Restore Purchases" 
+              subtitle={restoring ? 'Restoring...' : 'Restore previous subscriptions'} 
+              onPress={handleRestorePurchases} 
+            />
           )}
           {user && !user.isAnonymous && (
             <SettingItem icon="log-out" title="Sign Out" subtitle="Sign out of your account" onPress={handleSignOut} />
@@ -484,11 +525,17 @@ const styles = StyleSheet.create({
   modalButtonText: { fontSize: 16, fontWeight: '600' },
   themeOption: { flexDirection: 'row', alignItems: 'center', gap: s.md, padding: s.lg, borderRadius: r.md, borderWidth: 2, marginBottom: s.sm },
   themeOptionText: { fontSize: 16, fontWeight: '600', flex: 1 },
-  premiumActiveBanner: { marginBottom: s.xl, borderRadius: r.lg, borderWidth: 2, padding: s.lg },
+  premiumActiveBanner: { marginBottom: s.xl, borderRadius: r.xl, borderWidth: 2, padding: s.lg },
+  premiumActiveHeader: { flexDirection: 'row', alignItems: 'center', gap: s.md, marginBottom: s.md },
+  premiumActiveIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   premiumActiveContent: { flexDirection: 'row', alignItems: 'center', gap: s.md },
   premiumActiveText: { flex: 1 },
   premiumActiveTitle: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
   premiumActiveSubtitle: { fontSize: 14, fontWeight: '500' },
+  premiumCheckBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  premiumFeaturesList: { gap: s.xs },
+  premiumFeatureItem: { flexDirection: 'row', alignItems: 'center', gap: s.sm },
+  premiumFeatureText: { fontSize: 13, fontWeight: '500' },
   usageBanner: { marginBottom: s.xl, borderRadius: r.lg, padding: s.lg },
   usageTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, marginBottom: s.md },
   usageRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: s.sm },

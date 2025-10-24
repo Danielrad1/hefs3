@@ -19,11 +19,12 @@ type Props = {
 export default function PremiumUpsellModal({ visible, onClose, onRestore, context }: Props) {
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [showLegalModal, setShowLegalModal] = useState(false);
   const [legalContent, setLegalContent] = useState<'terms' | 'privacy' | null>(null);
-  const [plan, setPlan] = useState<'monthly' | 'yearly'>('monthly');
+  const [plan] = useState<'monthly'>('monthly');
   const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'terms'>(null);
-  const { usage, subscribe } = usePremium();
+  const { usage, subscribe, restore, monthlyPackage } = usePremium();
   const haptics = useHaptics();
 
   useEffect(() => {
@@ -39,11 +40,27 @@ export default function PremiumUpsellModal({ visible, onClose, onRestore, contex
       await subscribe();
       haptics.success();
       onClose();
-    } catch (error) {
-      // Error handling is done in the parent
-      haptics.warning();
+    } catch (error: any) {
+      // Don't show error UI for user cancellation
+      if (error?.message !== 'cancelled') {
+        haptics.warning();
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setRestoring(true);
+    try {
+      logger.info('[Paywall] restore_tap');
+      await restore();
+      haptics.success();
+      onClose();
+    } catch (error) {
+      haptics.warning();
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -52,12 +69,6 @@ export default function PremiumUpsellModal({ visible, onClose, onRestore, contex
     onClose();
   };
 
-  const handlePlanChange = (next: 'monthly' | 'yearly') => {
-    if (plan === next) return;
-    setPlan(next);
-    haptics.selection();
-    logger.info('[Paywall] plan_select', { plan: next });
-  };
 
   const usageBanner = useMemo(() => {
     if (!usage) return null;
@@ -157,59 +168,19 @@ export default function PremiumUpsellModal({ visible, onClose, onRestore, contex
               </View>
             </View>
 
-            {/* Plan Toggle */}
-            <View style={styles.toggleWrap}>
-              <Pressable
-                onPress={() => setPlan('yearly')}
-                style={[
-                  styles.planToggle,
-                  {
-                    backgroundColor: plan === 'yearly' ? theme.colors.accent : theme.colors.surface2,
-                    borderColor: plan === 'yearly' ? theme.colors.accent : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={[styles.toggleText, { color: plan === 'yearly' ? '#000' : theme.colors.textPrimary }]}>Yearly</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setPlan('monthly')}
-                style={[
-                  styles.planToggle,
-                  {
-                    backgroundColor: plan === 'monthly' ? theme.colors.accent : theme.colors.surface2,
-                    borderColor: plan === 'monthly' ? theme.colors.accent : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={[styles.toggleText, { color: plan === 'monthly' ? '#000' : theme.colors.textPrimary }]}>Monthly</Text>
-              </Pressable>
-            </View>
-
             {/* Pricing */}
             <View style={[styles.pricingBox, { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.border }]}>
-              {plan === 'yearly' ? (
+              {monthlyPackage ? (
                 <>
-                  <View style={styles.priceRow}>
-                    <Text style={[styles.price, { color: theme.colors.textPrimary }]}>
-                      $69.99<Text style={styles.priceMonth}>/year</Text>
-                    </Text>
-                    <View style={[styles.savingsPill, { backgroundColor: theme.colors.success, shadowColor: theme.colors.success, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 }]}>
-                      <Text style={[styles.savingsText, { color: '#000' }]}>Save 42%</Text>
-                    </View>
-                  </View>
+                  <Text style={[styles.price, { color: theme.colors.textPrimary }]}>
+                    {monthlyPackage.product.priceString}<Text style={styles.priceMonth}>/month</Text>
+                  </Text>
                   <Text style={[styles.trial, { color: theme.colors.textMed }]}>
-                    3-day free trial • Cancel anytime
+                    Cancel anytime
                   </Text>
                 </>
               ) : (
-                <>
-                  <Text style={[styles.price, { color: theme.colors.textPrimary }]}>
-                    $9.99<Text style={styles.priceMonth}>/month</Text>
-                  </Text>
-                  <Text style={[styles.trial, { color: theme.colors.textMed }]}>
-                    3-day free trial • Cancel anytime
-                  </Text>
-                </>
+                <ActivityIndicator color={theme.colors.primary} />
               )}
             </View>
 
@@ -223,8 +194,10 @@ export default function PremiumUpsellModal({ visible, onClose, onRestore, contex
                 <Text style={[styles.legalLink, { color: theme.colors.textLow }]}>Privacy</Text>
               </Pressable>
               <Text style={[styles.legalDot, { color: theme.colors.textLow }]}>•</Text>
-              <Pressable onPress={onRestore} accessibilityRole="button">
-                <Text style={[styles.legalLink, { color: theme.colors.textLow }]}>Restore</Text>
+              <Pressable onPress={handleRestore} accessibilityRole="button" disabled={restoring}>
+                <Text style={[styles.legalLink, { color: theme.colors.textLow }]}>
+                  {restoring ? 'Restoring...' : 'Restore'}
+                </Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -234,20 +207,20 @@ export default function PremiumUpsellModal({ visible, onClose, onRestore, contex
             <Pressable 
               onPress={handleSubscribe} 
               accessibilityRole="button"
-              style={[styles.subscribeBtn, { backgroundColor: theme.colors.primary }]}
-              disabled={loading}
+              style={[styles.subscribeBtn, { backgroundColor: theme.colors.primary, opacity: loading || !monthlyPackage ? 0.6 : 1 }]}
+              disabled={loading || !monthlyPackage}
             >
               {loading ? (
                 <ActivityIndicator color={theme.colors.onPrimary} />
               ) : (
                 <>
                   <Ionicons name="sparkles" size={20} color={theme.colors.onPrimary} />
-                  <Text style={[styles.subscribeBtnText, { color: theme.colors.onPrimary }]}>Start Free Trial</Text>
+                  <Text style={[styles.subscribeBtnText, { color: theme.colors.onPrimary }]}>Subscribe Now</Text>
                 </>
               )}
             </Pressable>
             <Text style={[styles.ctaSubtext, { color: theme.colors.textLow }]}>
-              {plan === 'yearly' ? 'Then $59.99/year' : 'Then $9.99/month'} • Cancel anytime • Secure billing
+              {monthlyPackage ? `${monthlyPackage.product.priceString}/month • ` : ''}Cancel anytime • Secure billing
             </Text>
           </View>
           {!!legalOpen && (
@@ -454,52 +427,6 @@ const styles = StyleSheet.create({
     marginBottom: s.lg,
     letterSpacing: -0.6,
   },
-  toggleWrap: {
-    flexDirection: 'row',
-    gap: s.sm,
-    marginBottom: s.lg,
-  },
-  planToggle: {
-    flex: 1,
-    paddingVertical: s.md,
-    paddingHorizontal: s.lg,
-    borderRadius: r.lg,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  planToggleContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s.xs,
-    marginBottom: s.md,
-    paddingHorizontal: s.xl,
-  },
-  toggleItem: {
-    flex: 1,
-    paddingVertical: s.sm,
-    borderRadius: r.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: s.xs,
-  },
-  toggleText: {
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  savingsPill: {
-    paddingHorizontal: s.xs,
-    paddingVertical: 2,
-    borderRadius: r.md,
-  },
-  savingsText: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
   extrasSection: {
     marginBottom: s.xl,
   },
@@ -523,12 +450,6 @@ const styles = StyleSheet.create({
     marginBottom: s.lg,
     borderWidth: 1,
     borderColor: 'transparent',
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s.sm,
-    marginBottom: s.xs,
   },
   price: {
     fontSize: 42,

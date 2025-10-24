@@ -18,6 +18,7 @@ import { logger } from './utils/logger';
 
 // Define secrets
 const openaiApiKey = defineSecret('OPENAI_API_KEY');
+const revenuecatWebhookToken = defineSecret('REVENUECAT_WEBHOOK_TOKEN');
 
 // Initialize Firebase Admin
 initializeApp();
@@ -90,7 +91,7 @@ export const api = onRequest(
     timeoutSeconds: 600, // 10 minutes for AI generation
     memory: '512MiB',
     region: 'us-central1',
-    secrets: [openaiApiKey], // Make OPENAI_API_KEY available as process.env
+    secrets: [openaiApiKey, revenuecatWebhookToken], // Make secrets available as process.env
   },
   app
 );

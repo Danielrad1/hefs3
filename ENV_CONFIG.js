@@ -8,7 +8,7 @@
  * - 'cloud' = Use production cloud (real environment)
  */
 
-const CURRENT_MODE = 'local'; // <-- CHANGE THIS TO 'cloud' FOR PRODUCTION
+const CURRENT_MODE = 'cloud'; // <-- CHANGE THIS TO 'cloud' FOR PRODUCTION
 
 /**
  * ============================================

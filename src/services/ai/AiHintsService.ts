@@ -51,24 +51,9 @@ export class AiHintsService {
 
       const response = await ApiService.post<GenerateHintsResponse>('/ai/hints/generate', request);
       
-      logger.info('[AiHintsService] ✅ Generation complete:', {
-        requested: valid.length,
-        received: response.items.length,
-      });
-
-      // Log full JSON payload for debugging
-      logger.info('[AiHintsService] 📦 FULL JSON RESPONSE:');
-      console.log(JSON.stringify(response, null, 2));
-
       const allResults = response.items;
 
-      // Log first hint in detail to show structure
-      if (allResults.length > 0) {
-        logger.info('[AiHintsService] 🔍 SAMPLE HINT (first item):');
-        console.log(JSON.stringify(allResults[0], null, 2));
-      }
-
-      logger.info('[AiHintsService] ✅ All hints generated:', {
+      logger.info('[AiHintsService] Generation complete:', {
         totalRequested: items.length,
         validProcessed: valid.length,
         hintsGenerated: allResults.length,

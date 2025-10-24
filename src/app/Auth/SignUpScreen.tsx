@@ -43,6 +43,8 @@ export default function SignUpScreen({ onBack, onSignIn }: SignUpScreenProps) {
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleEmailSignUp = async () => {
     // Clear previous errors
@@ -230,41 +232,69 @@ export default function SignUpScreen({ onBack, onSignIn }: SignUpScreenProps) {
               </View>
               
               <View>
-                <TextInput
-                  style={[styles.input, { 
-                    backgroundColor: theme.colors.surface,
-                    color: theme.colors.textPrimary,
-                    borderColor: passwordError ? '#FF6B6B' : theme.colors.border,
-                  }]}
-                  placeholder="Password (min 6 characters)"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    setPasswordError(null);
-                  }}
-                  secureTextEntry
-                  editable={loading === null}
-                />
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.passwordInput, { 
+                      backgroundColor: theme.colors.surface,
+                      color: theme.colors.textPrimary,
+                      borderColor: passwordError ? '#FF6B6B' : theme.colors.border,
+                    }]}
+                    placeholder="Password (min 6 characters)"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      setPasswordError(null);
+                    }}
+                    secureTextEntry={!showPassword}
+                    textContentType="oneTimeCode"
+                    autoComplete="off"
+                    editable={loading === null}
+                  />
+                  <Pressable 
+                    style={styles.eyeButton}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons 
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
+                      size={20} 
+                      color={theme.colors.textTertiary} 
+                    />
+                  </Pressable>
+                </View>
               </View>
 
               <View>
-                <TextInput
-                  style={[styles.input, { 
-                    backgroundColor: theme.colors.surface,
-                    color: theme.colors.textPrimary,
-                    borderColor: passwordError ? '#FF6B6B' : theme.colors.border,
-                  }]}
-                  placeholder="Confirm password"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={confirmPassword}
-                  onChangeText={(text) => {
-                    setConfirmPassword(text);
-                    setPasswordError(null);
-                  }}
-                  secureTextEntry
-                  editable={loading === null}
-                />
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.passwordInput, { 
+                      backgroundColor: theme.colors.surface,
+                      color: theme.colors.textPrimary,
+                      borderColor: passwordError ? '#FF6B6B' : theme.colors.border,
+                    }]}
+                    placeholder="Confirm password"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={confirmPassword}
+                    onChangeText={(text) => {
+                      setConfirmPassword(text);
+                      setPasswordError(null);
+                    }}
+                    secureTextEntry={!showConfirmPassword}
+                    textContentType="oneTimeCode"
+                    autoComplete="off"
+                    editable={loading === null}
+                  />
+                  <Pressable 
+                    style={styles.eyeButton}
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    <Ionicons 
+                      name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} 
+                      size={20} 
+                      color={theme.colors.textTertiary} 
+                    />
+                  </Pressable>
+                </View>
                 {passwordError && (
                   <Text style={[styles.errorText, { color: '#FF6B6B' }]}>
                     {passwordError}
@@ -450,6 +480,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1.5,
     minHeight: 56,
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingHorizontal: s.lg,
+    paddingVertical: s.lg,
+    paddingRight: 48,
+    borderRadius: r.lg,
+    fontSize: 16,
+    borderWidth: 1.5,
+    minHeight: 56,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: s.md,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    paddingHorizontal: s.sm,
   },
   errorText: {
     fontSize: 12,
