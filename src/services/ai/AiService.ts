@@ -17,6 +17,14 @@ export class AiService {
       return response;
     } catch (error) {
       logger.error('[AiService] Generate deck failed:', error);
+      
+      // Provide user-friendly error message
+      if (error instanceof Error) {
+        if (error.message.includes('internal_error')) {
+          throw new Error('AI service is temporarily unavailable. Please try again in a moment.');
+        }
+      }
+      
       throw error;
     }
   }

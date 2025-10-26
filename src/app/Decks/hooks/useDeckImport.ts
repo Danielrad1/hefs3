@@ -87,7 +87,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
       logger.error('[DeckImport] Import error:', error);
       setImporting(false);
       setImportProgress('');
-      Alert.alert('Import Failed', error.message || 'Failed to import deck');
+      Alert.alert('Import Failed', 'Unable to import deck. Please try again.');
     }
   };
 
@@ -272,8 +272,8 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         } catch (rollbackError) {
           logger.error('[DeckImport] Rollback failed:', rollbackError);
           Alert.alert(
-            'Rollback Failed',
-            'Could not restore database to previous state. Please restart the app.',
+            'Import Error',
+            'Please restart the app to continue.',
             [{ text: 'OK' }]
           );
         }
@@ -281,8 +281,8 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         return; // Silent return, user cancelled
       }
       
-      // Provide user-friendly error messages
-      let errorMessage = 'Unknown error occurred';
+      // Provide graceful user-friendly error messages without technical details
+      let errorMessage = 'Unable to import deck. Please try again.';
       if (error instanceof Error) {
         if (
           error.message.includes('String length') ||
@@ -290,16 +290,15 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
           error.message.toLowerCase().includes('too large') ||
           error.message.includes('memory limits')
         ) {
-          errorMessage = 'File is too large for this device to process. The file exceeds available memory. Try importing on a device with more RAM, or split the deck into smaller files.';
+          errorMessage = 'This deck is too large to import on your device. Try splitting it into smaller decks.';
         } else if (error.message.includes('No collection file found')) {
-          errorMessage = 'Invalid Anki deck file. The selected file does not contain a valid Anki collection.';
+          errorMessage = 'This file doesn\'t appear to be a valid Anki deck. Please check the file and try again.';
         } else if (error.message.includes('Failed to read file')) {
-          errorMessage = 'Could not read the selected file. Please make sure the file is not corrupted and try again.';
+          errorMessage = 'Unable to read the file. Please try selecting it again.';
         } else if (error.message.includes('HTTP') || error.message.includes('fetch')) {
-          errorMessage = 'Could not access the file. Please try selecting the file again or restart the app.';
-        } else {
-          errorMessage = error.message;
+          errorMessage = 'Unable to access the file. Please try again.';
         }
+        // Don't expose technical error messages to users
       }
       
       Alert.alert(

@@ -46,7 +46,14 @@ export async function authenticate(
     const token = authHeader.split('Bearer ')[1];
     const decodedToken = await getAuth().verifyIdToken(token);
     
-    (req as AuthenticatedRequest).user = decodedToken as DecodedToken;
+    // Extract custom claims (including premium status)
+    const user: DecodedToken = {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      premium: decodedToken.premium === true, // Custom claim
+    } as DecodedToken;
+    
+    (req as AuthenticatedRequest).user = user;
     next();
   } catch (error) {
     logger.error('[Auth] Token verification failed:', error);

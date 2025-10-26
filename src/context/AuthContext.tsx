@@ -142,16 +142,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
     } catch (error) {
+      // Log full error details for debugging
       logger.error('[Auth] Apple sign-in error:', error);
+      logger.error('[Auth] Error type:', error instanceof Error ? error.constructor.name : typeof error);
+      logger.error('[Auth] Error message:', error instanceof Error ? error.message : String(error));
+      logger.error('[Auth] Error code:', (error as any)?.code);
+      logger.error('[Auth] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       
       if (isUserCancellation(error)) {
         // User cancelled - don't throw error
+        logger.info('[Auth] User cancelled Apple sign-in');
         return;
       }
       
       const friendlyMessage = mapAuthError(error);
       const enhancedError = new Error(friendlyMessage);
       (enhancedError as any).code = (error as any)?.code;
+      (enhancedError as any).originalError = error;
       throw enhancedError;
     }
   };

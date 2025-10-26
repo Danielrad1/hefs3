@@ -11,6 +11,7 @@ import {
   Platform,
   Dimensions,
   Image,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,7 +51,7 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
       setLoading('email');
       await signInWithEmail(email, password);
     } catch (error: any) {
-      Alert.alert('Sign In Failed', error.message || 'Could not sign in');
+      Alert.alert('Sign In Failed', 'Unable to sign in. Please check your credentials and try again.');
     } finally {
       setLoading(null);
     }
@@ -62,7 +63,8 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
       await signInWithApple();
     } catch (error: any) {
       if (!isUserCancellation(error)) {
-        Alert.alert('Sign In Failed', error.message || 'Could not sign in with Apple');
+        const message = error?.message || 'Unable to sign in with Apple. Please try again.';
+        Alert.alert('Sign In Failed', message);
       }
     } finally {
       setLoading(null);
@@ -75,7 +77,7 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
       await signInWithGoogle();
     } catch (error: any) {
       if (!isUserCancellation(error)) {
-        Alert.alert('Sign In Failed', error.message || 'Could not sign in with Google');
+        Alert.alert('Sign In Failed', 'Unable to sign in with Google. Please try again.');
       }
     } finally {
       setLoading(null);
@@ -84,18 +86,25 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable style={styles.backButton} onPress={onBack}>
+          <Ionicons name="arrow-back" size={28} color={theme.colors.textPrimary} />
+        </Pressable>
+      </View>
+      
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Ionicons name="arrow-back" size={28} color={theme.colors.textPrimary} />
-          </Pressable>
-        </View>
-
-        <View style={styles.content}>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
           {/* Logo & Title */}
           <Animated.View entering={FadeInUp.delay(100)} style={styles.titleSection}>
             <View style={styles.logoContainer}>
@@ -271,6 +280,8 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
             )}
           </View>
 
+          </View>
+          
           {/* Switch to Sign Up */}
           <Pressable style={styles.switchButton} onPress={onSignUp}>
             <Text style={[styles.switchButtonText, { color: theme.colors.textSecondary }]}>
@@ -280,7 +291,7 @@ export default function SignInScreen({ onBack, onSignUp }: SignInScreenProps) {
               </Text>
             </Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -293,6 +304,12 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   header: {
     paddingHorizontal: s.lg,
     paddingTop: s.md,
@@ -304,17 +321,17 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: s.xl,
-    paddingBottom: s.xl,
-    justifyContent: 'space-between',
+    paddingTop: s.lg,
+    paddingBottom: s.md,
   },
   titleSection: {
-    paddingTop: s.xl,
     gap: s.sm,
     alignItems: 'center',
+    marginBottom: s.xl,
   },
   logoContainer: {
-    width: 80,
-    height: 80,
+    width: 140,
+    height: 140,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: s.md,
@@ -333,11 +350,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   authContainer: {
-    flex: 1,
-    justifyContent: 'center',
     maxWidth: 400,
     width: '100%',
     alignSelf: 'center',
+    marginBottom: s.xl,
   },
   providerButtons: {
     gap: s.lg,
@@ -476,6 +492,7 @@ const styles = StyleSheet.create({
   },
   switchButton: {
     paddingVertical: s.lg,
+    paddingBottom: s.xl,
     alignItems: 'center',
   },
   switchButtonText: {

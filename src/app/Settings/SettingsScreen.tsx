@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Modal, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Modal, TextInput, Platform, Image } from 'react-native';
 import Animated, { FadeIn, FadeOut, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Slider from '@react-native-community/slider';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -294,22 +294,53 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
         {!isPremiumEffective && (
           <Pressable onPress={handleSubscription} style={styles.premiumBanner}>
-            <LinearGradient colors={['#6366F1', '#8B5CF6', '#D946EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumGradient}>
-              <View style={styles.premiumContent}>
-                <View style={styles.premiumIcon}>
-                  <Ionicons name="star" size={32} color="#FFD700" />
+            <LinearGradient 
+              colors={['#7C3AED', '#9333EA', '#A855F7']} 
+              start={{ x: 0, y: 0 }} 
+              end={{ x: 1, y: 1 }} 
+              style={styles.premiumGradient}
+            >
+              <View style={styles.premiumHeader}>
+                <View style={styles.premiumLogoContainer}>
+                  <Image 
+                    source={require('../../../assets/enqode_main_transparent.png')}
+                    style={styles.premiumLogo}
+                    resizeMode="contain"
+                  />
                 </View>
-                <View style={styles.premiumText}>
+                <View style={styles.premiumHeaderText}>
                   <Text style={styles.premiumTitle}>Upgrade to Pro</Text>
-                  <Text style={styles.premiumSubtitle}>Unlimited AI • Advanced stats • All themes</Text>
-                </View>
-                <View style={styles.premiumBadge}>
-                  <Text style={styles.premiumBadgeText}>Premium</Text>
+                  <Text style={styles.premiumSubtitle}>Unlock your full potential</Text>
                 </View>
               </View>
-              <View style={styles.premiumFooter}>
-                <Ionicons name="checkmark-circle" size={16} color="rgba(255, 255, 255, 0.9)" />
-                <Text style={styles.premiumFooterText}>$9.99/month • Cancel anytime</Text>
+              
+              <View style={styles.premiumFeatures}>
+                <View style={styles.premiumFeature}>
+                  <View style={styles.premiumFeatureIcon}>
+                    <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.premiumFeatureText}>Unlimited AI generations</Text>
+                </View>
+                <View style={styles.premiumFeature}>
+                  <View style={styles.premiumFeatureIcon}>
+                    <Ionicons name="stats-chart" size={18} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.premiumFeatureText}>Advanced analytics</Text>
+                </View>
+                <View style={styles.premiumFeature}>
+                  <View style={styles.premiumFeatureIcon}>
+                    <Ionicons name="color-palette" size={18} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.premiumFeatureText}>All premium themes</Text>
+                </View>
+              </View>
+              
+              <View style={styles.premiumCTA}>
+                <View style={styles.premiumCTAButton}>
+                  <Text style={styles.premiumCTAText}>Get Started</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#7C3AED" />
+                </View>
+                <Text style={styles.premiumCancelText}>Cancel anytime</Text>
               </View>
             </LinearGradient>
           </Pressable>
@@ -592,17 +623,110 @@ const styles = StyleSheet.create({
   content: { padding: s.lg, paddingBottom: s.xl * 2 },
   header: { marginBottom: s.lg },
   title: { fontSize: 32, fontWeight: '700' },
-  premiumBanner: { marginBottom: s.xl, borderRadius: r.xl, overflow: 'hidden' },
-  premiumGradient: { padding: s.lg },
-  premiumContent: { flexDirection: 'row', alignItems: 'center', marginBottom: s.md },
-  premiumIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255, 255, 255, 0.2)', justifyContent: 'center', alignItems: 'center' },
-  premiumText: { flex: 1, marginLeft: s.md },
-  premiumTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
-  premiumSubtitle: { fontSize: 13, fontWeight: '500', color: 'rgba(255, 255, 255, 0.9)' },
-  premiumBadge: { backgroundColor: 'rgba(255, 215, 0, 0.3)', paddingHorizontal: s.md, paddingVertical: s.xs, borderRadius: r.full, borderWidth: 1, borderColor: '#FFD700' },
-  premiumBadgeText: { fontSize: 12, fontWeight: '700', color: '#FFD700' },
-  premiumFooter: { flexDirection: 'row', alignItems: 'center', gap: s.xs },
-  premiumFooterText: { fontSize: 12, fontWeight: '500', color: 'rgba(255, 255, 255, 0.9)' },
+  premiumBanner: { 
+    marginBottom: s.xl, 
+    borderRadius: r.xl, 
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  premiumGradient: { 
+    padding: s.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  premiumHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: s.lg,
+    gap: s.md,
+  },
+  premiumLogoContainer: { 
+    width: 72, 
+    height: 72,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center', 
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  premiumLogo: { 
+    width: 56, 
+    height: 56,
+  },
+  premiumHeaderText: { 
+    flex: 1,
+  },
+  premiumTitle: { 
+    fontSize: 24, 
+    fontWeight: '800', 
+    color: '#FFFFFF', 
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  premiumSubtitle: { 
+    fontSize: 14, 
+    fontWeight: '500', 
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  premiumFeatures: {
+    gap: s.sm,
+    marginBottom: s.lg,
+  },
+  premiumFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.md,
+  },
+  premiumFeatureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  premiumFeatureText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  premiumCTA: {
+    gap: s.sm,
+  },
+  premiumCTAButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: s.md + 2,
+    paddingHorizontal: s.lg,
+    borderRadius: r.md,
+    gap: s.sm,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  premiumCTAText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#7C3AED',
+  },
+  premiumCancelText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+  },
   section: { marginBottom: s.lg, borderRadius: r.lg, overflow: 'hidden' },
   sectionHeader: { fontSize: 13, fontWeight: '600', letterSpacing: 0.5, marginBottom: s.sm, marginTop: s.md, marginLeft: s.xs },
   settingItem: { flexDirection: 'row', alignItems: 'center', padding: s.lg, gap: s.md, marginBottom: 1 },
@@ -651,7 +775,6 @@ const styles = StyleSheet.create({
   premiumCheckBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   premiumFeaturesList: { gap: s.xs },
   premiumFeatureItem: { flexDirection: 'row', alignItems: 'center', gap: s.sm },
-  premiumFeatureText: { fontSize: 13, fontWeight: '500' },
   usageBanner: { marginBottom: s.xl, borderRadius: r.lg, padding: s.lg },
   usageTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, marginBottom: s.md },
   usageRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: s.sm },

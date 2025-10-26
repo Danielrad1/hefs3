@@ -10,7 +10,6 @@ import { getUsage } from './handlers/usage';
 import { revenueCatWebhook } from './handlers/revenuecat';
 import { authenticate } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
-import { withQuota } from './middleware/quota';
 import express from 'express';
 import cors from 'cors';
 import { logger } from './utils/logger';
@@ -74,9 +73,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use((req, res, next) => {
   // Use debug level in production to avoid flooding logs
   const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
-  const logLevel = isEmulator ? logger.warn : logger.debug;
   
-  logLevel(`[Express] ${req.method} ${req.path}`);
+  if (isEmulator) {
+    logger.warn(`[Express] ${req.method} ${req.path}`);
+  } else {
+    logger.debug(`[Express] ${req.method} ${req.path}`);
+  }
   logger.debug(`[Express] From: ${req.get('origin') || req.ip}`);
   logger.debug(`[Express] Headers:`, req.headers);
   logger.debug(`[Express] Body:`, req.body ? JSON.stringify(req.body).substring(0, 200) : 'empty');
@@ -89,14 +91,14 @@ app.get('/health', healthCheck);
 // Protected routes (require authentication)
 app.get('/user/me', authenticate, getCurrentUser);
 
-// AI routes with quota enforcement
+// AI routes (quota enforced on client side)
 logger.info('[Setup] Registering AI routes...');
 
-app.post('/ai/deck/generate', authenticate, withQuota({ kind: 'deck', freeLimit: 3 }), aiHandler.generateDeck);
-logger.info('[Setup] Registered /ai/deck/generate with quota enforcement');
+app.post('/ai/deck/generate', authenticate, aiHandler.generateDeck);
+logger.info('[Setup] Registered /ai/deck/generate');
 
-app.post('/ai/hints/generate', authenticate, withQuota({ kind: 'hints', freeLimit: 1 }), generateHints);
-logger.info('[Setup] Registered /ai/hints/generate with quota enforcement');
+app.post('/ai/hints/generate', authenticate, generateHints);
+logger.info('[Setup] Registered /ai/hints/generate');
 
 app.get('/ai/models', authenticate, aiHandler.getModels);
 logger.info('[Setup] AI routes registered');

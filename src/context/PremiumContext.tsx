@@ -299,25 +299,51 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       try {
         if (user?.uid) {
           logger.info('[Premium] Logging in to RevenueCat', { uid: user.uid });
-          await Purchases.logIn(user.uid);
+          const loginResult = await Purchases.logIn(user.uid);
+          
+          // Wait for customer info to sync
+          logger.debug('[Premium] Customer info after login:', {
+            hasProEntitlement: loginResult.customerInfo.entitlements.active['Pro'] !== undefined,
+          });
           
           // Fetch offerings after login
-          const newOfferings = await Purchases.getOfferings();
-          setOfferings(newOfferings);
-          
-          // Select monthly package
-          const currentOffering = newOfferings.current || newOfferings.all['default'];
-          if (currentOffering) {
-            const monthly = currentOffering.availablePackages.find(
-              (pkg: any) => pkg.packageType === 'MONTHLY'
-            );
-            setMonthlyPackage(monthly || null);
-            if (monthly) {
-              logger.debug('[Premium] Monthly package found', {
-                identifier: monthly.identifier,
-              });
+          try {
+            const newOfferings = await Purchases.getOfferings();
+            setOfferings(newOfferings);
+            
+            // Select monthly package
+            const currentOffering = newOfferings.current || newOfferings.all['default'];
+            if (currentOffering) {
+              const monthly = currentOffering.availablePackages.find(
+                (pkg: any) => pkg.packageType === 'MONTHLY'
+              );
+              setMonthlyPackage(monthly || null);
+              if (monthly) {
+                logger.debug('[Premium] Monthly package found', {
+                  identifier: monthly.identifier,
+                });
+              }
+            } else {
+              logger.warn('[Premium] No offerings available - products may not be configured in App Store Connect yet');
             }
+          } catch (offeringsErr) {
+            logger.warn('[Premium] Could not fetch offerings:', offeringsErr);
+            // Continue without offerings - user can still use the app
           }
+          
+          // Small delay to ensure backend has processed the login
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Force Firebase token refresh to get updated custom claims
+          const currentUser = auth().currentUser;
+          if (currentUser) {
+            logger.info('[Premium] Refreshing Firebase token to get updated claims');
+            await currentUser.getIdToken(true);
+          }
+          
+          // Automatically check premium status after login to restore purchases
+          logger.info('[Premium] Auto-restoring purchases after login');
+          await checkPremiumStatus();
         } else {
           logger.info('[Premium] Logging out from RevenueCat');
           await Purchases.logOut();
@@ -330,7 +356,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     };
 
     syncRCUser();
-  }, [user, rcInitialized]);
+  }, [user, rcInitialized, checkPremiumStatus]);
 
   /**
    * Initialize premium state on mount and when user changes

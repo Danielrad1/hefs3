@@ -33,9 +33,24 @@ export function withQuota(config: QuotaConfig) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const user = (req as AuthenticatedRequest).user;
 
+    // Check if user exists
+    if (!user || !user.uid) {
+      logger.error('[Quota] User not authenticated');
+      res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication required',
+        },
+      });
+      return;
+    }
+
+    logger.info(`[Quota] Checking ${config.kind} quota for user ${user.uid} (premium: ${user.premium})`);
+
     // Premium users bypass quota
-    if (user?.premium) {
-      logger.debug(`[Quota] Premium user ${user.uid} bypasses quota for ${config.kind}`);
+    if (user.premium) {
+      logger.info(`[Quota] Premium user ${user.uid} bypasses quota for ${config.kind}`);
       next();
       return;
     }
@@ -85,7 +100,8 @@ export function withQuota(config: QuotaConfig) {
         return;
       }
 
-      logger.error('[Quota] Error checking quota:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error(`[Quota] Error checking quota: ${errorMessage}`);
       res.status(500).json({
         success: false,
         error: {

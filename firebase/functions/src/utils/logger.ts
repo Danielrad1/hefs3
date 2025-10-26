@@ -1,4 +1,4 @@
-import { logger as functionsLogger } from 'firebase-functions';
+import * as functionsLogger from 'firebase-functions/logger';
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
