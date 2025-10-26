@@ -19,7 +19,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.enqode.app",
       "usesAppleSignIn": true,
-      "buildNumber": "1",
+      "buildNumber": "2",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Use Face ID to unlock the app",
