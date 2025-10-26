@@ -19,79 +19,107 @@ export default function LegalModal({ visible, onClose, type }: LegalModalProps) 
     lastUpdated: 'October 17, 2025',
     sections: [
       {
+        heading: 'Summary',
+        content: 'Enqode collects only what\'s needed to provide the flashcard app, including account info, study progress, and deck content. We don\'t sell personal data.',
+      },
+      {
         heading: 'Information We Collect',
-        content: 'enqode collects minimal information necessary to provide our flashcard service. This includes your account information (email address), study progress, and deck data. All data is stored securely and encrypted.',
+        content: 'Account info: email/name (from Sign in with Apple/Google)\n\nUsage: study progress, deck/cards you create/import\n\nPurchases: subscription status and purchase history (via RevenueCat)\n\nIdentifiers: user ID, device push token (for notifications)\n\nOptional media: photos, camera, microphone when you attach media to cards',
       },
       {
-        heading: 'How We Use Your Data',
-        content: 'Your data is used solely to provide and improve the enqode app experience. We use your study history to calculate statistics and optimize spaced repetition algorithms. We never sell your personal information to third parties.',
+        heading: 'How We Use Information',
+        content: 'Provide and improve app functionality (spaced repetition, stats, backups)\n\nProcess subscriptions and restore purchases\n\nSend optional notifications/reminders you enable\n\nProtect security and prevent fraud',
       },
       {
-        heading: 'Data Storage',
-        content: 'All user data is stored securely using industry-standard encryption. Your flashcard content and study progress are stored on secure servers and backed up regularly. You can export or delete your data at any time from the Settings page.',
+        heading: 'User Content',
+        content: 'You control the content you create/import. You must own or have rights to any third‑party content you upload or import into Enqode.',
       },
       {
-        heading: 'Third-Party Services',
-        content: 'enqode uses Firebase for authentication and cloud storage. These services are GDPR and CCPA compliant and maintain their own privacy policies. We do not share your data with any other third parties.',
+        heading: 'Third‑Party Services',
+        content: 'Firebase (Authentication, Functions/Storage)\n\nRevenueCat (subscription management)\n\nOpenAI (AI generation for hints/deck creation). Your prompts/content may be sent to the provider solely to fulfill your request.\n\nEach maintains its own privacy policy and compliance.',
+      },
+      {
+        heading: 'Data Sharing',
+        content: 'We do not sell personal data. We share only with service providers above to operate the app, or as required by law.',
+      },
+      {
+        heading: 'Data Retention',
+        content: 'We retain data while your account is active. You can request export or deletion through Settings or by contacting us. Legal obligations may require limited retention after deletion.',
       },
       {
         heading: 'Your Rights',
-        content: 'You have the right to access, modify, or delete your personal data at any time. You can export all your data or request complete account deletion from the Settings page. For privacy concerns, contact us at privacy@enqode.com.',
+        content: 'Access, correct, export, or delete your data by contacting us or using in‑app controls where available.',
       },
       {
         heading: 'Children\'s Privacy',
-        content: 'enqode is intended for users 13 years and older. We do not knowingly collect information from children under 13. If we become aware of such data collection, we will delete it immediately.',
+        content: 'Enqode is intended for users 13+. We do not knowingly collect data from children under 13.',
       },
       {
-        heading: 'Changes to Privacy Policy',
-        content: 'We may update this privacy policy from time to time. We will notify you of any material changes by posting the new policy in the app and updating the "Last Updated" date.',
+        heading: 'Security',
+        content: 'We use industry‑standard security and encryption. No method is 100% secure.',
+      },
+      {
+        heading: 'Changes',
+        content: 'We\'ll update this policy as needed and indicate the latest date.',
+      },
+      {
+        heading: 'Contact',
+        content: 'enqodeapp@gmail.com\n\nNote: This is non‑legal guidance. Consider legal review for your jurisdiction(s).',
       },
     ],
   };
 
   const termsContent = {
-    title: 'Terms & Conditions',
+    title: 'Terms of Use',
     lastUpdated: 'October 17, 2025',
     sections: [
       {
         heading: 'Acceptance of Terms',
-        content: 'By accessing and using enqode, you accept and agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the app.',
+        content: 'By using Enqode, you agree to these Terms. If you disagree, do not use the app.',
       },
       {
-        heading: 'License to Use',
-        content: 'enqode grants you a personal, non-exclusive, non-transferable license to use the app for your personal learning purposes. You may not copy, modify, distribute, or reverse engineer any part of the app.',
+        heading: 'License',
+        content: 'We grant a personal, non‑transferable license to use Enqode for learning. No reverse engineering or unauthorized distribution.',
       },
       {
-        heading: 'User Content',
-        content: 'You retain all rights to the flashcard content you create. By using enqode, you grant us a license to store and process your content to provide the service. You are responsible for ensuring your content does not violate any laws or third-party rights.',
+        heading: 'User Accounts',
+        content: 'You\'re responsible for maintaining your account security and accurate information.',
       },
       {
-        heading: 'Prohibited Uses',
-        content: 'You may not use enqode to: (a) violate any laws, (b) infringe on intellectual property rights, (c) transmit harmful code or malware, (d) harass or harm others, (e) attempt to gain unauthorized access to our systems, or (f) use automated systems to access the service.',
+        heading: 'Subscription & Billing',
+        content: 'Enqode Pro is auto‑renewing. Manage/cancel via your Apple ID. Partial‑period refunds are not provided. Prices may change with notice.',
       },
       {
-        heading: 'Subscription & Payments',
-        content: 'enqode Pro is a subscription service with recurring billing. You can cancel at any time, but refunds are not provided for partial subscription periods. Subscription prices may change with 30 days notice.',
+        heading: 'User Content and IP Rights',
+        content: 'You retain ownership of your content. You grant Enqode a limited license to store/process your content only to provide the service.\n\nYou represent you own or have rights to all content you upload/import and that it doesn\'t infringe third‑party rights or laws.',
       },
       {
-        heading: 'Disclaimer of Warranties',
-        content: 'enqode is provided "as is" without warranties of any kind. We do not guarantee that the app will be error-free, uninterrupted, or meet your specific requirements. You use the app at your own risk.',
+        heading: 'Acceptable Use',
+        content: 'No illegal activity, harassment, IP infringement, malware, scraping, or unauthorized access attempts.',
       },
       {
-        heading: 'Limitation of Liability',
-        content: 'enqode and its developers shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the app, including loss of data or study progress.',
+        heading: 'Third‑Party Services',
+        content: 'We integrate with Firebase, RevenueCat, and AI providers. Their terms/policies apply to their services.',
       },
       {
         heading: 'Termination',
-        content: 'We reserve the right to suspend or terminate your account at any time for violation of these terms. Upon termination, you may export your data within 30 days, after which it may be permanently deleted.',
+        content: 'We may suspend/terminate for violations. After termination, we may delete data following retention policies. You can export your data before deletion where available.',
+      },
+      {
+        heading: 'Disclaimers',
+        content: 'Enqode is provided "as is" without warranties. We don\'t guarantee error‑free operation or specific outcomes.',
+      },
+      {
+        heading: 'Limitation of Liability',
+        content: 'To the fullest extent permitted by law, Enqode and its developers are not liable for indirect, incidental, or consequential damages.',
       },
       {
         heading: 'Changes to Terms',
-        content: 'We may modify these terms at any time. Continued use of the app after changes constitutes acceptance of the new terms. Material changes will be communicated through the app.',
+        content: 'We may update these Terms; continued use means acceptance of changes.',
       },
       {
         heading: 'Contact',
-        content: 'For questions about these terms, contact us at legal@enqode.com.',
+        content: 'enqodeapp@gmail.com',
       },
     ],
   };
@@ -102,13 +130,14 @@ export default function LegalModal({ visible, onClose, type }: LegalModalProps) 
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
+      <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
         <View
           style={[styles.modalContainer, { backgroundColor: theme.colors.surface2 }]}
-          onStartShouldSetResponder={() => true}
         >
           <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
             <View style={styles.headerLeft}>
@@ -150,12 +179,12 @@ export default function LegalModal({ visible, onClose, type }: LegalModalProps) 
             <View style={[styles.footer, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
               <Ionicons name="mail" size={20} color={theme.colors.textMed} />
               <Text style={[styles.footerText, { color: theme.colors.textMed }]}>
-                Questions? Contact us at {type === 'privacy' ? 'privacy' : 'legal'}@enqode.com
+                Questions? Contact us at enqodeapp@gmail.com
               </Text>
             </View>
           </ScrollView>
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -163,17 +192,23 @@ export default function LegalModal({ visible, onClose, type }: LegalModalProps) 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: s.lg,
   },
   modalContainer: {
     width: '100%',
-    maxWidth: 600,
-    maxHeight: '85%',
-    borderRadius: r.xl,
+    height: '90%',
+    borderTopLeftRadius: r.xl,
+    borderTopRightRadius: r.xl,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
   },
   header: {
     flexDirection: 'row',
@@ -204,6 +239,7 @@ const styles = StyleSheet.create({
   content: {
     padding: s.lg,
     paddingTop: s.md,
+    paddingBottom: s['2xl'],
   },
   section: {
     marginBottom: s.xl,
@@ -215,7 +251,7 @@ const styles = StyleSheet.create({
   },
   sectionContent: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   footer: {
     flexDirection: 'row',

@@ -14,6 +14,7 @@ import { usePremium } from '../../context/PremiumContext';
 import { NotificationService } from '../../services/NotificationService';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
 import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
+import LegalModal from './components/LegalModal';
 import { logger } from '../../utils/logger';
 
 type ColorScheme = 'sunset' | 'ocean' | 'forest' | 'neon';
@@ -111,6 +112,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [tempHour, setTempHour] = useState('20');
   const [tempMinute, setTempMinute] = useState('0');
   const [restoring, setRestoring] = useState(false);
+  const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'terms'>(null);
 
   useEffect(() => { loadSettings(); }, [user]);
 
@@ -443,6 +445,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           )}
         </View>
 
+        <SectionHeader title="LEGAL" />
+        <View style={styles.section}>
+          <SettingItem icon="document-text" title="Terms of Use" onPress={() => setLegalOpen('terms')} />
+          <SettingItem icon="shield-checkmark" title="Privacy Policy" onPress={() => setLegalOpen('privacy')} />
+        </View>
+
         <Text style={[styles.version, { color: theme.colors.textLow }]}>Version 1.0.0</Text>
       </ScrollView>
 
@@ -565,6 +573,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           </View>
         </Pressable>
       </Modal>
+
+      {!!legalOpen && (
+        <LegalModal visible={true} onClose={() => setLegalOpen(null)} type={legalOpen} />
+      )}
 
       <PremiumUpsellModal
         visible={showPremiumModal}
