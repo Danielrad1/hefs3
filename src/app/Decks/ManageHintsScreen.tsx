@@ -9,6 +9,7 @@ import { db } from '../../services/anki/InMemoryDb';
 import { cardHintsService } from '../../services/anki/CardHintsService';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { HintsInputItem } from '../../services/ai/types';
+import { NetworkService } from '../../services/network/NetworkService';
 import { logger } from '../../utils/logger';
 
 interface ManageHintsScreenProps {
@@ -61,6 +62,16 @@ export default function ManageHintsScreen({ route, navigation }: ManageHintsScre
           style: 'destructive',
           onPress: async () => {
             try {
+              // Check network connectivity
+              const isOnline = await NetworkService.isOnline();
+              if (!isOnline) {
+                Alert.alert(
+                  'No Internet Connection',
+                  'AI hints generation requires an internet connection. Please check your network and try again.'
+                );
+                return;
+              }
+
               // Get all cards from the deck
               const cards = db.getCardsByDeck(deckId);
 

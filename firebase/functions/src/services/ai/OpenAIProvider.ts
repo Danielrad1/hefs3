@@ -23,10 +23,19 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async generateDeck(request: GenerateDeckRequest): Promise<GenerateDeckResponse> {
+    // Cap deck generation at 150 cards max (matches frontend limit)
+    const MAX_DECK_CARDS = 150;
+    const originalLimit = request.itemLimit;
+    if (request.itemLimit > MAX_DECK_CARDS) {
+      logger.warn(`[OpenAIProvider] Capping deck generation from ${request.itemLimit} to ${MAX_DECK_CARDS} cards`);
+      request.itemLimit = MAX_DECK_CARDS;
+    }
+
     logger.info('[OpenAIProvider] Starting generation:', {
       sourceType: request.sourceType,
       noteModel: request.noteModel,
       itemLimit: request.itemLimit,
+      originalLimit: originalLimit !== request.itemLimit ? originalLimit : undefined,
       promptLength: request.prompt?.length,
       notesLength: request.notesText?.length,
     });
@@ -57,9 +66,8 @@ export class OpenAIProvider implements AIProvider {
     const maxInputTokens = maxTokens * 0.90; // Reserve 10% for output (~40k tokens for GPT-5)
     if (estimatedTokens > maxInputTokens) {
       throw new Error(
-        `Input is too large. Estimated ${estimatedTokens.toLocaleString()} tokens, ` +
-        `but model limit is ${maxTokens.toLocaleString()} tokens (allowing ${maxInputTokens.toLocaleString()} for input). ` +
-        `Try reducing the amount of text or splitting it into multiple decks.`
+        `Your input text is too large for AI processing. The maximum is 150 cards per generation. ` +
+        `Try splitting your content into multiple smaller generations (e.g., 2-3 generations of 50-75 cards each).`
       );
     }
     
@@ -196,8 +204,17 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async generateHints(request: GenerateHintsRequest): Promise<GenerateHintsResponse> {
+    // Cap hints generation at 500 cards max
+    const MAX_HINTS_CARDS = 500;
+    const originalCount = request.items.length;
+    if (request.items.length > MAX_HINTS_CARDS) {
+      logger.warn(`[OpenAIProvider] Capping hints generation from ${request.items.length} to ${MAX_HINTS_CARDS} cards`);
+      request.items = request.items.slice(0, MAX_HINTS_CARDS);
+    }
+
     logger.info('[OpenAIProvider] Starting hints generation:', {
       itemsCount: request.items.length,
+      originalCount: originalCount !== request.items.length ? originalCount : undefined,
       deckName: request.options?.deckName,
       style: request.options?.style,
     });
@@ -236,8 +253,8 @@ export class OpenAIProvider implements AIProvider {
   }
 
   /**
-   * Process hints generation in parallel batches
-   * Splits items into batches of 10 and processes them concurrently
+   * Process hints generation in parallel batches with controlled concurrency
+   * Splits items into batches of 25 and processes max 10 batches concurrently
    */
   private async generateHintsParallel(
     items: Array<{ id: string; model: 'basic' | 'cloze'; front?: string; back?: string; cloze?: string; tags?: string[]; context?: string }>,
@@ -245,36 +262,47 @@ export class OpenAIProvider implements AIProvider {
     options?: any // Accept all HintsOptions
   ): Promise<HintsOutputItem[]> {
     const BATCH_SIZE = 25;
+    const MAX_CONCURRENT_BATCHES = 10;
     const batches: Array<typeof items> = [];
     
-    // Split into batches of 10
+    // Split into batches of 25
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       batches.push(items.slice(i, i + BATCH_SIZE));
     }
 
-    logger.info(`[OpenAIProvider] Processing ${items.length} items in ${batches.length} parallel batches of ${BATCH_SIZE}`);
+    logger.info(`[OpenAIProvider] Processing ${items.length} items in ${batches.length} batches of ${BATCH_SIZE} (max ${MAX_CONCURRENT_BATCHES} concurrent)`);
 
-    // Process all batches in parallel using Promise.all
     const startTime = Date.now();
-    const batchPromises = batches.map((batch, index) => 
-      this.generateHintsForBatch(batch, noteModel, options)
-        .then(results => {
-          logger.info(`[OpenAIProvider] Batch ${index + 1}/${batches.length} complete (${results.length} items)`);
-          return results;
-        })
-        .catch(error => {
-          logger.error(`[OpenAIProvider] Batch ${index + 1}/${batches.length} failed:`, error);
-          // Return empty array on error to not block other batches
-          return [];
-        })
-    );
-
-    // Wait for all batches to complete
-    const batchResults = await Promise.all(batchPromises);
+    const allResults: HintsOutputItem[] = [];
+    
+    // Process batches with concurrency limit
+    for (let i = 0; i < batches.length; i += MAX_CONCURRENT_BATCHES) {
+      const batchGroup = batches.slice(i, i + MAX_CONCURRENT_BATCHES);
+      const groupStartIndex = i;
+      
+      logger.info(`[OpenAIProvider] Processing batch group ${Math.floor(i / MAX_CONCURRENT_BATCHES) + 1}/${Math.ceil(batches.length / MAX_CONCURRENT_BATCHES)} (${batchGroup.length} batches)`);
+      
+      const batchPromises = batchGroup.map((batch, index) => 
+        this.generateHintsForBatch(batch, noteModel, options)
+          .then(results => {
+            const batchNum = groupStartIndex + index + 1;
+            logger.info(`[OpenAIProvider] Batch ${batchNum}/${batches.length} complete (${results.length} items)`);
+            return results;
+          })
+          .catch(error => {
+            const batchNum = groupStartIndex + index + 1;
+            logger.error(`[OpenAIProvider] Batch ${batchNum}/${batches.length} failed:`, error);
+            // Return empty array on error to not block other batches
+            return [];
+          })
+      );
+      
+      // Wait for this group to complete before starting next group
+      const groupResults = await Promise.all(batchPromises);
+      allResults.push(...groupResults.flat());
+    }
+    
     const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
-
-    // Flatten results from all batches
-    const allResults = batchResults.flat();
 
     logger.info(`[OpenAIProvider] Parallel processing complete in ${elapsedTime}s:`, {
       totalBatches: batches.length,

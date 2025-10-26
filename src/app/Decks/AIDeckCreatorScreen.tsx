@@ -13,6 +13,7 @@ import { r } from '../../design/radii';
 import { AiService } from '../../services/ai/AiService';
 import { NoteModel, GeneratedNote } from '../../services/ai/types';
 import { ApiService } from '../../services/cloud/ApiService';
+import { NetworkService } from '../../services/network/NetworkService';
 import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 import { logger } from '../../utils/logger';
 
@@ -53,8 +54,7 @@ export default function AIDeckCreatorScreen() {
         type: [
           'text/plain',
           'application/pdf',
-          'application/msword', // .doc
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx only (not .doc)
         ],
         copyToCacheDirectory: true,
       });
@@ -74,10 +74,8 @@ export default function AIDeckCreatorScreen() {
           setNotesText(content);
           setShowImportOptions(true);
         } else if (
-          file.name.endsWith('.docx') || 
-          file.name.endsWith('.doc') ||
-          file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-          file.mimeType === 'application/msword'
+          file.name.endsWith('.docx') ||
+          file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         ) {
           // Handle Word documents - send to backend for parsing
           setIsParsing(true);
@@ -89,8 +87,8 @@ export default function AIDeckCreatorScreen() {
             });
             logger.info(`[Import] Read file as base64 in ${Date.now() - readStart}ms (${Math.round(base64.length / 1024)} KB)`);
 
-            // Determine file type
-            const fileType = file.name.endsWith('.docx') ? 'docx' : 'doc';
+            // Determine file type (only DOCX supported)
+            const fileType = 'docx';
 
             // Send to backend for parsing
             const parseStart = Date.now();
@@ -108,11 +106,12 @@ export default function AIDeckCreatorScreen() {
             } else {
               throw new Error('No text extracted from Word document');
             }
-          } catch (error) {
+          } catch (error: any) {
             logger.error('Word parsing error:', error);
+            const errorMsg = error?.message || 'Failed to extract text from Word document. Please try again or use a different file.';
             Alert.alert(
               'Parsing Error',
-              error instanceof Error ? error.message : 'Failed to extract text from Word document. Please try again or use a different file.',
+              errorMsg,
               [{ text: 'OK' }]
             );
             setImportedFileName(null);
@@ -157,10 +156,17 @@ export default function AIDeckCreatorScreen() {
           } finally {
             setIsParsing(false);
           }
+        } else if (file.name.endsWith('.doc') || file.mimeType === 'application/msword') {
+          Alert.alert(
+            'Legacy DOC Not Supported',
+            'Legacy DOC format is not supported. Please convert your file to DOCX or PDF format and try again.',
+            [{ text: 'OK' }]
+          );
+          setImportedFileName(null);
         } else {
           Alert.alert(
             'File Type Not Supported',
-            'Supported formats: .txt, .doc, .docx, .pdf'
+            'Supported formats: .txt, .docx, .pdf'
           );
           setImportedFileName(null);
         }
@@ -179,6 +185,17 @@ export default function AIDeckCreatorScreen() {
     // Validation
     if (!prompt.trim() && !notesText.trim()) {
       Alert.alert('Missing Input', 'Please enter either a prompt or paste your notes.');
+      return;
+    }
+
+    // Check network connectivity
+    const isOnline = await NetworkService.isOnline();
+    if (!isOnline) {
+      Alert.alert(
+        'No Internet Connection',
+        'AI deck generation requires an internet connection. Please check your network and try again.',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -343,7 +360,7 @@ export default function AIDeckCreatorScreen() {
                     {isParsing ? 'Parsing file...' : 'Choose File'}
                   </Text>
                   <Text style={[styles.importFileHint, { color: theme.colors.textMed }]}>
-                    {isParsing ? 'Please wait...' : '.txt, .pdf, .doc, .docx'}
+                    {isParsing ? 'Please wait...' : '.txt, .docx, .pdf'}
                   </Text>
                 </View>
               </Pressable>
@@ -435,7 +452,10 @@ export default function AIDeckCreatorScreen() {
                           if (num >= 1 && num <= 150) {
                             setItemLimit(value || '50');
                           } else {
-                            Alert.alert('Invalid', 'Please enter a number between 1 and 150');
+                            Alert.alert(
+                              'Invalid',
+                              'The maximum is 150 cards per generation. To create more cards, split your content into multiple generations'
+                            );
                           }
                         },
                       },

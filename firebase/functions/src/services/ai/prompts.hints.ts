@@ -138,10 +138,10 @@ const CLOZE_HINTS_BASE = `${HINTS_SYSTEM_PROMPT}
 CARD TYPE: Cloze deletions. Scaffold only the first cloze; never paraphrase masked text.`;
 
 export function getHintsSystemPrompt(noteModel: NoteModel): string {
-  // Add timestamp to bust OpenAI's prompt cache
-  const cacheBuster = `\n\n<!-- prompt-v2.1-${Math.floor(Date.now() / 60000)} -->`;
+  // Return static prompt to enable OpenAI's prompt caching and reduce costs
+  // Version: prompt-v2.1
   const base = noteModel === 'basic' ? BASIC_HINTS_BASE : CLOZE_HINTS_BASE;
-  return base + cacheBuster;
+  return base;
 }
 
 export function buildHintsUserPrompt(params: {

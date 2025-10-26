@@ -391,7 +391,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       const { customerInfo } = await Purchases.purchasePackage(monthlyPackage);
       
       logger.info('[Premium] Purchase successful', {
-        hasProEntitlement: customerInfo.entitlements.active['pro'] !== undefined,
+        hasProEntitlement: customerInfo.entitlements.active['Pro'] !== undefined,
       });
       
       // Force token refresh to get updated custom claims
@@ -423,7 +423,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       const customerInfo = await Purchases.restorePurchases();
       
       logger.info('[Premium] Restore successful', {
-        hasProEntitlement: customerInfo.entitlements.active['pro'] !== undefined,
+        hasProEntitlement: customerInfo.entitlements.active['Pro'] !== undefined,
       });
       
       // Force token refresh to get updated custom claims

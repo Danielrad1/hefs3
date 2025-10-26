@@ -15,7 +15,6 @@ export default ({ config }) => ({
     isCloud: ENV.IS_CLOUD,
     
     // Feature Flags
-    enableCloudBackup: process.env.ENABLE_CLOUD_BACKUP !== 'false',
     enableAiFeatures: process.env.ENABLE_AI_FEATURES !== 'false',
     alwaysShowTutorial: process.env.ALWAYS_SHOW_TUTORIAL === 'true',
     

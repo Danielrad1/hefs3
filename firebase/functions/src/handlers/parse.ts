@@ -19,7 +19,22 @@ async function parseFile(req: Request, res: Response): Promise<void> {
     if (!fileData || !fileType) {
       res.status(400).json({
         success: false,
-        error: 'Missing required fields: fileData, fileType',
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'Missing required fields: fileData and fileType',
+        },
+      });
+      return;
+    }
+
+    // Reject legacy .doc files (mammoth only supports .docx)
+    if (fileType === 'doc') {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'UNSUPPORTED_FORMAT',
+          message: 'Legacy DOC format is not supported. Please convert your file to DOCX or PDF format and try again.',
+        },
       });
       return;
     }
@@ -36,8 +51,8 @@ async function parseFile(req: Request, res: Response): Promise<void> {
 
     let extractedText = '';
 
-    if (fileType === 'docx' || fileType === 'doc') {
-      // Parse Word document
+    if (fileType === 'docx') {
+      // Parse Word document (DOCX only)
       const parseStart = Date.now();
       logger.info('[Parse] Parsing Word document...');
       const result = await mammoth.extractRawText({ buffer });
@@ -62,7 +77,10 @@ async function parseFile(req: Request, res: Response): Promise<void> {
     } else {
       res.status(400).json({
         success: false,
-        error: `Unsupported file type: ${fileType}`,
+        error: {
+          code: 'UNSUPPORTED_FORMAT',
+          message: `Unsupported file type: ${fileType}. Supported formats are DOCX and PDF.`,
+        },
       });
       return;
     }
@@ -76,7 +94,10 @@ async function parseFile(req: Request, res: Response): Promise<void> {
     if (!extractedText) {
       res.status(400).json({
         success: false,
-        error: 'No text could be extracted from the file',
+        error: {
+          code: 'NO_TEXT',
+          message: 'No text could be extracted from the file. The file may be empty or contain only images.',
+        },
       });
       return;
     }
@@ -98,7 +119,10 @@ async function parseFile(req: Request, res: Response): Promise<void> {
     logger.error('[Parse] Error:', error);
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to parse file',
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to parse file. Please try again.',
+      },
     });
   }
 }

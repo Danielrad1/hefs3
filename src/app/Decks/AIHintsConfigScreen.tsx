@@ -11,6 +11,7 @@ import { AiHintsService } from '../../services/ai/AiHintsService';
 import { cardHintsService, CardHintsService } from '../../services/anki/CardHintsService';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { HintsInputItem } from '../../services/ai/types';
+import { NetworkService } from '../../services/network/NetworkService';
 import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 import { logger } from '../../utils/logger';
 
@@ -33,6 +34,17 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
 
   const handleGenerate = async () => {
     try {
+      // Check network connectivity
+      const isOnline = await NetworkService.isOnline();
+      if (!isOnline) {
+        Alert.alert(
+          'No Internet Connection',
+          'AI hints generation requires an internet connection. Please check your network and try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
       // Check quota before generating
       if (!isPremiumEffective && usage) {
         if (usage.hintGenerations >= usage.limits.hints) {
@@ -62,6 +74,44 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         return;
       }
 
+      // Enforce backend's 500-card limit for all users
+      const MAX_HINTS_CARDS = 500;
+      if (cards.length > MAX_HINTS_CARDS) {
+        Alert.alert(
+          'Deck Too Large',
+          `AI hints can process up to ${MAX_HINTS_CARDS} cards at a time. This deck has ${cards.length} cards.\n\nWould you like to generate hints for the first ${MAX_HINTS_CARDS} cards?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: `Process ${MAX_HINTS_CARDS}`, 
+              onPress: () => {
+                // Continue with capped cards
+                cards = cards.slice(0, MAX_HINTS_CARDS);
+                continueGeneration(cards);
+              } 
+            },
+          ]
+        );
+        return;
+      }
+
+      continueGeneration(cards);
+    } catch (error) {
+      logger.error('[AIHintsConfig] Error preparing generation:', error);
+      
+      // Check if quota exceeded
+      const errorMessage = error instanceof Error ? error.message : '';
+      if (errorMessage.includes('limit reached') || errorMessage.includes('quota')) {
+        setShowPremiumModal(true);
+      } else {
+        Alert.alert('Error', 'Failed to prepare hints generation');
+      }
+    }
+  };
+
+  const continueGeneration = (cards: any[]) => {
+
+    try {
       // Prepare hints input items
       const items: HintsInputItem[] = cards.map(card => {
         const note = db.getNote(card.nid);
@@ -115,15 +165,8 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         items,
       });
     } catch (error) {
-      logger.error('[AIHintsConfig] Error preparing generation:', error);
-      
-      // Check if quota exceeded
-      const errorMessage = error instanceof Error ? error.message : '';
-      if (errorMessage.includes('limit reached') || errorMessage.includes('quota')) {
-        setShowPremiumModal(true);
-      } else {
-        Alert.alert('Error', 'Failed to prepare hints generation');
-      }
+      logger.error('[AIHintsConfig] Error in continueGeneration:', error);
+      Alert.alert('Error', 'Failed to prepare hints generation');
     }
   };
 

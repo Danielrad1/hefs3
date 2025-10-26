@@ -24,6 +24,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -130,12 +132,15 @@ export class NotificationService {
 
       const settings = await this.getSettings();
       settings.enabled = enabled;
-      await this.saveSettings(settings);
-
-      // If disabling, cancel all notifications
+      
+      // If disabling, also disable daily reminder since it depends on notifications
       if (!enabled) {
+        settings.dailyReminderEnabled = false;
         await this.cancelAllNotifications();
+        logger.info('[Notifications] Disabled daily reminder because notifications were disabled');
       }
+      
+      await this.saveSettings(settings);
 
       return true;
     } catch (error) {
@@ -201,8 +206,19 @@ export class NotificationService {
       // Cancel existing reminder
       await this.cancelDailyReminder();
 
-      // Schedule new daily notification
-      const trigger = {
+      // Calculate next occurrence of the reminder time
+      const now = new Date();
+      const scheduledTime = new Date();
+      scheduledTime.setHours(time.hour, time.minute, 0, 0);
+
+      // If the time has already passed today, schedule for tomorrow
+      if (scheduledTime <= now) {
+        scheduledTime.setDate(scheduledTime.getDate() + 1);
+      }
+
+      // Schedule notification at the calculated time
+      const trigger: Notifications.CalendarTriggerInput = {
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
         hour: time.hour,
         minute: time.minute,
         repeats: true,
@@ -221,7 +237,14 @@ export class NotificationService {
       // Save the notification ID
       await AsyncStorage.setItem(NOTIFICATION_ID_KEY, identifier);
 
-      logger.info('[Notifications] Daily reminder scheduled for', `${time.hour}:${String(time.minute).padStart(2, '0')}`);
+      const nextOccurrence = scheduledTime.toLocaleString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      logger.info('[Notifications] Daily reminder scheduled for', `${time.hour}:${String(time.minute).padStart(2, '0')}`, `(next: ${nextOccurrence})`);
     } catch (error) {
       logger.error('[Notifications] Error scheduling daily reminder:', error);
       throw error;

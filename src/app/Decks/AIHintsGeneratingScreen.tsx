@@ -32,6 +32,12 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
   const { setDeck } = useScheduler();
   const { incrementUsage } = usePremium();
   
+  // TODO: Backend caps at 500 cards, but frontend doesn't validate before sending.
+  // Should add validation in the flow that triggers this screen to prevent sending >500 cards.
+  // For now, display the capped count to match what backend will actually process.
+  const MAX_HINTS_CARDS = 500;
+  const displayCardCount = Math.min(items.length, MAX_HINTS_CARDS);
+  
   const [status, setStatus] = useState('Preparing...');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -143,9 +149,16 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       setIsGenerating(true);
       setStatus('Generating hints...');
 
+      // Enforce 500-card cap before sending to backend
+      const itemsToSend = items.slice(0, MAX_HINTS_CARDS);
+      
+      if (items.length > MAX_HINTS_CARDS) {
+        logger.warn(`[AIHintsGenerating] Clamping items from ${items.length} to ${MAX_HINTS_CARDS} before sending`);
+      }
+
       // Log first 3 items to debug
       logger.info('[AIHintsGenerating] Sample items being sent (first 3):');
-      items.slice(0, 3).forEach((item, i) => {
+      itemsToSend.slice(0, 3).forEach((item, i) => {
         logger.info(`Item ${i}:`, {
           id: item.id,
           model: item.model,
@@ -158,7 +171,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         });
       });
 
-      const { hints, skipped } = await AiHintsService.generateHintsForCards(items, {
+      const { hints, skipped } = await AiHintsService.generateHintsForCards(itemsToSend, {
         deckName,
         style: 'concise',
       });
@@ -170,7 +183,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       // If no hints were generated, check if it's due to skipping or an error
       if (hints.length === 0) {
         // If all cards were skipped due to validation, show specific message
-        if (skipped.length === items.length) {
+        if (skipped.length === itemsToSend.length) {
           Alert.alert(
             'Unable to Generate Hints',
             'AI hints require text content to work. Your cards appear to contain only images or audio. Try adding text descriptions to your cards.',
@@ -207,7 +220,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         totalHints: hints.length,
       });
       const hintsToSave = hints.map((result) => {
-        const inputItem = items.find(i => i.id === result.id);
+        const inputItem = itemsToSend.find(i => i.id === result.id);
         const contentHash = CardHintsService.generateContentHash({
           front: inputItem?.front,
           back: inputItem?.back,
@@ -260,7 +273,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         ],
       );
     }
-  }, [isGenerating, items, deckName, deckId, navigation]);
+  }, [isGenerating, items, deckName, deckId, navigation, MAX_HINTS_CARDS]);
 
   useEffect(() => {
     generateHints();
@@ -404,7 +417,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         <View style={styles.tipContainer}>
           <Ionicons name="time-outline" size={20} color="#8B5CF6" />
           <Text style={[styles.tip, { color: theme.colors.textSecondary }]}>
-            This may take a couple of minutes—we're ensuring hint quality for {items.length} cards. Feel free to continue studying; hints will be ready when you're done!
+            This may take a couple of minutes—we're ensuring hint quality for {displayCardCount} cards. Feel free to continue studying; hints will be ready when you're done!
           </Text>
         </View>
       </View>

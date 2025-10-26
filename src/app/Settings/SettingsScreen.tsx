@@ -98,14 +98,18 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { isPremiumEffective, usage, subscribe, restore } = usePremium();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [dailyReminder, setDailyReminder] = useState(false);
+  const [reminderTime, setReminderTime] = useState({ hour: 20, minute: 0 });
   const [dailyGoal, setDailyGoal] = useState(15);
   const [displayName, setDisplayName] = useState('');
   const [showNameModal, setShowNameModal] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showReminderTimeModal, setShowReminderTimeModal] = useState(false);
   const [tempDisplayName, setTempDisplayName] = useState('');
   const [tempGoal, setTempGoal] = useState('15');
+  const [tempHour, setTempHour] = useState('20');
+  const [tempMinute, setTempMinute] = useState('0');
   const [restoring, setRestoring] = useState(false);
 
   useEffect(() => { loadSettings(); }, [user]);
@@ -115,6 +119,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       const notifSettings = await NotificationService.getSettings();
       setNotificationsEnabled(notifSettings.enabled);
       setDailyReminder(notifSettings.dailyReminderEnabled);
+      setReminderTime(notifSettings.reminderTime);
       if (user?.uid) {
         const prefs = await UserPrefsService.getUserPreferences(user.uid);
         setDailyGoal(prefs.goalMinutes);
@@ -135,6 +140,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     const success = await NotificationService.setNotificationsEnabled(value);
     if (success) {
       setNotificationsEnabled(value);
+      // If disabling notifications, daily reminder is also disabled
+      if (!value) {
+        setDailyReminder(false);
+      }
     } else if (value) {
       Alert.alert('Permission Required', 'Please enable notifications in your device settings.', [{ text: 'OK' }]);
     }
@@ -148,6 +157,43 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     } else if (value) {
       Alert.alert('Notifications Required', 'Please enable notifications first.', [{ text: 'OK' }]);
     }
+  };
+
+  const handleReminderTimePress = () => {
+    if (!dailyReminder) {
+      Alert.alert('Enable Daily Reminder', 'Please enable daily reminder first to set the time.');
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTempHour(reminderTime.hour.toString());
+    setTempMinute(reminderTime.minute.toString());
+    setShowReminderTimeModal(true);
+  };
+
+  const handleSaveReminderTime = async () => {
+    const hour = parseInt(tempHour || '20', 10);
+    const minute = parseInt(tempMinute || '0', 10);
+    
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      Alert.alert('Invalid Time', 'Please enter a valid time (hour: 0-23, minute: 0-59).');
+      return;
+    }
+    
+    try {
+      await NotificationService.setReminderTime(hour, minute);
+      setReminderTime({ hour, minute });
+      setShowReminderTimeModal(false);
+      Alert.alert('Success', `Daily reminder set for ${formatTime(hour, minute)}`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to set reminder time. Please try again.');
+    }
+  };
+
+  const formatTime = (hour: number, minute: number): string => {
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    const displayMinute = minute.toString().padStart(2, '0');
+    return `${displayHour}:${displayMinute} ${period}`;
   };
 
   const handleDailyGoalPress = () => {
@@ -329,10 +375,18 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           <SettingItem 
             icon="time" 
             title="Daily Reminder" 
-            subtitle={dailyReminder ? 'Study at 8:00 PM daily' : 'Disabled'} 
+            subtitle={dailyReminder ? `Study at ${formatTime(reminderTime.hour, reminderTime.minute)} daily` : 'Disabled'} 
             rightElement={<SwitchToggle value={dailyReminder} onToggle={() => handleDailyReminderToggle(!dailyReminder)} theme={theme} />} 
             showChevron={false} 
           />
+          {dailyReminder && (
+            <SettingItem 
+              icon="alarm" 
+              title="Reminder Time" 
+              subtitle={formatTime(reminderTime.hour, reminderTime.minute)} 
+              onPress={handleReminderTimePress} 
+            />
+          )}
           <SettingItem icon="trophy" title="Daily Goal" subtitle={`${dailyGoal} minutes per day`} onPress={handleDailyGoalPress} />
         </View>
 
@@ -462,6 +516,56 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         </Pressable>
       </Modal>
 
+      <Modal visible={showReminderTimeModal} transparent animationType="fade" onRequestClose={() => setShowReminderTimeModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowReminderTimeModal(false)}>
+          <View style={[styles.goalModalContent, { backgroundColor: theme.colors.surface2 }]} onStartShouldSetResponder={() => true}>
+            <View style={[styles.goalIconContainer, { backgroundColor: theme.colors.overlay.primary }]}>
+              <Ionicons name="alarm" size={40} color={theme.colors.primary} />
+            </View>
+            <Text style={[styles.goalModalTitle, { color: theme.colors.textHigh }]}>Set Reminder Time</Text>
+            <Text style={[styles.goalModalSubtitle, { color: theme.colors.textMed }]}>Choose when you want to receive your daily study reminder</Text>
+            <View style={styles.timeInputContainer}>
+              <View style={styles.timeInputGroup}>
+                <Text style={[styles.timeLabel, { color: theme.colors.textMed }]}>Hour (0-23)</Text>
+                <TextInput
+                  style={[styles.timeInput, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, color: theme.colors.textHigh }]}
+                  value={tempHour}
+                  onChangeText={setTempHour}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="20"
+                  placeholderTextColor={theme.colors.textLow}
+                />
+              </View>
+              <Text style={[styles.timeColon, { color: theme.colors.textHigh }]}>:</Text>
+              <View style={styles.timeInputGroup}>
+                <Text style={[styles.timeLabel, { color: theme.colors.textMed }]}>Minute (0-59)</Text>
+                <TextInput
+                  style={[styles.timeInput, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, color: theme.colors.textHigh }]}
+                  value={tempMinute}
+                  onChangeText={setTempMinute}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="00"
+                  placeholderTextColor={theme.colors.textLow}
+                />
+              </View>
+            </View>
+            <Text style={[styles.timePreview, { color: theme.colors.primary }]}>
+              {formatTime(parseInt(tempHour || '20', 10), parseInt(tempMinute || '0', 10))}
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable style={[styles.modalButton, { backgroundColor: theme.colors.surface }]} onPress={() => setShowReminderTimeModal(false)}>
+                <Text style={[styles.modalButtonText, { color: theme.colors.textHigh }]}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.modalButton, { backgroundColor: theme.colors.primary }]} onPress={handleSaveReminderTime}>
+                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>Set Time</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
       <PremiumUpsellModal
         visible={showPremiumModal}
         onClose={() => setShowPremiumModal(false)}
@@ -558,5 +662,40 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 2,
     elevation: 3,
+  },
+  timeInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: s.md,
+    marginVertical: s.lg,
+  },
+  timeInputGroup: {
+    alignItems: 'center',
+    gap: s.xs,
+  },
+  timeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  timeInput: {
+    width: 70,
+    height: 60,
+    borderWidth: 2,
+    borderRadius: r.md,
+    fontSize: 32,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  timeColon: {
+    fontSize: 40,
+    fontWeight: '700',
+    marginTop: s.lg,
+  },
+  timePreview: {
+    fontSize: 24,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: s.md,
   },
 });

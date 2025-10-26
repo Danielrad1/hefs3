@@ -3,7 +3,6 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { healthCheck } from './handlers/health';
 import { getCurrentUser } from './handlers/user';
-import { backupHandler } from './handlers/backup';
 import { aiHandler } from './handlers/ai';
 import { generateHints } from './handlers/aiHints';
 import { parseHandler } from './handlers/parse';
@@ -11,7 +10,7 @@ import { getUsage } from './handlers/usage';
 import { revenueCatWebhook } from './handlers/revenuecat';
 import { authenticate } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
-// import { withQuota } from './middleware/quota'; // TODO: Re-enable when quota limits are restored
+import { withQuota } from './middleware/quota';
 import express from 'express';
 import cors from 'cors';
 import { logger } from './utils/logger';
@@ -27,14 +26,58 @@ initializeApp();
 const app = express();
 logger.info('[Setup] Express app created');
 
-// Middleware
-app.use(cors({ origin: true })); // Allow all origins in dev, configure for production
-app.use(express.json({ limit: '10mb' })); // Increase payload limit for backups
+// Middleware - CORS configuration
+const allowedOrigins = [
+  'http://localhost:8081',
+  'http://localhost:19006',
+  /^https:\/\/.*\.expo\.dev$/,  // Expo development/preview
+  /^exp:\/\/.*$/,                // Expo Go
+];
 
-// Debug middleware - log all requests
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Check if origin matches allowed list
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return origin === allowed;
+      }
+      return allowed.test(origin);
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      logger.warn('[CORS] Rejected origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
+
+// IMPORTANT: Register route-specific parsers BEFORE global parser
+// Parse route needs 25MB for large file uploads (Base64 encoding inflates ~33%)
+app.post('/parse/file', 
+  express.json({ limit: '25mb' }), 
+  authenticate, 
+  parseHandler.parseFile
+);
+
+// Global JSON parser for all other routes (10MB)
+app.use(express.json({ limit: '10mb' }));
+
+// Request logging middleware
 app.use((req, res, next) => {
-  logger.warn(`[Express] 🔔 INCOMING REQUEST: ${req.method} ${req.path}`);
-  logger.warn(`[Express] From: ${req.get('origin') || req.ip}`);
+  // Use debug level in production to avoid flooding logs
+  const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
+  const logLevel = isEmulator ? logger.warn : logger.debug;
+  
+  logLevel(`[Express] ${req.method} ${req.path}`);
+  logger.debug(`[Express] From: ${req.get('origin') || req.ip}`);
   logger.debug(`[Express] Headers:`, req.headers);
   logger.debug(`[Express] Body:`, req.body ? JSON.stringify(req.body).substring(0, 200) : 'empty');
   next();
@@ -46,23 +89,14 @@ app.get('/health', healthCheck);
 // Protected routes (require authentication)
 app.get('/user/me', authenticate, getCurrentUser);
 
-// Backup routes
-app.post('/backup/url', authenticate, backupHandler.getSignedUrl);
-app.get('/backup/metadata', authenticate, backupHandler.getMetadata);
-app.delete('/backup', authenticate, backupHandler.deleteBackup);
-
 // AI routes with quota enforcement
 logger.info('[Setup] Registering AI routes...');
 
-// TODO: MAJOR - RE-ENABLE QUOTA LIMIT FOR DECK GENERATION BEFORE PRODUCTION
-// Temporarily disabled for testing - was: withQuota({ kind: 'deck', freeLimit: 3 })
-app.post('/ai/deck/generate', authenticate, aiHandler.generateDeck);
-logger.info('[Setup] Registered /ai/deck/generate (QUOTA DISABLED FOR TESTING)');
+app.post('/ai/deck/generate', authenticate, withQuota({ kind: 'deck', freeLimit: 3 }), aiHandler.generateDeck);
+logger.info('[Setup] Registered /ai/deck/generate with quota enforcement');
 
-// TODO: MAJOR - RE-ENABLE QUOTA LIMIT FOR HINTS GENERATION BEFORE PRODUCTION
-// Temporarily disabled for testing - was: withQuota({ kind: 'hints', freeLimit: 1 })
-app.post('/ai/hints/generate', authenticate, generateHints);
-logger.info('[Setup] Registered /ai/hints/generate (QUOTA DISABLED FOR TESTING)');
+app.post('/ai/hints/generate', authenticate, withQuota({ kind: 'hints', freeLimit: 1 }), generateHints);
+logger.info('[Setup] Registered /ai/hints/generate with quota enforcement');
 
 app.get('/ai/models', authenticate, aiHandler.getModels);
 logger.info('[Setup] AI routes registered');
@@ -71,8 +105,7 @@ logger.info('[Setup] AI routes registered');
 app.get('/usage', authenticate, getUsage);
 app.post('/iap/revenuecat/webhook', revenueCatWebhook);
 
-// Parse routes
-app.post('/parse/file', authenticate, parseHandler.parseFile);
+// Note: /parse/file route registered above (before global JSON parser) to support 25MB limit
 
 // Debug: List all registered routes
 logger.debug('[Setup] All registered routes:');

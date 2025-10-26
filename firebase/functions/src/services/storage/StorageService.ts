@@ -36,9 +36,9 @@ export class StorageService {
 
     // In emulator, use direct URLs instead of signed URLs
     if (process.env.FUNCTIONS_EMULATOR) {
-      // Get the host from the request or use environment variable
-      // For emulator, we need to use the actual network IP, not localhost
-      const storageHost = '10.0.0.90:9199'; // Match the Functions emulator host
+      // Use STORAGE_EMULATOR_HOST if set, otherwise default to localhost
+      // This makes local dev portable across different network configurations
+      const storageHost = process.env.STORAGE_EMULATOR_HOST || '127.0.0.1:9199';
       
       const projectId = process.env.GCLOUD_PROJECT || 'hefs-b3e45';
       const bucket = process.env.STORAGE_BUCKET || `${projectId}.appspot.com`;
@@ -47,7 +47,7 @@ export class StorageService {
       const encodedPath = encodeURIComponent(path);
       const url = `${baseUrl}/${encodedPath}`;
       
-      logger.info(`Generated emulator ${operation} URL`, { uid, path, url });
+      logger.info(`Generated emulator ${operation} URL`, { uid, path, url, storageHost });
       
       return { url, expiresAt: expires };
     }
@@ -61,7 +61,7 @@ export class StorageService {
         version: 'v4',
         action,
         expires,
-        contentType: operation === 'write' ? 'application/json' : undefined,
+        contentType: operation === 'write' ? 'application/octet-stream' : undefined,
       });
 
       logger.info(`Generated ${action} signed URL`, { uid, path });
