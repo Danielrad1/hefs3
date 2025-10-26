@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Enqode",
-    "slug": "enqode",
+    "slug": "memorize-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/enqode_app_main_image_for_homescreen.png",
