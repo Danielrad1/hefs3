@@ -1,8 +1,29 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 const appJson = require('./app.json');
 const ENV = require('./ENV_CONFIG');
+const { withDangerousMod } = require('@expo/config-plugins');
+const fs = require('fs');
+const path = require('path');
 
-export default ({ config }) => ({
+// Inline plugin: Add use_modular_headers! to Podfile (required for Firebase)
+const withModularHeaders = (config) => {
+  return withDangerousMod(config, [
+    'ios',
+    async (config) => {
+      const podfilePath = path.join(config.modRequest.platformProjectRoot, 'Podfile');
+      if (fs.existsSync(podfilePath)) {
+        let content = fs.readFileSync(podfilePath, 'utf-8');
+        if (!content.includes('use_modular_headers!')) {
+          content = content.replace(/use_expo_modules!/, 'use_expo_modules!\n  use_modular_headers!');
+          fs.writeFileSync(podfilePath, content, 'utf-8');
+        }
+      }
+      return config;
+    },
+  ]);
+};
+
+export default ({ config }) => withModularHeaders({
   ...config,
   ...appJson.expo,
   extra: {
