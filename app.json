@@ -16,7 +16,7 @@
       "backgroundColor": "#0E0E10"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.enqode.app",
       "usesAppleSignIn": true,
       "buildNumber": "2",
