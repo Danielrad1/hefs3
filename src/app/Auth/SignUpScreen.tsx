@@ -90,8 +90,7 @@ export default function SignUpScreen({ onBack, onSignIn }: SignUpScreenProps) {
       await signInWithApple();
     } catch (error: any) {
       if (!isUserCancellation(error)) {
-        const message = error?.message || 'Unable to sign up with Apple. Please try again.';
-        Alert.alert('Sign Up Failed', message);
+        Alert.alert('Sign Up Failed', 'Unable to sign up with Apple. Please try again.');
       }
     } finally {
       setLoading(null);

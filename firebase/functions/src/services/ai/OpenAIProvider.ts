@@ -23,6 +23,8 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async generateDeck(request: GenerateDeckRequest): Promise<GenerateDeckResponse> {
+    const startTime = Date.now();
+    
     // Cap deck generation at 150 cards max (matches frontend limit)
     const MAX_DECK_CARDS = 150;
     const originalLimit = request.itemLimit;
@@ -31,6 +33,9 @@ export class OpenAIProvider implements AIProvider {
       request.itemLimit = MAX_DECK_CARDS;
     }
 
+    // Always use low reasoning effort for speed and cost efficiency
+    const reasoningEffort = 'low';
+
     logger.info('[OpenAIProvider] Starting generation:', {
       sourceType: request.sourceType,
       noteModel: request.noteModel,
@@ -38,6 +43,7 @@ export class OpenAIProvider implements AIProvider {
       originalLimit: originalLimit !== request.itemLimit ? originalLimit : undefined,
       promptLength: request.prompt?.length,
       notesLength: request.notesText?.length,
+      reasoningEffort,
     });
 
     const systemPrompt = getSystemPrompt(request.noteModel);
@@ -82,6 +88,8 @@ export class OpenAIProvider implements AIProvider {
 
     try {
       logger.info('[OpenAIProvider] Calling OpenAI API...');
+      logger.info(`[OpenAIProvider] Model: ${this.model}, Reasoning Effort: ${reasoningEffort}`);
+      
       const completion = await this.client.chat.completions.create({
         model: this.model,
         messages: [
@@ -89,20 +97,21 @@ export class OpenAIProvider implements AIProvider {
           { role: 'user', content: userPrompt },
         ],
         response_format: { type: 'json_object' },
-        // Note: GPT-5 Nano only supports default temperature (1)
-        // temperature: 0.7, // Removed for GPT-5 Nano compatibility
+        reasoning_effort: reasoningEffort,
       });
 
       logger.info('[OpenAIProvider] API call successful');
       
       // Calculate cost based on token usage
       const usage = completion.usage;
+      let totalCost = 0;
+      
       if (usage) {
         const modelConfig = AI_CONFIG.models.find(m => m.id === this.model);
         if (modelConfig) {
           const inputCost = (usage.prompt_tokens / 1_000_000) * modelConfig.pricing.inputPer1M;
           const outputCost = (usage.completion_tokens / 1_000_000) * modelConfig.pricing.outputPer1M;
-          const totalCost = inputCost + outputCost;
+          totalCost = inputCost + outputCost;
           
           logger.info('[OpenAIProvider] ========== TOKEN USAGE & COST ==========');
           logger.info(`[OpenAIProvider] Model: ${modelConfig.name} (${this.model})`);
@@ -156,11 +165,24 @@ export class OpenAIProvider implements AIProvider {
       }
 
       const response = this.parseResponse(parsed, request);
-      logger.info('[OpenAIProvider] Final response:', {
-        deckName: response.deckName,
-        notesCount: response.notes.length,
-        model: response.model,
-      });
+      
+      const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
+      
+      // Log final summary
+      logger.warn('[OpenAIProvider] ========================================');
+      logger.warn('[OpenAIProvider] 📊 DECK GENERATION SUMMARY');
+      logger.warn('[OpenAIProvider] ========================================');
+      logger.warn(`[OpenAIProvider] Model: ${this.model}`);
+      logger.warn(`[OpenAIProvider] Reasoning Effort: ${reasoningEffort}`);
+      logger.warn(`[OpenAIProvider] Requested Cards: ${request.itemLimit}`);
+      logger.warn(`[OpenAIProvider] Generated Cards: ${response.notes.length}`);
+      logger.warn(`[OpenAIProvider] Deck Name: ${response.deckName}`);
+      logger.warn(`[OpenAIProvider] Total Time: ${elapsedTime}s`);
+      logger.warn(`[OpenAIProvider] Total Cost: $${totalCost.toFixed(6)}`);
+      if (response.notes.length > 0) {
+        logger.warn(`[OpenAIProvider] Cost per Card: $${(totalCost / response.notes.length).toFixed(6)}`);
+      }
+      logger.warn('[OpenAIProvider] ========================================');
 
       return response;
     } catch (error) {
@@ -204,6 +226,8 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async generateHints(request: GenerateHintsRequest): Promise<GenerateHintsResponse> {
+    const overallStartTime = Date.now();
+    
     // Cap hints generation at 500 cards max
     const MAX_HINTS_CARDS = 500;
     const originalCount = request.items.length;
@@ -212,11 +236,15 @@ export class OpenAIProvider implements AIProvider {
       request.items = request.items.slice(0, MAX_HINTS_CARDS);
     }
 
+    // Always use low reasoning effort for speed and cost efficiency
+    const reasoningEffort = 'low';
+
     logger.info('[OpenAIProvider] Starting hints generation:', {
       itemsCount: request.items.length,
       originalCount: originalCount !== request.items.length ? originalCount : undefined,
       deckName: request.options?.deckName,
       style: request.options?.style,
+      reasoningEffort,
     });
 
     // Group items by model type for consistent prompts
@@ -224,23 +252,43 @@ export class OpenAIProvider implements AIProvider {
     const clozeItems = request.items.filter(item => item.model === 'cloze');
 
     const allResults: HintsOutputItem[] = [];
+    let totalCost = 0;
 
     // Process basic cards in parallel batches
     if (basicItems.length > 0) {
-      const results = await this.generateHintsParallel(basicItems, 'basic', request.options);
+      const { results, cost } = await this.generateHintsParallel(basicItems, 'basic', { ...request.options, reasoningEffort });
       allResults.push(...results);
+      totalCost += cost;
     }
 
     // Process cloze cards in parallel batches
     if (clozeItems.length > 0) {
-      const results = await this.generateHintsParallel(clozeItems, 'cloze', request.options);
+      const { results, cost } = await this.generateHintsParallel(clozeItems, 'cloze', { ...request.options, reasoningEffort });
       allResults.push(...results);
+      totalCost += cost;
     }
 
+    const overallElapsedTime = ((Date.now() - overallStartTime) / 1000).toFixed(1);
+    
     logger.info('[OpenAIProvider] Hints generation complete:', {
       totalRequested: request.items.length,
       successfulResults: allResults.length,
     });
+
+    // Log final summary
+    logger.warn('[OpenAIProvider] ========================================');
+    logger.warn('[OpenAIProvider] 📊 HINTS GENERATION SUMMARY');
+    logger.warn('[OpenAIProvider] ========================================');
+    logger.warn(`[OpenAIProvider] Model: ${this.model}`);
+    logger.warn(`[OpenAIProvider] Reasoning Effort: ${reasoningEffort}`);
+    logger.warn(`[OpenAIProvider] Total Cards: ${request.items.length}`);
+    logger.warn(`[OpenAIProvider] Successful: ${allResults.length}`);
+    logger.warn(`[OpenAIProvider] Failed: ${request.items.length - allResults.length}`)
+;
+    logger.warn(`[OpenAIProvider] Total Time: ${overallElapsedTime}s`);
+    logger.warn(`[OpenAIProvider] Total Cost: $${totalCost.toFixed(6)}`);
+    logger.warn(`[OpenAIProvider] Cost per Card: $${(totalCost / allResults.length).toFixed(6)}`);
+    logger.warn('[OpenAIProvider] ========================================');
 
     return {
       items: allResults,
@@ -248,77 +296,106 @@ export class OpenAIProvider implements AIProvider {
         modelUsed: this.getName(),
         totalItems: request.items.length,
         successfulItems: allResults.length,
+        totalTimeSeconds: parseFloat(overallElapsedTime),
+        totalCost: totalCost,
+        reasoningEffort: reasoningEffort,
       },
     };
   }
 
   /**
-   * Process hints generation in parallel batches with controlled concurrency
-   * Splits items into batches of 25 and processes max 10 batches concurrently
+   * Calculate optimal batch size based on deck size and average card length
+   */
+  private calculateBatchSize(totalCards: number, items: Array<{ front?: string; back?: string; cloze?: string }>): number {
+    // Calculate average card length
+    let totalLength = 0;
+    items.forEach(item => {
+      const frontLen = item.front?.length || 0;
+      const backLen = item.back?.length || 0;
+      const clozeLen = item.cloze?.length || 0;
+      totalLength += frontLen + backLen + clozeLen;
+    });
+    const avgLength = totalLength / items.length;
+
+    // Base batch size by deck size
+    let baseBatchSize: number;
+    if (totalCards <= 20) {
+      baseBatchSize = 10; // Small decks: favor latency
+    } else if (totalCards <= 80) {
+      baseBatchSize = 17; // Medium decks
+    } else if (totalCards <= 200) {
+      baseBatchSize = 20; // Large decks
+    } else {
+      baseBatchSize = 25; // Huge decks: cap at concurrency window
+    }
+
+    // Adjust down if average length is large
+    const lengthFactor = Math.max(0.6, Math.min(1, 240 / avgLength));
+    const adjustedBatchSize = Math.floor(baseBatchSize * lengthFactor);
+
+    logger.info(`[OpenAIProvider] Batch size calculation: totalCards=${totalCards}, avgLength=${avgLength.toFixed(0)}, baseBatchSize=${baseBatchSize}, lengthFactor=${lengthFactor.toFixed(2)}, finalBatchSize=${adjustedBatchSize}`);
+
+    return Math.max(5, adjustedBatchSize); // Minimum batch size of 5
+  }
+
+  /**
+   * Process hints generation in parallel batches with unlimited concurrency
+   * Splits items into dynamic batches based on deck size and card complexity
    */
   private async generateHintsParallel(
     items: Array<{ id: string; model: 'basic' | 'cloze'; front?: string; back?: string; cloze?: string; tags?: string[]; context?: string }>,
     noteModel: 'basic' | 'cloze',
     options?: any // Accept all HintsOptions
-  ): Promise<HintsOutputItem[]> {
-    const BATCH_SIZE = 25;
-    const MAX_CONCURRENT_BATCHES = 10;
+  ): Promise<{ results: HintsOutputItem[]; cost: number }> {
+    const BATCH_SIZE = this.calculateBatchSize(items.length, items);
     const batches: Array<typeof items> = [];
     
-    // Split into batches of 25
+    // Split into dynamic batches
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       batches.push(items.slice(i, i + BATCH_SIZE));
     }
 
-    logger.info(`[OpenAIProvider] Processing ${items.length} items in ${batches.length} batches of ${BATCH_SIZE} (max ${MAX_CONCURRENT_BATCHES} concurrent)`);
+    logger.info(`[OpenAIProvider] Processing ${items.length} items in ${batches.length} batches of ${BATCH_SIZE} (all concurrent)`);
 
     const startTime = Date.now();
-    const allResults: HintsOutputItem[] = [];
+    let totalCost = 0;
     
-    // Process batches with concurrency limit
-    for (let i = 0; i < batches.length; i += MAX_CONCURRENT_BATCHES) {
-      const batchGroup = batches.slice(i, i + MAX_CONCURRENT_BATCHES);
-      const groupStartIndex = i;
-      
-      logger.info(`[OpenAIProvider] Processing batch group ${Math.floor(i / MAX_CONCURRENT_BATCHES) + 1}/${Math.ceil(batches.length / MAX_CONCURRENT_BATCHES)} (${batchGroup.length} batches)`);
-      
-      const batchPromises = batchGroup.map((batch, index) => 
-        this.generateHintsForBatch(batch, noteModel, options)
-          .then(results => {
-            const batchNum = groupStartIndex + index + 1;
-            logger.info(`[OpenAIProvider] Batch ${batchNum}/${batches.length} complete (${results.length} items)`);
-            return results;
-          })
-          .catch(error => {
-            const batchNum = groupStartIndex + index + 1;
-            logger.error(`[OpenAIProvider] Batch ${batchNum}/${batches.length} failed:`, error);
-            // Return empty array on error to not block other batches
-            return [];
-          })
-      );
-      
-      // Wait for this group to complete before starting next group
-      const groupResults = await Promise.all(batchPromises);
-      allResults.push(...groupResults.flat());
-    }
+    // Process all batches in parallel with no concurrency limit
+    const batchPromises = batches.map((batch, index) => 
+      this.generateHintsForBatch(batch, noteModel, options)
+        .then(({ results, cost }) => {
+          logger.info(`[OpenAIProvider] Batch ${index + 1}/${batches.length} complete (${results.length} items, $${cost.toFixed(6)})`);
+          totalCost += cost;
+          return results;
+        })
+        .catch(error => {
+          logger.error(`[OpenAIProvider] Batch ${index + 1}/${batches.length} failed:`, error);
+          // Return empty array on error to not block other batches
+          return [];
+        })
+    );
+    
+    const allResults = await Promise.all(batchPromises);
+    const flatResults = allResults.flat();
     
     const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
     logger.info(`[OpenAIProvider] Parallel processing complete in ${elapsedTime}s:`, {
       totalBatches: batches.length,
       totalItems: items.length,
-      successfulItems: allResults.length,
-      failedItems: items.length - allResults.length,
+      successfulItems: flatResults.length,
+      failedItems: items.length - flatResults.length,
+      totalCost: `$${totalCost.toFixed(6)}`,
     });
 
-    return allResults;
+    return { results: flatResults, cost: totalCost };
   }
 
   private async generateHintsForBatch(
     items: Array<{ id: string; model: 'basic' | 'cloze'; front?: string; back?: string; cloze?: string; tags?: string[]; context?: string }>,
     noteModel: 'basic' | 'cloze',
     options?: any // Accept all HintsOptions
-  ): Promise<HintsOutputItem[]> {
+  ): Promise<{ results: HintsOutputItem[]; cost: number }> {
     const systemPrompt = getHintsSystemPrompt(noteModel);
     
     // Strip unnecessary fields to reduce prompt size
@@ -354,11 +431,14 @@ export class OpenAIProvider implements AIProvider {
       logger.info('[OpenAIProvider] Model:', this.model);
       logger.info('[OpenAIProvider] API base URL:', (this.client as any).baseURL);
       
+      const reasoningEffort = options?.reasoningEffort || 'low';
+      
       logger.info('[OpenAIProvider] Request params:', {
         model: this.model,
         systemPromptLength: systemPrompt.length,
         userPromptLength: userPrompt.length,
         responseFormat: 'json_object',
+        reasoningEffort: reasoningEffort,
       });
       
       const completion = await this.client.chat.completions.create({
@@ -368,19 +448,25 @@ export class OpenAIProvider implements AIProvider {
           { role: 'user', content: userPrompt },
         ],
         response_format: { type: 'json_object' },
-        // Note: GPT-5 Nano only supports default temperature (1)
+        reasoning_effort: reasoningEffort,
       });
 
       logger.info('[OpenAIProvider] Hints API call successful');
 
-      // Log token usage
+      // Log token usage and calculate cost
       const usage = completion.usage;
+      let batchCost = 0;
+      
       if (usage) {
+        logger.warn('[OpenAIProvider] ========== RAW USAGE OBJECT ==========');
+        logger.warn(JSON.stringify(usage, null, 2));
+        logger.warn('[OpenAIProvider] ========================================');
+        
         const modelConfig = AI_CONFIG.models.find(m => m.id === this.model);
         if (modelConfig) {
           const inputCost = (usage.prompt_tokens / 1_000_000) * modelConfig.pricing.inputPer1M;
           const outputCost = (usage.completion_tokens / 1_000_000) * modelConfig.pricing.outputPer1M;
-          const totalCost = inputCost + outputCost;
+          batchCost = inputCost + outputCost;
           
           logger.warn('[OpenAIProvider] ========== HINTS TOKEN USAGE & COST ==========');
           logger.warn(`[OpenAIProvider] Model: ${modelConfig.name} (${this.model})`);
@@ -389,7 +475,7 @@ export class OpenAIProvider implements AIProvider {
           logger.warn(`[OpenAIProvider] Total tokens: ${usage.total_tokens.toLocaleString()}`);
           logger.warn(`[OpenAIProvider] Input cost: $${inputCost.toFixed(6)}`);
           logger.warn(`[OpenAIProvider] Output cost: $${outputCost.toFixed(6)}`);
-          logger.warn(`[OpenAIProvider] TOTAL COST: $${totalCost.toFixed(6)}`);
+          logger.warn(`[OpenAIProvider] TOTAL COST: $${batchCost.toFixed(6)}`);
           logger.warn('[OpenAIProvider] ========================================');
         }
       }
@@ -399,7 +485,9 @@ export class OpenAIProvider implements AIProvider {
         throw new Error('No response from AI provider');
       }
 
-      logger.debug('[OpenAIProvider] Raw AI response (first 500 chars):', content.substring(0, 500));
+      logger.warn('[OpenAIProvider] ========== FULL HINTS AI OUTPUT ==========');
+      logger.warn(content);
+      logger.warn('[OpenAIProvider] ========== END HINTS AI OUTPUT ==========');
 
       const parsed = JSON.parse(content);
       logger.info('[OpenAIProvider] Hints response parsed:', {
@@ -407,7 +495,8 @@ export class OpenAIProvider implements AIProvider {
         requestedCount: items.length,
       });
 
-      return this.parseHintsResponse(parsed, items, content);
+      const results = this.parseHintsResponse(parsed, items, content);
+      return { results, cost: batchCost };
     } catch (error: any) {
       logger.error('[OpenAIProvider] Hints generation failed:', error);
       logger.error('[OpenAIProvider] Error type:', error?.constructor?.name);

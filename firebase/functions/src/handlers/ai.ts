@@ -42,12 +42,16 @@ export const generateDeck = async (req: Request, res: Response) => {
     const provider = new OpenAIProvider(apiKey);
     const result = await provider.generateDeck(request);
 
-    // Clamp to 25 cards for free users
+    // Clamp to 25 cards for free users (bypass in emulator mode)
     const user = (req as AuthenticatedRequest).user;
-    if (!user?.premium && result.notes && result.notes.length > 25) {
+    const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
+    
+    if (!isEmulator && !user?.premium && result.notes && result.notes.length > 25) {
       logger.info(`[AI] Clamping deck from ${result.notes.length} to 25 cards for free user ${user.uid}`);
       result.notes = result.notes.slice(0, 25);
       result.metadata.items = 25;
+    } else if (isEmulator && result.notes && result.notes.length > 25) {
+      logger.info(`[AI] Emulator mode: allowing ${result.notes.length} cards (no free user limit)`);
     }
 
     return res.json({

@@ -168,6 +168,9 @@ export interface GenerateHintsResponse {
     modelUsed: string;
     totalItems: number;
     successfulItems: number;
+    totalTimeSeconds?: number;
+    totalCost?: number;
+    reasoningEffort?: string;
     averageScores?: {
       discrimination: number;
       specificity: number;
