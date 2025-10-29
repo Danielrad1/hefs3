@@ -253,3 +253,4 @@ export const MAX_EASE_FACTOR = 2600;      // 2.6 in permille (not enforced by An
 // Model types
 export const MODEL_TYPE_STANDARD = 0;
 export const MODEL_TYPE_CLOZE = 1;
+export const MODEL_TYPE_IMAGE_OCCLUSION = 2;

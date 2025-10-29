@@ -3,7 +3,7 @@
  */
 
 import { InMemoryDb } from './InMemoryDb';
-import { AnkiNote, AnkiCard, CardType, CardQueue, FIELD_SEPARATOR, DEFAULT_EASE_FACTOR, DEFAULT_MODEL_ID, MODEL_TYPE_CLOZE } from './schema';
+import { AnkiNote, AnkiCard, CardType, CardQueue, FIELD_SEPARATOR, DEFAULT_EASE_FACTOR, DEFAULT_MODEL_ID, MODEL_TYPE_CLOZE, MODEL_TYPE_IMAGE_OCCLUSION } from './schema';
 import { nowSeconds, generateId } from './time';
 import { generateGuid } from './guid';
 import { calculateChecksum } from './checksum';
@@ -107,8 +107,8 @@ export class NoteService {
 
     this.db.updateNote(noteId, updates);
 
-    // Regenerate cards if fields changed (for cloze notes)
-    if (params.fields && model.type === MODEL_TYPE_CLOZE) {
+    // Regenerate cards if fields changed (for cloze and image occlusion notes)
+    if (params.fields && (model.type === MODEL_TYPE_CLOZE || model.type === MODEL_TYPE_IMAGE_OCCLUSION)) {
       // Delete existing cards
       const existingCards = this.db.getAllCards().filter((c) => c.nid === noteId);
       existingCards.forEach((card) => this.db.deleteCard(card.id));
@@ -235,6 +235,34 @@ export class NoteService {
         };
         this.db.addCard(card);
       });
+    } else if (model.type === MODEL_TYPE_IMAGE_OCCLUSION) {
+      // Generate cards for each image occlusion mask
+      const maskIndices = this.extractImageOcclusionMaskIndices(note);
+
+      maskIndices.forEach((maskIndex) => {
+        const cardId = generateId();
+        const card: AnkiCard = {
+          id: cardId,
+          nid: note.id,
+          did: deckId,
+          ord: maskIndex, // ord = mask index (0-based)
+          mod: now,
+          usn: -1,
+          type: CardType.New,
+          queue: CardQueue.New,
+          due: this.db.incrementNextPos(),
+          ivl: 0,
+          factor: DEFAULT_EASE_FACTOR,
+          reps: 0,
+          lapses: 0,
+          left: 0,
+          odue: 0,
+          odid: '0',
+          flags: 0,
+          data: '',
+        };
+        this.db.addCard(card);
+      });
     } else {
       // Standard model: generate one card per template
       model.tmpls.forEach((template: any) => {
@@ -277,6 +305,29 @@ export class NoteService {
     }
 
     return Array.from(indices).sort((a, b) => a - b);
+  }
+
+  /**
+   * Extract mask indices from image occlusion note data
+   * Returns array of 0-based indices corresponding to masks
+   */
+  private extractImageOcclusionMaskIndices(note: AnkiNote): number[] {
+    try {
+      if (!note.data) {
+        return [];
+      }
+      
+      const data = JSON.parse(note.data);
+      if (!data.io || !Array.isArray(data.io.masks)) {
+        return [];
+      }
+      
+      // Return 0-based indices for each mask
+      return data.io.masks.map((_: any, index: number) => index);
+    } catch (e) {
+      logger.error('[NoteService] Failed to parse image occlusion data:', e);
+      return [];
+    }
   }
 
 }

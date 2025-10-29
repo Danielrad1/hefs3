@@ -13,6 +13,7 @@ import {
   DEFAULT_DECK_ID,
   DEFAULT_MODEL_ID,
   DEFAULT_EASE_FACTOR,
+  MODEL_TYPE_IMAGE_OCCLUSION,
 } from './schema';
 import { InMemoryDb } from './InMemoryDb';
 import { nowSeconds, generateId } from './time';
@@ -100,9 +101,54 @@ export function toViewCard(ankiCard: AnkiCard, db: InMemoryDb): Card {
     throw new Error(`Note ${ankiCard.nid} not found`);
   }
 
+  const model = db.getModel(note.mid);
+  if (!model) {
+    throw new Error(`Model ${note.mid} not found`);
+  }
+
+  // Handle Image Occlusion cards
+  if (model.type === MODEL_TYPE_IMAGE_OCCLUSION) {
+    return toImageOcclusionCard(ankiCard, note, db);
+  }
+
+  // Standard and cloze cards
   const fields = note.flds.split(FIELD_SEPARATOR);
   const front = fields[0] || '';
   const back = fields[1] || '';
+
+  return {
+    id: ankiCard.id,
+    front,
+    back,
+    deckId: ankiCard.did || DEFAULT_DECK_ID,
+  };
+}
+
+/**
+ * Convert Image Occlusion note to UI Card
+ */
+function toImageOcclusionCard(ankiCard: AnkiCard, note: AnkiNote, db: InMemoryDb): Card {
+  const fields = note.flds.split(FIELD_SEPARATOR);
+  const extraField = fields[1] || '';
+  
+  // Parse occlusion data from note.data
+  let occlusionData = '{}';
+  try {
+    if (note.data) {
+      const data = JSON.parse(note.data);
+      if (data.io) {
+        occlusionData = JSON.stringify(data.io);
+      }
+    }
+  } catch (e) {
+    logger.error('[Adapter] Failed to parse image occlusion data:', e);
+  }
+
+  // Front: occlusion element with ord
+  const front = `<io-occlude data='${occlusionData}' ord='${ankiCard.ord}'></io-occlude>`;
+  
+  // Back: occlusion element with reveal + Extra field
+  const back = `<io-occlude data='${occlusionData}' ord='${ankiCard.ord}' reveal='true'></io-occlude>${extraField ? '<br>' + extraField : ''}`;
 
   return {
     id: ankiCard.id,

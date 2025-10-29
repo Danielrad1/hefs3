@@ -194,14 +194,38 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
   };
 
   const handleAddNote = () => {
-    // Use first available model (works with both built-in and imported models)
-    const models = db.getAllModels();
-    const defaultModelId = models.length > 0 ? models[0].id : 1;  // Numeric ID
-    
-    navigation.navigate('NoteEditor', {
-      deckId,
-      modelId: defaultModelId,
-    });
+    // Show options for different note types
+    Alert.alert(
+      'Add Note',
+      'Choose note type',
+      [
+        {
+          text: 'Text Note',
+          onPress: () => {
+            // Use first available model (works with both built-in and imported models)
+            const models = db.getAllModels();
+            const defaultModelId = models.length > 0 ? models[0].id : 1;  // Numeric ID
+            
+            navigation.navigate('NoteEditor', {
+              deckId,
+              modelId: defaultModelId,
+            });
+          },
+        },
+        {
+          text: 'Image Occlusion',
+          onPress: () => {
+            navigation.navigate('ImageOcclusionEditor', {
+              deckId,
+            });
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   const handleRenameDeck = () => {

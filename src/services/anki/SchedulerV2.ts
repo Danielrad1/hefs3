@@ -24,6 +24,9 @@ import {
 } from './time';
 
 export class SchedulerV2 {
+  // Session-based buried note IDs (to prevent sibling cards from showing)
+  private buriedNoteIds: Set<string> = new Set();
+
   /**
    * @param db - The in-memory database
    * @param rng - Random number generator function (0-1). Defaults to Math.random.
@@ -49,11 +52,12 @@ export class SchedulerV2 {
       ? this.db.getCardsByDeck(deckId)
       : this.db.getAllCards();
 
-    // Filter out suspended and buried
+    // Filter out suspended, buried, and session-buried siblings
     const activeCards = cards.filter(
       (c) => c.queue !== CardQueue.Suspended &&
              c.queue !== CardQueue.UserBuried &&
-             c.queue !== CardQueue.SchedBuried
+             c.queue !== CardQueue.SchedBuried &&
+             !this.buriedNoteIds.has(c.nid)
     );
 
     // Prioritize: learning > review > new
@@ -95,6 +99,31 @@ export class SchedulerV2 {
   }
 
   /**
+   * Bury siblings of the current card for this session
+   */
+  burySiblings(cardId: string): void {
+    const card = this.db.getCard(cardId);
+    if (!card) return;
+
+    // Add note ID to buried set
+    this.buriedNoteIds.add(card.nid);
+  }
+
+  /**
+   * Clear session-buried notes (call when switching decks or starting new session)
+   */
+  clearBuriedSiblings(): void {
+    this.buriedNoteIds.clear();
+  }
+
+  /**
+   * Get buried note IDs count
+   */
+  getBuriedCount(): number {
+    return this.buriedNoteIds.size;
+  }
+
+  /**
    * Peek at the next card without removing from queue
    * Returns the second card in queue (after current)
    */
@@ -106,11 +135,12 @@ export class SchedulerV2 {
       ? this.db.getCardsByDeck(deckId)
       : this.db.getAllCards();
 
-    // Filter out suspended and buried
+    // Filter out suspended, buried, and session-buried siblings
     const activeCards = cards.filter(
       (c) => c.queue !== CardQueue.Suspended &&
              c.queue !== CardQueue.UserBuried &&
-             c.queue !== CardQueue.SchedBuried
+             c.queue !== CardQueue.SchedBuried &&
+             !this.buriedNoteIds.has(c.nid)
     );
 
     // Get all due cards (same priority as getNext)

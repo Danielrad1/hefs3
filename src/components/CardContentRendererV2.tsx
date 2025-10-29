@@ -1,6 +1,6 @@
 import React, { useState, useLayoutEffect } from 'react';
 import { View, Text as RNText, StyleSheet, Pressable, useWindowDimensions, Image } from 'react-native';
-import RenderHtml, { CustomBlockRenderer } from 'react-native-render-html';
+import RenderHtml, { CustomBlockRenderer, TBlock, CustomRendererProps, TNode } from 'react-native-render-html';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -19,6 +19,163 @@ interface CardContentRendererProps {
   cardId?: string;
 }
 
+interface ImageOcclusionMask {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+interface ImageOcclusionData {
+  version: number;
+  image: string;
+  mode: 'hide-one' | 'hide-all';
+  masks: ImageOcclusionMask[];
+  naturalSize?: { w: number; h: number };
+}
+
+/**
+ * Custom renderer for <io-occlude> elements
+ * Renders image with occlusion masks as overlays
+ */
+const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
+  const { tnode } = props;
+  const theme = useTheme();
+  const [layout, setLayout] = useState<{ width: number; height: number } | null>(null);
+
+  // Extract attributes from the node
+  const dataAttr = tnode.attributes?.data || '{}';
+  const ordAttr = tnode.attributes?.ord || '0';
+  const revealAttr = tnode.attributes?.reveal === 'true';
+
+  // Get renderer props from the renderersProps passed to RenderHtml
+  const revealed = props.revealed ?? revealAttr;
+  const contentWidth = props.contentWidth || 300;
+  const maxImageHeight = props.maxImageHeight || 400;
+
+  // Parse occlusion data
+  const occlusionData = React.useMemo<ImageOcclusionData>(() => {
+    try {
+      return JSON.parse(dataAttr);
+    } catch (e) {
+      logger.error('[ImageOcclusionRenderer] Failed to parse data:', e);
+      return {
+        version: 1,
+        image: '',
+        mode: 'hide-one',
+        masks: [],
+      };
+    }
+  }, [dataAttr]);
+
+  const ord = parseInt(ordAttr);
+  const masks = occlusionData.masks || [];
+  const targetMask = masks[ord];
+  const imageUri = getMediaUri(occlusionData.image);
+
+  // Calculate image dimensions maintaining aspect ratio
+  const [imageDimensions, setImageDimensions] = useState({ width: contentWidth, height: 300 });
+
+  React.useEffect(() => {
+    if (occlusionData.image) {
+      Image.getSize(
+        imageUri,
+        (width, height) => {
+          const aspectRatio = height / width;
+          let displayWidth = contentWidth;
+          let displayHeight = displayWidth * aspectRatio;
+
+          if (displayHeight > maxImageHeight) {
+            displayHeight = maxImageHeight;
+            displayWidth = displayHeight / aspectRatio;
+          }
+
+          setImageDimensions({ width: displayWidth, height: displayHeight });
+        },
+        (error) => {
+          logger.error('[ImageOcclusionRenderer] Failed to get image size:', error);
+        }
+      );
+    }
+  }, [imageUri, contentWidth, maxImageHeight]);
+
+  const handleLayout = (event: any) => {
+    const { width, height } = event.nativeEvent.layout;
+    setLayout({ width, height });
+  };
+
+  return (
+    <View style={[ioStyles.container, { alignSelf: 'center' }]}>
+      <View 
+        style={{ 
+          width: imageDimensions.width, 
+          height: imageDimensions.height,
+          position: 'relative',
+        }}
+        onLayout={handleLayout}
+      >
+        <Image
+          source={{ uri: imageUri }}
+          style={{
+            width: imageDimensions.width,
+            height: imageDimensions.height,
+          }}
+          resizeMode="contain"
+        />
+
+        {/* Render masks as overlays */}
+        {layout && masks.map((mask, index) => {
+          const isTarget = targetMask && mask.id === targetMask.id;
+          const left = mask.x * layout.width;
+          const top = mask.y * layout.height;
+          const width = mask.w * layout.width;
+          const height = mask.h * layout.height;
+
+          let maskStyle: any;
+          
+          if (revealed) {
+            // Back side: highlight target, make others faint or hidden
+            if (isTarget) {
+              maskStyle = ioStyles.highlight;
+            } else {
+              maskStyle = ioStyles.faint;
+            }
+          } else {
+            // Front side: depends on mode
+            if (occlusionData.mode === 'hide-one') {
+              // Hide target, show others faintly
+              if (isTarget) {
+                maskStyle = ioStyles.opaque;
+              } else {
+                maskStyle = ioStyles.faint;
+              }
+            } else {
+              // hide-all: all opaque
+              maskStyle = ioStyles.opaque;
+            }
+          }
+
+          return (
+            <View
+              key={mask.id}
+              style={[
+                ioStyles.mask,
+                maskStyle,
+                {
+                  left,
+                  top,
+                  width,
+                  height,
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
+};
 
 /**
  * Renders Anki card HTML content properly with full HTML support:
@@ -299,6 +456,27 @@ const CardContentRendererV2 = React.memo(function CardContentRendererV2({
   // Memoize defaultTextProps to prevent unnecessary re-renders
   const defaultTextProps = React.useMemo(() => ({ selectable: false }), []);
 
+  // Custom renderers for io-occlude elements
+  const customHTMLElementModels = React.useMemo(() => ({
+    'io-occlude': {
+      tagName: 'io-occlude',
+      contentModel: 'block' as const,
+    },
+  }), []);
+
+  const renderers = React.useMemo(() => ({
+    'io-occlude': ImageOcclusionRenderer,
+  }), []);
+
+  const renderersPropsWithIO = React.useMemo(() => ({
+    ...renderersProps,
+    'io-occlude': {
+      revealed,
+      contentWidth,
+      maxImageHeight,
+    },
+  }), [renderersProps, revealed, contentWidth, maxImageHeight]);
+
   return (
     <View style={styles.container}>
       <RenderHtml
@@ -307,7 +485,9 @@ const CardContentRendererV2 = React.memo(function CardContentRendererV2({
         tagsStyles={tagsStyles}
         defaultTextProps={defaultTextProps}
         enableCSSInlineProcessing
-        renderersProps={renderersProps}
+        renderersProps={renderersPropsWithIO}
+        customHTMLElementModels={customHTMLElementModels as any}
+        renderers={renderers}
       />
 
       {/* Audio Players */}
@@ -502,6 +682,30 @@ function AudioPlayer({ filename, theme, cardId }: { filename: string; theme: any
     </GestureDetector>
   );
 }
+
+const ioStyles = StyleSheet.create({
+  container: {
+    marginVertical: 20,
+    alignItems: 'center',
+  },
+  mask: {
+    position: 'absolute',
+    borderRadius: 4,
+  },
+  opaque: {
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+  },
+  highlight: {
+    backgroundColor: 'rgba(59, 130, 246, 0.22)',
+    borderWidth: 2,
+    borderColor: 'rgba(59, 130, 246, 0.5)',
+  },
+  faint: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.3)',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
