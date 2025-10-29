@@ -348,6 +348,9 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
 
     logger.info('[DeckImport] Found', ioModels.length, 'IO model(s):', ioModels.map(m => m.name).join(', '));
 
+    let convertedCount = 0;
+    let errorCount = 0;
+
     // Process each IO model
     for (const ioModel of ioModels) {
       const notes = db.getAllNotes().filter(n => n.mid === ioModel.id);
@@ -442,17 +445,22 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
             fields: [imageFilename, extra],
           });
           
+          convertedCount++;
+          
           if (i % 10 === 0) {
             updateProgress(`Converting IO notes… (${i + 1}/${notes.length})`);
             await new Promise((r) => setTimeout(r, 0));
           }
         } catch (error) {
+          errorCount++;
           logger.error('[DeckImport] Failed to convert IO note', note.id, error);
           // Continue with other notes
         }
       }
-      
-      logger.info('[DeckImport] Converted', notes.length, 'IO notes successfully');
+    }
+    
+    if (convertedCount > 0) {
+      logger.info('[DeckImport] Converted', convertedCount, 'IO notes successfully' + (errorCount > 0 ? `, ${errorCount} failed` : ''));
     }
   };
 
