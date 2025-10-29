@@ -268,6 +268,16 @@ export default function ImageOcclusionEditorScreen({ route, navigation }: ImageO
               </View>
             </View>
 
+            {/* Mask Info */}
+            {selectedMaskId && (
+              <View style={[styles.maskInfo, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                <Ionicons name="information-circle" size={20} color={theme.colors.accent} />
+                <Text style={[styles.maskInfoText, { color: theme.colors.textPrimary }]}>
+                  Editing Mask {masks.findIndex(m => m.id === selectedMaskId) + 1} of {masks.length}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.controls}>
               <View style={styles.controlRow}>
                 <Pressable onPress={addMask} style={[styles.button, { backgroundColor: theme.colors.accent, flex: 1 }]}>
@@ -287,6 +297,11 @@ export default function ImageOcclusionEditorScreen({ route, navigation }: ImageO
               <View style={styles.modeContainer}>
                 <Text style={[styles.label, { color: theme.colors.textPrimary, marginBottom: s.sm }]}>
                   Occlusion Mode:
+                </Text>
+                <Text style={[styles.modeHint, { color: theme.colors.textSecondary, marginBottom: s.sm }]}>
+                  {mode === 'hide-one' 
+                    ? 'One mask hidden at a time (creates ' + masks.length + ' cards)' 
+                    : 'All masks hidden together (creates ' + masks.length + ' cards)'}
                 </Text>
                 <View style={styles.buttonRow}>
                   <Pressable
@@ -410,6 +425,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: 4,
   },
+  maskInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: s.sm,
+    borderRadius: r.md,
+    borderWidth: 1,
+    marginBottom: s.md,
+    gap: s.xs,
+  },
+  maskInfoText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
   controls: {
     gap: s.lg,
   },
@@ -423,6 +451,10 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  modeHint: {
+    fontSize: 13,
+    fontStyle: 'italic',
   },
   modeButton: {
     flex: 1,

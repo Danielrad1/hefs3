@@ -224,13 +224,16 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
   // Reload cards when deck changes
   useEffect(() => {
     if (currentDeckId) {
+      // Clear buried siblings when switching decks
+      scheduler.clearBuriedSiblings();
+      
       // Use setTimeout to prevent blocking UI when switching decks
       const timer = setTimeout(() => {
         loadCards();
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [currentDeckId]);
+  }, [currentDeckId, scheduler]);
 
   // Reload function to refresh from database
   const reload = useCallback(() => {
