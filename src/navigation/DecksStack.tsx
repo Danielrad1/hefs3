@@ -5,6 +5,7 @@ import DeckDetailScreen from '../app/Decks/DeckDetailScreen';
 import DeckStatsScreen from '../app/Decks/DeckStatsScreen';
 import CardBrowserScreen from '../app/Browser/CardBrowserScreen';
 import NoteEditorScreen from '../app/Editor/NoteEditorScreen';
+import ImageOcclusionEditorScreen from '../app/Editor/ImageOcclusionEditorScreen';
 import AIDeckCreatorScreen from '../app/Decks/AIDeckCreatorScreen';
 import AIGeneratingScreen from '../app/Decks/AIGeneratingScreen';
 import AIDeckPreviewScreen from '../app/Decks/AIDeckPreviewScreen';
@@ -22,6 +23,7 @@ export default function DecksStack() {
       <Stack.Screen name="DeckStats" component={DeckStatsScreen} />
       <Stack.Screen name="DeckBrowser" component={CardBrowserScreen} />
       <Stack.Screen name="NoteEditor" component={NoteEditorScreen} />
+      <Stack.Screen name="ImageOcclusionEditor" component={ImageOcclusionEditorScreen} />
       <Stack.Screen name="AIDeckCreator" component={AIDeckCreatorScreen} />
       <Stack.Screen name="AIGenerating" component={AIGeneratingScreen} />
       <Stack.Screen name="AIDeckPreview" component={AIDeckPreviewScreen} />

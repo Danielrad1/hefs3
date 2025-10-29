@@ -204,6 +204,9 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     // Process answer
     scheduler.answer(current.id, ease, responseTimeMs);
 
+    // Bury siblings to prevent showing other masks from same note
+    scheduler.burySiblings(current.id);
+
     // Debounced save to persist review progress
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);

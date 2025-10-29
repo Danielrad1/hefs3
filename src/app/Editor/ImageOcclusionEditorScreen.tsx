@@ -180,8 +180,14 @@ export default function ImageOcclusionEditorScreen({ route, navigation }: ImageO
         tags: [],
       });
 
+      // Set note.data with occlusion info
       db.updateNote(note.id, {
         data: JSON.stringify(noteData),
+      });
+
+      // Trigger card regeneration now that note.data is set
+      noteService.updateNote(note.id, {
+        fields: [imageFilename, extraText],
       });
 
       logger.info('[ImageOcclusionEditor] Created note with', masks.length, 'masks');
