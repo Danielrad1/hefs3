@@ -467,7 +467,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: s.md,
+    paddingHorizontal: s.lg,
+    paddingVertical: s.md,
     borderBottomWidth: 1,
   },
   backButton: {
@@ -479,16 +480,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
     textAlign: 'center',
-  },
-  addButton: {
-    paddingHorizontal: s.md,
-    paddingVertical: s.sm,
-    borderRadius: r.md,
-  },
-  addButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
   },
   searchContainer: {
     padding: s.md,

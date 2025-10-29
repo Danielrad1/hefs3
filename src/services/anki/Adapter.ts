@@ -25,17 +25,17 @@ import { logger } from '../../utils/logger';
  */
 export function bootstrapFromSeed(db: InMemoryDb, cards: Card[]): void {
   const now = nowSeconds();
-  
+
   // Collect unique deck IDs and create decks
-  const deckIds = new Set(cards.map(c => c.deckId).filter(Boolean));
-  deckIds.forEach(deckId => {
+  const deckIds = new Set(cards.map((c) => c.deckId).filter(Boolean));
+  deckIds.forEach((deckId) => {
     if (deckId && !db.getDeck(deckId)) {
       // Create deck if it doesn't exist
       db.addDeck({
         id: deckId,
-        name: deckId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        name: deckId.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
         desc: '',
-        conf: '1',  // Use default deck config
+        conf: '1', // Use default deck config
         mod: now,
         usn: -1,
         collapsed: false,
@@ -46,16 +46,16 @@ export function bootstrapFromSeed(db: InMemoryDb, cards: Card[]): void {
 
   cards.forEach((card, index) => {
     // Create note
-    const noteId = generateId() + index;  // Ensure unique IDs
+    const noteId = generateId() + index; // Ensure unique IDs
     const note: AnkiNote = {
       id: noteId,
       guid: `seed-${noteId}`,
       mid: DEFAULT_MODEL_ID,
       mod: now,
       usn: -1,
-      tags: ' ',  // empty tags
+      tags: ' ', // empty tags
       flds: `${card.front}${FIELD_SEPARATOR}${card.back}`,
-      sfld: 0,  // first field for sorting
+      sfld: 0, // first field for sorting
       csum: hashField(card.front),
       flags: 0,
       data: '',
@@ -68,12 +68,12 @@ export function bootstrapFromSeed(db: InMemoryDb, cards: Card[]): void {
       id: cardId,
       nid: noteId,
       did: deckId,
-      ord: 0,  // first card template
+      ord: 0, // first card template
       mod: now,
       usn: -1,
       type: CardType.New,
       queue: CardQueue.New,
-      due: db.incrementNextPos(),  // sequential order
+      due: db.incrementNextPos(), // sequential order
       ivl: 0,
       factor: DEFAULT_EASE_FACTOR,
       reps: 0,
@@ -130,25 +130,31 @@ export function toViewCard(ankiCard: AnkiCard, db: InMemoryDb): Card {
 function toImageOcclusionCard(ankiCard: AnkiCard, note: AnkiNote, db: InMemoryDb): Card {
   const fields = note.flds.split(FIELD_SEPARATOR);
   const extraField = fields[1] || '';
-  
+
   // Parse occlusion data from note.data
   let occlusionData = '{}';
+  let mode: 'hide-one' | 'hide-all' = 'hide-one';
   try {
     if (note.data) {
       const data = JSON.parse(note.data);
       if (data.io) {
         occlusionData = JSON.stringify(data.io);
+        if (data.io.mode === 'hide-all') {
+          mode = 'hide-all';
+        }
       }
     }
   } catch (e) {
     logger.error('[Adapter] Failed to parse image occlusion data:', e);
   }
 
+  const ordAttr = mode === 'hide-all' ? 'all' : String(ankiCard.ord);
+
   // Front: occlusion element with ord
-  const front = `<io-occlude data='${occlusionData}' ord='${ankiCard.ord}'></io-occlude>`;
-  
+  const front = `<io-occlude data='${occlusionData}' ord='${ordAttr}'></io-occlude>`;
+
   // Back: occlusion element with reveal + Extra field
-  const back = `<io-occlude data='${occlusionData}' ord='${ankiCard.ord}' reveal='true'></io-occlude>${extraField ? '<br>' + extraField : ''}`;
+  const back = `<io-occlude data='${occlusionData}' ord='${ordAttr}' reveal='true'></io-occlude>${extraField ? '<br>' + extraField : ''}`;
 
   return {
     id: ankiCard.id,
@@ -166,8 +172,8 @@ function hashField(field: string): number {
   let hash = 0;
   for (let i = 0; i < field.length; i++) {
     const char = field.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32bit integer
   }
-  return Math.abs(hash) % 0xFFFFFFFF;
+  return Math.abs(hash) % 0xffffffff;
 }

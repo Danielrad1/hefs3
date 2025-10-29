@@ -235,6 +235,13 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentDeckId, scheduler]);
 
+  // Restore any buried siblings when provider unmounts
+  useEffect(() => {
+    return () => {
+      scheduler.clearBuriedSiblings();
+    };
+  }, [scheduler]);
+
   // Reload function to refresh from database
   const reload = useCallback(() => {
     loadCards();

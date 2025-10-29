@@ -193,41 +193,6 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
     }
   };
 
-  const handleAddNote = () => {
-    // Show options for different note types
-    Alert.alert(
-      'Add Note',
-      'Choose note type',
-      [
-        {
-          text: 'Text Note',
-          onPress: () => {
-            // Use first available model (works with both built-in and imported models)
-            const models = db.getAllModels();
-            const defaultModelId = models.length > 0 ? models[0].id : 1;  // Numeric ID
-            
-            navigation.navigate('NoteEditor', {
-              deckId,
-              modelId: defaultModelId,
-            });
-          },
-        },
-        {
-          text: 'Image Occlusion',
-          onPress: () => {
-            navigation.navigate('ImageOcclusionEditor', {
-              deckId,
-            });
-          },
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]
-    );
-  };
-
   const handleRenameDeck = () => {
     if (!deck) return;
     setRenameModalVisible(true);
@@ -460,23 +425,15 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
           </Pressable>
           <Pressable
             style={[styles.secondaryButton, { backgroundColor: theme.colors.surface2, borderWidth: 1, borderColor: theme.colors.border }]}
-            onPress={handleAddNote}
+            onPress={handleBrowseCards}
           >
-            <Ionicons name="add-circle-outline" size={20} color={theme.colors.textHigh} style={{ marginRight: s.sm }} />
-            <Text style={[styles.secondaryButtonText, { color: theme.colors.textHigh }]}>Add Note</Text>
+            <Ionicons name="search-outline" size={20} color={theme.colors.textHigh} style={{ marginRight: s.sm }} />
+            <Text style={[styles.secondaryButtonText, { color: theme.colors.textHigh }]}>Browse Cards</Text>
           </Pressable>
         </View>
 
         {/* Secondary Actions */}
         <View style={[styles.section, { backgroundColor: theme.colors.surface2 }]}>
-          <Pressable style={styles.actionRow} onPress={handleBrowseCards}>
-            <Ionicons name="search-outline" size={22} color={theme.colors.textHigh} />
-            <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>Browse Cards</Text>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
-          </Pressable>
-          
-          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-          
           <Pressable 
             style={styles.actionRow} 
             onPress={() => navigation.navigate('DeckStats', { deckId, deckName: deck.name })}

@@ -3,7 +3,17 @@
  */
 
 import { InMemoryDb } from './InMemoryDb';
-import { AnkiNote, AnkiCard, CardType, CardQueue, FIELD_SEPARATOR, DEFAULT_EASE_FACTOR, DEFAULT_MODEL_ID, MODEL_TYPE_CLOZE, MODEL_TYPE_IMAGE_OCCLUSION } from './schema';
+import {
+  AnkiNote,
+  AnkiCard,
+  CardType,
+  CardQueue,
+  FIELD_SEPARATOR,
+  DEFAULT_EASE_FACTOR,
+  DEFAULT_MODEL_ID,
+  MODEL_TYPE_CLOZE,
+  MODEL_TYPE_IMAGE_OCCLUSION,
+} from './schema';
 import { nowSeconds, generateId } from './time';
 import { generateGuid } from './guid';
 import { calculateChecksum } from './checksum';
@@ -11,7 +21,7 @@ import { MediaService } from './MediaService';
 import { logger } from '../../utils/logger';
 
 export interface CreateNoteParams {
-  modelId: string | number;  // Accept both for flexibility
+  modelId: string | number; // Accept both for flexibility
   deckId: string;
   fields: string[];
   tags?: string[];
@@ -20,6 +30,7 @@ export interface CreateNoteParams {
 export interface UpdateNoteParams {
   fields?: string[];
   tags?: string[];
+  deckId?: string;
 }
 
 export class NoteService {
@@ -57,9 +68,10 @@ export class NoteService {
       mid: params.modelId,
       mod: now,
       usn: -1, // -1 = local changes not synced
-      tags: params.tags && params.tags.length > 0 
-        ? ` ${params.tags.join(' ')} ` // Surrounding spaces required!
-        : ' ', // Empty tags is single space
+      tags:
+        params.tags && params.tags.length > 0
+          ? ` ${params.tags.join(' ')} ` // Surrounding spaces required!
+          : ' ', // Empty tags is single space
       flds: params.fields.join(FIELD_SEPARATOR), // \x1F separator
       sfld: 0,
       csum: calculateChecksum(params.fields[model.sortf] || ''), // SHA1-based checksum
@@ -100,24 +112,39 @@ export class NoteService {
     }
 
     if (params.tags !== undefined) {
-      updates.tags = params.tags.length > 0 
-        ? ` ${params.tags.join(' ')} ` // Surrounding spaces!
-        : ' '; // Empty tags is single space
+      updates.tags =
+        params.tags.length > 0
+          ? ` ${params.tags.join(' ')} ` // Surrounding spaces!
+          : ' '; // Empty tags is single space
     }
 
     this.db.updateNote(noteId, updates);
 
     // Regenerate cards if fields changed (for cloze and image occlusion notes)
-    if (params.fields && (model.type === MODEL_TYPE_CLOZE || model.type === MODEL_TYPE_IMAGE_OCCLUSION)) {
+    if (
+      params.fields &&
+      (model.type === MODEL_TYPE_CLOZE || model.type === MODEL_TYPE_IMAGE_OCCLUSION)
+    ) {
       // Delete existing cards
       const existingCards = this.db.getAllCards().filter((c) => c.nid === noteId);
       existingCards.forEach((card) => this.db.deleteCard(card.id));
 
       // Get deck from first card or use model's default deck
-      const deckId = existingCards[0]?.did || model.did;
-      
-      // Regenerate cards
-      this.generateCards(note, model, deckId);
+      const deckId = params.deckId || existingCards[0]?.did || model.did;
+
+      // IMPORTANT: Refetch note after update to get latest data (including note.data)
+      const updatedNote = this.db.getNote(noteId);
+      if (!updatedNote) {
+        throw new Error(`Note ${noteId} not found after update`);
+      }
+
+      logger.info(
+        '[NoteService] Refetched note for card generation, data exists:',
+        !!updatedNote.data,
+      );
+
+      // Regenerate cards with updated note
+      this.generateCards(updatedNote, model, deckId);
     }
   }
 
@@ -136,7 +163,7 @@ export class NoteService {
 
     // Delete the note
     this.db.deleteNote(noteId);
-    
+
     // Clean up orphaned media files
     logger.info('[NoteService] Cleaning up orphaned media files...');
     const deletedCount = await this.mediaService.gcUnused();
@@ -160,7 +187,11 @@ export class NoteService {
   /**
    * Change note type (model)
    */
-  changeNoteType(noteId: string, targetModelId: string, fieldMapping: Record<number, number>): void {
+  changeNoteType(
+    noteId: string,
+    targetModelId: string,
+    fieldMapping: Record<number, number>,
+  ): void {
     const note = this.db.getNote(noteId);
     if (!note) {
       throw new Error(`Note ${noteId} not found`);
@@ -236,16 +267,24 @@ export class NoteService {
         this.db.addCard(card);
       });
     } else if (model.type === MODEL_TYPE_IMAGE_OCCLUSION) {
-      // Generate cards for each image occlusion mask
-      const maskIndices = this.extractImageOcclusionMaskIndices(note);
+      logger.info('[NoteService] Generating IO cards for note', note.id);
+      logger.info('[NoteService] Note data:', note.data?.substring(0, 200));
 
-      maskIndices.forEach((maskIndex) => {
+      const { masks, mode } = this.parseImageOcclusionData(note);
+
+      if (mode === 'hide-all') {
         const cardId = generateId();
+        logger.info(
+          '[NoteService] Creating single hide-all card',
+          cardId,
+          'mask count:',
+          masks.length,
+        );
         const card: AnkiCard = {
           id: cardId,
           nid: note.id,
           did: deckId,
-          ord: maskIndex, // ord = mask index (0-based)
+          ord: 0,
           mod: now,
           usn: -1,
           type: CardType.New,
@@ -262,7 +301,33 @@ export class NoteService {
           data: '',
         };
         this.db.addCard(card);
-      });
+      } else {
+        masks.forEach((_, maskIndex) => {
+          const cardId = generateId();
+          logger.info('[NoteService] Creating card for mask index', maskIndex, 'card ID:', cardId);
+          const card: AnkiCard = {
+            id: cardId,
+            nid: note.id,
+            did: deckId,
+            ord: maskIndex, // ord = mask index (0-based)
+            mod: now,
+            usn: -1,
+            type: CardType.New,
+            queue: CardQueue.New,
+            due: this.db.incrementNextPos(),
+            ivl: 0,
+            factor: DEFAULT_EASE_FACTOR,
+            reps: 0,
+            lapses: 0,
+            left: 0,
+            odue: 0,
+            odid: '0',
+            flags: 0,
+            data: '',
+          };
+          this.db.addCard(card);
+        });
+      }
     } else {
       // Standard model: generate one card per template
       model.tmpls.forEach((template: any) => {
@@ -308,26 +373,30 @@ export class NoteService {
   }
 
   /**
-   * Extract mask indices from image occlusion note data
-   * Returns array of 0-based indices corresponding to masks
+   * Parse image occlusion data from note
    */
-  private extractImageOcclusionMaskIndices(note: AnkiNote): number[] {
+  private parseImageOcclusionData(note: AnkiNote): { masks: any[]; mode: 'hide-one' | 'hide-all' } {
     try {
       if (!note.data) {
-        return [];
+        logger.warn('[NoteService] No note.data found for IO note', note.id);
+        return { masks: [], mode: 'hide-one' };
       }
-      
+
       const data = JSON.parse(note.data);
-      if (!data.io || !Array.isArray(data.io.masks)) {
-        return [];
-      }
-      
-      // Return 0-based indices for each mask
-      return data.io.masks.map((_: any, index: number) => index);
-    } catch (e) {
-      logger.error('[NoteService] Failed to parse image occlusion data:', e);
-      return [];
+      const ioData = data?.io || {};
+      const masks = Array.isArray(ioData.masks) ? ioData.masks : [];
+      const mode = ioData.mode === 'hide-all' ? 'hide-all' : 'hide-one';
+
+      logger.info('[NoteService] Parsed IO data', {
+        noteId: note.id,
+        maskCount: masks.length,
+        mode,
+      });
+
+      return { masks, mode };
+    } catch (error) {
+      logger.error('[NoteService] Failed to parse IO data for note', note.id, error);
+      return { masks: [], mode: 'hide-one' };
     }
   }
-
 }

@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback, ActionSheetIOS } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
@@ -30,6 +30,8 @@ interface NoteEditorScreenProps {
   };
   navigation?: any;
 }
+
+type CardType = 'basic' | 'cloze' | 'image-occlusion';
 
 export default function NoteEditorScreen({ route, navigation }: NoteEditorScreenProps) {
   const theme = useTheme();
@@ -73,6 +75,39 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
 
   const model = db.getModel(modelId);
   const deck = db.getDeck(deckId);
+
+  // Determine current card type based on modelId
+  const getCurrentCardType = (): CardType => {
+    if (modelId === 2) return 'cloze';
+    if (modelId === 3) return 'image-occlusion';
+    return 'basic';
+  };
+
+  const handleCardTypeChange = (type: CardType) => {
+    if (type === 'image-occlusion') {
+      // Navigate to Image Occlusion editor
+      navigation?.navigate?.('ImageOcclusionEditor', { deckId });
+    } else if (type === 'cloze') {
+      setModelId(2);
+      // Reset fields for new model
+      if (!noteId) {
+        const clozeModel = db.getModel(2);
+        if (clozeModel) {
+          setFields(new Array(clozeModel.flds.length).fill(''));
+        }
+      }
+    } else {
+      // Basic
+      setModelId(1);
+      // Reset fields for new model
+      if (!noteId) {
+        const basicModel = db.getModel(1);
+        if (basicModel) {
+          setFields(new Array(basicModel.flds.length).fill(''));
+        }
+      }
+    }
+  };
 
   // Load note if editing
   useEffect(() => {
@@ -245,7 +280,9 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
         </Pressable>
         <View style={styles.headerCenter}>
           <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-            {model?.flds[currentFieldIndex]?.name || 'Field'}
+            {getCurrentCardType() === 'cloze' 
+              ? (currentFieldIndex === 0 ? 'Text' : 'Extra')
+              : (currentFieldIndex === 0 ? 'Front' : 'Back')}
           </Text>
           <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
             {currentFieldIndex + 1} of {model?.flds.length || 0}
@@ -253,6 +290,72 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
         </View>
         <View style={{ width: 44 }} />
       </View>
+
+      {/* Card Type Selector - Only show for new notes */}
+      {!noteId && (
+        <View style={[styles.cardTypeSelector, { backgroundColor: theme.colors.bg, borderBottomColor: theme.colors.border }]}>
+          <Text style={[styles.cardTypeLabel, { color: theme.colors.textSecondary }]}>Card Type</Text>
+          <Pressable
+            style={[styles.cardTypeDropdown, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+            onPress={() => {
+              if (Platform.OS === 'ios') {
+                ActionSheetIOS.showActionSheetWithOptions(
+                  {
+                    options: ['Cancel', 'Basic (Front & Back)', 'Cloze (Fill in the Blank)', 'Image Occlusion'],
+                    cancelButtonIndex: 0,
+                  },
+                  (buttonIndex) => {
+                    if (buttonIndex === 1) handleCardTypeChange('basic');
+                    else if (buttonIndex === 2) handleCardTypeChange('cloze');
+                    else if (buttonIndex === 3) handleCardTypeChange('image-occlusion');
+                  }
+                );
+              } else {
+                Alert.alert(
+                  'Select Card Type',
+                  'Choose the type of card you want to create',
+                  [
+                    {
+                      text: 'Basic (Front & Back)',
+                      onPress: () => handleCardTypeChange('basic'),
+                    },
+                    {
+                      text: 'Cloze (Fill in the Blank)',
+                      onPress: () => handleCardTypeChange('cloze'),
+                    },
+                    {
+                      text: 'Image Occlusion',
+                      onPress: () => handleCardTypeChange('image-occlusion'),
+                    },
+                    {
+                      text: 'Cancel',
+                      style: 'cancel',
+                    },
+                  ]
+                );
+              }
+            }}
+          >
+            <View style={styles.cardTypeDropdownContent}>
+              <Ionicons 
+                name={
+                  getCurrentCardType() === 'basic' ? 'card-outline' : 
+                  getCurrentCardType() === 'cloze' ? 'eye-off-outline' : 
+                  'image-outline'
+                } 
+                size={22} 
+                color={theme.colors.textPrimary} 
+              />
+              <Text style={[styles.cardTypeDropdownText, { color: theme.colors.textPrimary }]}>
+                {getCurrentCardType() === 'basic' ? 'Basic (Front & Back)' : 
+                 getCurrentCardType() === 'cloze' ? 'Cloze (Fill in the Blank)' : 
+                 'Image Occlusion'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-down" size={20} color={theme.colors.textSecondary} />
+          </Pressable>
+        </View>
+      )}
 
       {/* Current Field Editor - Scrollable */}
       <ScrollView 
@@ -272,7 +375,13 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
               }}
               value={fields[currentFieldIndex] || ''}
               onChangeText={(value: string) => handleFieldChange(currentFieldIndex, value)}
-              placeholder={`Enter ${model?.flds[currentFieldIndex]?.name.toLowerCase() || 'text'}...`}
+              placeholder={
+                getCurrentCardType() === 'cloze' && currentFieldIndex === 0
+                  ? 'Example: The capital of France is {{c1::Paris}}'
+                  : getCurrentCardType() === 'cloze' && currentFieldIndex === 1
+                  ? 'Optional extra information...'
+                  : `Enter ${currentFieldIndex === 0 ? 'question' : 'answer'}...`
+              }
               onInsertImage={() => handleInsertImage(currentFieldIndex)}
               onInsertAudio={() => handleInsertAudio(currentFieldIndex)}
               onInsertCloze={model.type === MODEL_TYPE_CLOZE ? () => handleInsertCloze(currentFieldIndex) : undefined}
@@ -438,5 +547,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     padding: s.xl,
+  },
+  cardTypeSelector: {
+    paddingHorizontal: s.lg,
+    paddingVertical: s.md,
+    borderBottomWidth: 1,
+  },
+  cardTypeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: s.sm,
+  },
+  cardTypeDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: s.md,
+    paddingHorizontal: s.md,
+    borderRadius: r.md,
+    borderWidth: 1,
+  },
+  cardTypeDropdownContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s.sm,
+    flex: 1,
+  },
+  cardTypeDropdownText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

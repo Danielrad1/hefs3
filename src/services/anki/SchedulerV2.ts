@@ -26,6 +26,7 @@ import {
 export class SchedulerV2 {
   // Session-based buried note IDs (to prevent sibling cards from showing)
   private buriedNoteIds: Set<string> = new Set();
+  private buriedCardQueues: Map<string, CardQueue> = new Map();
 
   /**
    * @param db - The in-memory database
@@ -107,6 +108,18 @@ export class SchedulerV2 {
 
     // Add note ID to buried set
     this.buriedNoteIds.add(card.nid);
+
+    // Temporarily mark sibling cards as user-buried to keep counts accurate
+    const siblings = this.db
+      .getAllCards()
+      .filter((c) => c.nid === card.nid && c.id !== cardId);
+
+    siblings.forEach((sibling) => {
+      if (!this.buriedCardQueues.has(sibling.id)) {
+        this.buriedCardQueues.set(sibling.id, sibling.queue);
+        this.db.updateCard(sibling.id, { queue: CardQueue.UserBuried });
+      }
+    });
   }
 
   /**
@@ -114,6 +127,12 @@ export class SchedulerV2 {
    */
   clearBuriedSiblings(): void {
     this.buriedNoteIds.clear();
+    if (this.buriedCardQueues.size > 0) {
+      this.buriedCardQueues.forEach((originalQueue, cardId) => {
+        this.db.updateCard(cardId, { queue: originalQueue });
+      });
+      this.buriedCardQueues.clear();
+    }
   }
 
   /**

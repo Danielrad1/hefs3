@@ -443,6 +443,7 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
           // Regenerate cards for our model
           noteService.updateNote(note.id, {
             fields: [imageFilename, extra],
+            deckId: oldCards[0]?.did,
           });
           
           convertedCount++;
