@@ -52,9 +52,50 @@ export default function ImageOcclusionEditorScreen({ route, navigation }: ImageO
   const [extraText, setExtraText] = useState('');
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [selectedMaskId, setSelectedMaskId] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const noteService = new NoteService(db);
   const mediaService = new MediaService(db);
+
+  // Handle back navigation with unsaved changes
+  const handleBack = () => {
+    if (hasUnsavedChanges && masks.length > 0) {
+      Alert.alert(
+        'Unsaved Changes',
+        'You have unsaved masks. Are you sure you want to leave?',
+        [
+          { text: 'Stay', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },
+        ]
+      );
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  // Mark as changed when masks or mode change
+  React.useEffect(() => {
+    if (masks.length > 0 || mode !== 'hide-one') {
+      setHasUnsavedChanges(true);
+    }
+  }, [masks, mode]);
+
+  // Show help dialog
+  const showHelp = () => {
+    Alert.alert(
+      'Image Occlusion Help',
+      '1. Select an image from library or camera\n' +
+      '2. Tap "Add" to create masks over areas to hide\n' +
+      '3. Tap masks to select them\n' +
+      '4. Use "Duplicate" to copy selected mask\n' +
+      '5. Choose occlusion mode:\n' +
+      '   • Hide One: Each mask becomes its own card\n' +
+      '   • Hide All: All masks hidden on same cards\n' +
+      '6. Add optional extra info to show on back\n' +
+      '7. Save to create your flashcards!',
+      [{ text: 'Got it!' }]
+    );
+  };
 
   // Pick image from library
   const pickImage = async () => {
@@ -142,6 +183,29 @@ export default function ImageOcclusionEditorScreen({ route, navigation }: ImageO
     setSelectedMaskId(newMask.id);
   };
 
+  // Update mask position or size
+  const updateMask = (maskId: string, updates: Partial<Mask>) => {
+    setMasks(masks.map(m => m.id === maskId ? { ...m, ...updates } : m));
+  };
+
+  // Duplicate selected mask
+  const duplicateMask = () => {
+    if (!selectedMaskId) return;
+    const maskToDuplicate = masks.find(m => m.id === selectedMaskId);
+    if (!maskToDuplicate) return;
+
+    const newMask: Mask = {
+      id: `m${Date.now()}`,
+      x: Math.min(maskToDuplicate.x + 0.05, 0.9),
+      y: Math.min(maskToDuplicate.y + 0.05, 0.9),
+      w: maskToDuplicate.w,
+      h: maskToDuplicate.h,
+    };
+
+    setMasks([...masks, newMask]);
+    setSelectedMaskId(newMask.id);
+  };
+
   // Delete selected mask
   const deleteMask = () => {
     if (!selectedMaskId) return;
@@ -191,6 +255,7 @@ export default function ImageOcclusionEditorScreen({ route, navigation }: ImageO
       });
 
       logger.info('[ImageOcclusionEditor] Created note with', masks.length, 'masks');
+      setHasUnsavedChanges(false);
       navigation.goBack();
     } catch (error) {
       logger.error('[ImageOcclusionEditor] Failed to save:', error);
@@ -206,11 +271,13 @@ export default function ImageOcclusionEditorScreen({ route, navigation }: ImageO
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.headerButton}>
+        <Pressable onPress={handleBack} style={styles.headerButton}>
           <Ionicons name="close" size={28} color={theme.colors.textPrimary} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Image Occlusion</Text>
-        <View style={{ width: 44 }} />
+        <Pressable onPress={showHelp} style={styles.headerButton}>
+          <Ionicons name="help-circle-outline" size={28} color={theme.colors.textPrimary} />
+        </Pressable>
       </View>
 
       <ScrollView style={styles.content}>
@@ -282,7 +349,15 @@ export default function ImageOcclusionEditorScreen({ route, navigation }: ImageO
               <View style={styles.controlRow}>
                 <Pressable onPress={addMask} style={[styles.button, { backgroundColor: theme.colors.accent, flex: 1 }]}>
                   <Ionicons name="add" size={20} color="#000" />
-                  <Text style={styles.buttonText}>Add Mask</Text>
+                  <Text style={styles.buttonText}>Add</Text>
+                </Pressable>
+                <Pressable
+                  onPress={duplicateMask}
+                  disabled={!selectedMaskId}
+                  style={[styles.button, { backgroundColor: theme.colors.accent, flex: 1, opacity: selectedMaskId ? 1 : 0.5 }]}
+                >
+                  <Ionicons name="copy" size={20} color="#000" />
+                  <Text style={styles.buttonText}>Duplicate</Text>
                 </Pressable>
                 <Pressable
                   onPress={deleteMask}
