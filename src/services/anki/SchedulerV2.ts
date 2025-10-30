@@ -24,6 +24,10 @@ import {
 } from './time';
 
 export class SchedulerV2 {
+  // Session-based buried note IDs (to prevent sibling cards from showing)
+  private buriedNoteIds: Set<string> = new Set();
+  private buriedCardQueues: Map<string, CardQueue> = new Map();
+
   /**
    * @param db - The in-memory database
    * @param rng - Random number generator function (0-1). Defaults to Math.random.
@@ -49,12 +53,17 @@ export class SchedulerV2 {
       ? this.db.getCardsByDeck(deckId)
       : this.db.getAllCards();
 
-    // Filter out suspended and buried
+    console.log(`[SchedulerV2] getNext: Total cards: ${cards.length}, Buried note IDs: ${this.buriedNoteIds.size}`, Array.from(this.buriedNoteIds));
+
+    // Filter out suspended, buried, and session-buried siblings
     const activeCards = cards.filter(
       (c) => c.queue !== CardQueue.Suspended &&
              c.queue !== CardQueue.UserBuried &&
-             c.queue !== CardQueue.SchedBuried
+             c.queue !== CardQueue.SchedBuried &&
+             !this.buriedNoteIds.has(c.nid)
     );
+    
+    console.log(`[SchedulerV2] getNext: Active cards after filtering: ${activeCards.length}`);
 
     // Prioritize: learning > review > new
     
@@ -95,6 +104,49 @@ export class SchedulerV2 {
   }
 
   /**
+   * Bury siblings of the current card for this session
+   */
+  burySiblings(cardId: string): void {
+    const card = this.db.getCard(cardId);
+    if (!card) return;
+
+    // Add note ID to buried set
+    this.buriedNoteIds.add(card.nid);
+
+    // Temporarily mark sibling cards as user-buried to keep counts accurate
+    const siblings = this.db
+      .getAllCards()
+      .filter((c) => c.nid === card.nid && c.id !== cardId);
+
+    siblings.forEach((sibling) => {
+      if (!this.buriedCardQueues.has(sibling.id)) {
+        this.buriedCardQueues.set(sibling.id, sibling.queue);
+        this.db.updateCard(sibling.id, { queue: CardQueue.UserBuried });
+      }
+    });
+  }
+
+  /**
+   * Clear session-buried notes (call when switching decks or starting new session)
+   */
+  clearBuriedSiblings(): void {
+    this.buriedNoteIds.clear();
+    if (this.buriedCardQueues.size > 0) {
+      this.buriedCardQueues.forEach((originalQueue, cardId) => {
+        this.db.updateCard(cardId, { queue: originalQueue });
+      });
+      this.buriedCardQueues.clear();
+    }
+  }
+
+  /**
+   * Get buried note IDs count
+   */
+  getBuriedCount(): number {
+    return this.buriedNoteIds.size;
+  }
+
+  /**
    * Peek at the next card without removing from queue
    * Returns the second card in queue (after current)
    */
@@ -106,12 +158,17 @@ export class SchedulerV2 {
       ? this.db.getCardsByDeck(deckId)
       : this.db.getAllCards();
 
-    // Filter out suspended and buried
+    console.log(`[SchedulerV2] peekNext: Total cards: ${cards.length}, Buried note IDs: ${this.buriedNoteIds.size}`, Array.from(this.buriedNoteIds));
+
+    // Filter out suspended, buried, and session-buried siblings
     const activeCards = cards.filter(
       (c) => c.queue !== CardQueue.Suspended &&
              c.queue !== CardQueue.UserBuried &&
-             c.queue !== CardQueue.SchedBuried
+             c.queue !== CardQueue.SchedBuried &&
+             !this.buriedNoteIds.has(c.nid)
     );
+    
+    console.log(`[SchedulerV2] peekNext: Active cards after filtering: ${activeCards.length}`);
 
     // Get all due cards (same priority as getNext)
     const allDue = [

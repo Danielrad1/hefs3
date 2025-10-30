@@ -18,6 +18,7 @@ import {
   DEFAULT_MODEL_ID,
   MODEL_TYPE_STANDARD,
   MODEL_TYPE_CLOZE,
+  MODEL_TYPE_IMAGE_OCCLUSION,
 } from './schema';
 import { nowSeconds, nowMillis, generateId } from './time';
 import { logger } from '../../utils/logger';
@@ -232,10 +233,58 @@ export class InMemoryDb {
       tags: [],
     };
 
+    // Create default Image Occlusion model
+    const imageOcclusionModel: Model = {
+      id: 3,
+      name: 'Image Occlusion',
+      type: MODEL_TYPE_IMAGE_OCCLUSION,
+      mod: now,
+      usn: this.usn,
+      sortf: 0,
+      did: DEFAULT_DECK_ID,
+      tmpls: [
+        {
+          name: 'Image Occlusion',
+          ord: 0,
+          qfmt: '<io-occlude data="{{OcclusionData}}"></io-occlude>',
+          afmt: '<io-occlude data="{{OcclusionData}}" reveal="true"></io-occlude><br>{{Extra}}',
+          bqfmt: '',
+          bafmt: '',
+          did: null,
+        },
+      ],
+      flds: [
+        {
+          name: 'Image',
+          ord: 0,
+          sticky: false,
+          rtl: false,
+          font: 'Arial',
+          size: 20,
+          description: '',
+        },
+        {
+          name: 'Extra',
+          ord: 1,
+          sticky: false,
+          rtl: false,
+          font: 'Arial',
+          size: 20,
+          description: '',
+        },
+      ],
+      css: '.card {\n font-family: arial;\n font-size: 20px;\n text-align: center;\n color: black;\n background-color: white;\n}',
+      latexPre: '',
+      latexPost: '',
+      req: [[0, 'all', [0]]],
+      tags: [],
+    };
+
     this.decks.set(DEFAULT_DECK_ID, defaultDeck);
     this.deckConfigs.set('1', defaultDeckConfig);
     this.models.set(DEFAULT_MODEL_ID, basicModel);
     this.models.set(2, clozeModel);
+    this.models.set(3, imageOcclusionModel);
     this.colConfig = defaultColConfig;
 
     this.col = {
@@ -248,7 +297,7 @@ export class InMemoryDb {
       usn: this.usn,
       ls: nowMs,
       conf: JSON.stringify(defaultColConfig),
-      models: JSON.stringify({ [DEFAULT_MODEL_ID]: basicModel, '2': clozeModel }),
+      models: JSON.stringify({ [DEFAULT_MODEL_ID]: basicModel, '2': clozeModel, '3': imageOcclusionModel }),
       decks: JSON.stringify({ [DEFAULT_DECK_ID]: defaultDeck }),
       dconf: JSON.stringify({ '1': defaultDeckConfig }),
       tags: JSON.stringify({}),

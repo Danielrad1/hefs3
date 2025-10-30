@@ -4,8 +4,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ApkgParser } from '../../../services/anki/ApkgParser';
 import { MediaService } from '../../../services/anki/MediaService';
+import { NoteService } from '../../../services/anki/NoteService';
 import { db } from '../../../services/anki/InMemoryDb';
 import { PersistenceService } from '../../../services/anki/PersistenceService';
+import { MODEL_TYPE_IMAGE_OCCLUSION } from '../../../services/anki/schema';
 import { logger } from '../../../utils/logger';
 
 export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
@@ -191,6 +193,10 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
         await new Promise((r) => setTimeout(r, 0));
       }
 
+      // Convert Image Occlusion notes from Anki format
+      updateProgress('Converting Image Occlusion notes...');
+      await convertImageOcclusionNotes(updateProgress, preserveProgress);
+
       // Register media files in database (batch processing for performance)
       logger.info('[DeckImport] Registering', parsed.mediaFiles.size, 'media files in DB...');
       const mediaService = new MediaService(db);
@@ -317,6 +323,199 @@ export function useDeckImport(onComplete: () => void, onCancel?: () => void) {
     cancelRef.current = true;
     setImporting(false);
     setImportProgress('');
+  };
+
+  /**
+   * Convert Image Occlusion notes from Anki format to our internal format
+   */
+  const convertImageOcclusionNotes = async (
+    updateProgress: (msg: string) => void,
+    preserveProgress: boolean
+  ) => {
+    const noteService = new NoteService(db);
+    
+    // Find all IO models (check for Anki IO Enhanced naming patterns)
+    const allModels = db.getAllModels();
+    const ioModels = allModels.filter(m => 
+      m.name.toLowerCase().includes('image occlusion') ||
+      m.name.toLowerCase().includes('io')
+    );
+
+    if (ioModels.length === 0) {
+      logger.info('[DeckImport] No Image Occlusion models detected');
+      return;
+    }
+
+    logger.info('[DeckImport] Found', ioModels.length, 'IO model(s):', ioModels.map(m => m.name).join(', '));
+
+    let convertedCount = 0;
+    let errorCount = 0;
+
+    // Process each IO model
+    for (const ioModel of ioModels) {
+      const notes = db.getAllNotes().filter(n => n.mid === ioModel.id);
+      
+      if (notes.length === 0) continue;
+
+      logger.info('[DeckImport] Converting', notes.length, 'notes from model:', ioModel.name);
+      
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i];
+        
+        try {
+          // Parse fields - Anki IO Enhanced typically has: Image, Header, Back Extra, Notes, Masks
+          const fields = note.flds.split('\x1f');
+          const imageField = fields[0] || '';
+          
+          // Extract image filename from field (may contain HTML)
+          const imageMatch = imageField.match(/src=["']([^"']+)["']/);
+          const imageFilename = imageMatch ? imageMatch[1] : imageField.trim();
+          
+          // Try to parse masks from various field positions
+          let masks: any[] = [];
+          let extra = '';
+          
+          // Look for JSON mask data in fields
+          for (let fieldIdx = 0; fieldIdx < fields.length; fieldIdx++) {
+            const field = fields[fieldIdx];
+            
+            // Try parsing as JSON
+            if (field.includes('[') && field.includes(']')) {
+              try {
+                const parsed = JSON.parse(field);
+                if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].x !== undefined) {
+                  masks = parsed;
+                  break;
+                }
+              } catch (e) {
+                // Not JSON, continue
+              }
+            }
+            
+            // Check for SVG-based masks (older format)
+            if (field.includes('<rect') || field.includes('<svg')) {
+              masks = parseSVGMasks(field);
+              if (masks.length > 0) break;
+            }
+          }
+          
+          // If no masks found, try to extract from note tags or guess 1 mask
+          if (masks.length === 0) {
+            logger.warn('[DeckImport] No masks found for note', note.id, '- creating default mask');
+            masks = [{ id: 'm1', x: 0.3, y: 0.3, w: 0.4, h: 0.4 }];
+          }
+          
+          // Get extra field (typically field index 2 or 3)
+          extra = fields[2] || fields[1] || '';
+          
+          // Create our internal IO data structure
+          const ioData = {
+            io: {
+              version: 1,
+              image: imageFilename,
+              mode: 'hide-one' as const, // Default to hide-one
+              masks: masks.map((m, idx) => ({
+                id: m.id || `m${idx + 1}`,
+                x: typeof m.x === 'number' ? m.x : 0.3,
+                y: typeof m.y === 'number' ? m.y : 0.3,
+                w: typeof m.w === 'number' ? m.w : 0.4,
+                h: typeof m.h === 'number' ? m.h : 0.4,
+              })),
+            },
+          };
+          
+          // Map to our IO model (ID: 3)
+          note.mid = 3; // Our Image Occlusion model
+          note.flds = [imageFilename, extra].join('\x1f');
+          note.data = JSON.stringify(ioData);
+          
+          // Update note in DB
+          db.updateNote(note.id, {
+            mid: 3,
+            flds: note.flds,
+            data: note.data,
+          });
+          
+          // Delete old cards and regenerate
+          const oldCards = db.getAllCards().filter(c => c.nid === note.id);
+          oldCards.forEach(c => db.deleteCard(c.id));
+          
+          // Regenerate cards for our model
+          noteService.updateNote(note.id, {
+            fields: [imageFilename, extra],
+            deckId: oldCards[0]?.did,
+          });
+          
+          convertedCount++;
+          
+          if (i % 10 === 0) {
+            updateProgress(`Converting IO notes… (${i + 1}/${notes.length})`);
+            await new Promise((r) => setTimeout(r, 0));
+          }
+        } catch (error) {
+          errorCount++;
+          logger.error('[DeckImport] Failed to convert IO note', note.id, error);
+          // Continue with other notes
+        }
+      }
+    }
+    
+    if (convertedCount > 0) {
+      logger.info('[DeckImport] Converted', convertedCount, 'IO notes successfully' + (errorCount > 0 ? `, ${errorCount} failed` : ''));
+    }
+  };
+
+  /**
+   * Parse SVG-based masks from older Anki IO format
+   */
+  const parseSVGMasks = (svgContent: string): any[] => {
+    const masks: any[] = [];
+    
+    // Extract viewBox to get dimensions
+    const viewBoxMatch = svgContent.match(/viewBox=["']([^"']+)["']/);
+    let viewBoxWidth = 100;
+    let viewBoxHeight = 100;
+    
+    if (viewBoxMatch) {
+      const parts = viewBoxMatch[1].split(/\s+/);
+      if (parts.length >= 4) {
+        viewBoxWidth = parseFloat(parts[2]);
+        viewBoxHeight = parseFloat(parts[3]);
+      }
+    }
+    
+    // Extract rect elements
+    const rectRegex = /<rect[^>]*>/g;
+    let match;
+    let maskIdx = 0;
+    
+    while ((match = rectRegex.exec(svgContent)) !== null) {
+      const rectTag = match[0];
+      
+      // Extract attributes
+      const xMatch = rectTag.match(/x=["']([^"']+)["']/);
+      const yMatch = rectTag.match(/y=["']([^"']+)["']/);
+      const widthMatch = rectTag.match(/width=["']([^"']+)["']/);
+      const heightMatch = rectTag.match(/height=["']([^"']+)["']/);
+      
+      if (xMatch && yMatch && widthMatch && heightMatch) {
+        const x = parseFloat(xMatch[1]);
+        const y = parseFloat(yMatch[1]);
+        const w = parseFloat(widthMatch[1]);
+        const h = parseFloat(heightMatch[1]);
+        
+        // Normalize to 0-1 range
+        masks.push({
+          id: `m${++maskIdx}`,
+          x: x / viewBoxWidth,
+          y: y / viewBoxHeight,
+          w: w / viewBoxWidth,
+          h: h / viewBoxHeight,
+        });
+      }
+    }
+    
+    return masks;
   };
 
   return {

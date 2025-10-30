@@ -204,30 +204,74 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     // Process answer
     scheduler.answer(current.id, ease, responseTimeMs);
 
+    // Don't bury siblings for Image Occlusion - users want to review all masks in one session
+    // Regular Anki behavior buries siblings, but for IO it's better UX to see all masks
+    const ankiCard = db.getCard(current.id);
+    const note = ankiCard ? db.getNote(ankiCard.nid) : null;
+    const model = note ? db.getModel(note.mid) : null;
+    const isImageOcclusion = model?.type === 2; // MODEL_TYPE_IMAGE_OCCLUSION
+    
+    logger.debug(`[SchedulerProvider] Answered card ${current.id}, isImageOcclusion: ${isImageOcclusion}`);
+    
+    if (!isImageOcclusion) {
+      // Only bury siblings for non-IO cards (like cloze deletions)
+      logger.debug('[SchedulerProvider] Burying siblings for non-IO card');
+      scheduler.burySiblings(current.id);
+    } else {
+      logger.debug('[SchedulerProvider] NOT burying siblings for IO card - siblings should appear next');
+    }
+    
+    // Debug: Check how many cards are left
+    const remainingCards = db.getAllCards().filter(c => c.queue === 0 && c.nid === ankiCard?.nid);
+    logger.debug(`[SchedulerProvider] Remaining sibling cards from same note: ${remainingCards.length}`, remainingCards.map(c => ({ id: c.id, queue: c.queue })));
+
     // Debounced save to persist review progress
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
-    saveTimerRef.current = setTimeout(() => {
-      PersistenceService.save(db).catch((error) => {
+    saveTimerRef.current = setTimeout(async () => {
+      // CRITICAL: Restore buried siblings before saving so they're not permanently buried
+      const hadBuriedCards = scheduler.getBuriedCount() > 0;
+      if (hadBuriedCards) {
+        scheduler.clearBuriedSiblings();
+      }
+      
+      await PersistenceService.save(db).catch((error) => {
         logger.error('[SchedulerProvider] Error saving after review:', error);
       });
+      
+      // Re-bury siblings after saving (only for non-IO cards)
+      if (hadBuriedCards && !isImageOcclusion) {
+        scheduler.burySiblings(current.id);
+      }
     }, 500);
 
     // Load next cards
     loadCards();
   }, [current, cardType, scheduler, loadCards]);
 
-  // Reload cards when deck changes
+  // Reload cards when deck changes or on mount
   useEffect(() => {
     if (currentDeckId) {
+      // CRITICAL: Clear buried siblings when switching decks or starting new session
+      // This ensures IO cards from previous sessions aren't permanently buried
+      scheduler.clearBuriedSiblings();
+      logger.debug('[SchedulerProvider] Cleared buried siblings for new deck/session');
+      
       // Use setTimeout to prevent blocking UI when switching decks
       const timer = setTimeout(() => {
         loadCards();
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [currentDeckId]);
+  }, [currentDeckId, scheduler]);
+
+  // Restore any buried siblings when provider unmounts
+  useEffect(() => {
+    return () => {
+      scheduler.clearBuriedSiblings();
+    };
+  }, [scheduler]);
 
   // Reload function to refresh from database
   const reload = useCallback(() => {
