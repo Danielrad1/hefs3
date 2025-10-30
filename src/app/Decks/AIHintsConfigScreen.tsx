@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
@@ -28,9 +29,16 @@ interface AIHintsConfigScreenProps {
 
 export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfigScreenProps) {
   const theme = useTheme();
-  const { isPremiumEffective, usage, subscribe, incrementUsage } = usePremium();
+  const { isPremiumEffective, usage, subscribe, incrementUsage, fetchUsage } = usePremium();
   const { deckId, deckName, totalCards } = route.params;
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+
+  // Refresh usage data when screen becomes focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchUsage();
+    }, [fetchUsage])
+  );
 
   const handleGenerate = async () => {
     try {
@@ -45,13 +53,8 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         return;
       }
 
-      // Check quota before generating
-      if (!isPremiumEffective && usage) {
-        if (usage.hintGenerations >= usage.limits.hints) {
-          setShowPremiumModal(true);
-          return;
-        }
-      }
+      // Note: Quota checking happens in the model selection screen
+      // Users can proceed to select their preferred model tier
 
       // Get all cards from the deck
       let cards = db.getCardsByDeck(deckId);
@@ -158,10 +161,11 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         }
       });
 
-      // Navigate to generating screen with hints mode
-      navigation.navigate('AIHintsGenerating', {
+      // Navigate to model selection screen
+      navigation.navigate('AIHintsModelSelection', {
         deckId,
         deckName,
+        totalCards: cards.length,
         items,
       });
     } catch (error) {
@@ -181,7 +185,7 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
 
   const allCards = db.getCardsByDeck(deckId);
 
-  const IMPACT_ICON_SIZE = 36;
+  const IMPACT_ICON_SIZE = 32;
 
   const impactHighlights = [
     {
@@ -282,11 +286,11 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
 
       {/* Generate Button */}
       <View style={[styles.footer, { backgroundColor: theme.colors.bg }]}>
-        {!isPremiumEffective && usage && (
+        {!isPremiumEffective && (
           <View style={[styles.usageBar, { backgroundColor: theme.colors.surface2 }]}>
             <Ionicons name="information-circle-outline" size={16} color={theme.colors.textMed} />
             <Text style={[styles.usageText, { color: theme.colors.textMed }]}>
-              {usage.hintGenerations}/{usage.limits.hints} free hint generations used this month
+              Free hints: {usage?.basicHintGenerations || 0}/{usage?.limits?.basicHints || 3} Basic • {usage?.advancedHintGenerations || 0}/{usage?.limits?.advancedHints || 1} Advanced
             </Text>
           </View>
         )}
@@ -364,23 +368,22 @@ const styles = StyleSheet.create({
   },
   impactGrid: {
     flexDirection: 'row',
-    gap: s.lg,
+    gap: s.sm,
   },
   impactCard: {
     flex: 1,
     padding: s.lg,
+    paddingVertical: s.xl,
     borderRadius: r.lg,
     alignItems: 'center',
     justifyContent: 'center',
     gap: s.sm,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 6,
-    aspectRatio: 1,
-    minHeight: 140,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   impactIcon: {
     marginBottom: s.xs,
@@ -391,16 +394,16 @@ const styles = StyleSheet.create({
     marginBottom: s.xs,
   },
   impactLabel: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    marginBottom: 2,
+    marginBottom: 4,
     textAlign: 'center',
   },
   impactDetail: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 2,
+    fontSize: 14,
+    lineHeight: 20,
     textAlign: 'center',
+    opacity: 0.85,
   },
   valueCard: {
     padding: s.xl,

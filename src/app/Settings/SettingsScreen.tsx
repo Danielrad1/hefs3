@@ -431,8 +431,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               <Text style={[styles.usageValue, { color: theme.colors.textMed }]}>{usage.deckGenerations}/{usage.limits.deck} this month</Text>
             </View>
             <View style={styles.usageRow}>
-              <Text style={[styles.usageLabel, { color: theme.colors.textHigh }]}>AI Hints</Text>
-              <Text style={[styles.usageValue, { color: theme.colors.textMed }]}>{usage.hintGenerations}/{usage.limits.hints} this month</Text>
+              <Text style={[styles.usageLabel, { color: theme.colors.textHigh }]}>AI Hints (Basic)</Text>
+              <Text style={[styles.usageValue, { color: theme.colors.textMed }]}>{usage.basicHintGenerations || 0}/{usage.limits.basicHints || 3} this month</Text>
+            </View>
+            <View style={styles.usageRow}>
+              <Text style={[styles.usageLabel, { color: theme.colors.textHigh }]}>AI Hints (Advanced)</Text>
+              <Text style={[styles.usageValue, { color: theme.colors.textMed }]}>{usage.advancedHintGenerations || 0}/{usage.limits.advancedHints || 1} this month</Text>
             </View>
           </View>
         )}

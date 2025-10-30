@@ -67,6 +67,7 @@ export interface HintsOptions {
   languageHints?: string[];
   style?: 'concise' | 'mnemonic-heavy';
   maxItemsPerBatch?: number;
+  modelTier?: 'basic' | 'advanced'; // Model tier selection (basic = nano, advanced = mini)
   
   // Advanced retrieval science features
   enableGradedHints?: boolean;

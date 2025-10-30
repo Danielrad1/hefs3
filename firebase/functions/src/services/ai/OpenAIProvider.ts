@@ -236,6 +236,22 @@ export class OpenAIProvider implements AIProvider {
       request.items = request.items.slice(0, MAX_HINTS_CARDS);
     }
 
+    // Select model based on tier (basic = nano, advanced = mini)
+    const modelTier = request.options?.modelTier || 'basic';
+    const hintsModel = modelTier === 'advanced' 
+      ? 'gpt-5-mini-2025-08-07'
+      : 'gpt-5-nano-2025-08-07';
+    
+    // Temporarily switch to hints model (save original for restoration)
+    const originalModel = this.model;
+    this.model = hintsModel;
+    
+    logger.info('[OpenAIProvider] Model selection for hints:', {
+      modelTier,
+      selectedModel: hintsModel,
+      originalModel,
+    });
+
     // Always use low reasoning effort for speed and cost efficiency
     const reasoningEffort = 'low';
 
@@ -244,6 +260,8 @@ export class OpenAIProvider implements AIProvider {
       originalCount: originalCount !== request.items.length ? originalCount : undefined,
       deckName: request.options?.deckName,
       style: request.options?.style,
+      modelTier,
+      model: hintsModel,
       reasoningEffort,
     });
 
@@ -290,10 +308,14 @@ export class OpenAIProvider implements AIProvider {
     logger.warn(`[OpenAIProvider] Cost per Card: $${(totalCost / allResults.length).toFixed(6)}`);
     logger.warn('[OpenAIProvider] ========================================');
 
+    // Restore original model
+    this.model = originalModel;
+    logger.info('[OpenAIProvider] Restored original model:', originalModel);
+
     return {
       items: allResults,
       metadata: {
-        modelUsed: this.getName(),
+        modelUsed: hintsModel, // Return the actual model used for hints
         totalItems: request.items.length,
         successfulItems: allResults.length,
         totalTimeSeconds: parseFloat(overallElapsedTime),

@@ -90,6 +90,7 @@ export const HintsOptionsSchema = z.object({
   languageHints: z.array(z.string()).optional(),
   style: z.enum(['concise', 'mnemonic-heavy']).optional().default('concise'),
   maxItemsPerBatch: z.number().min(1).max(100).optional().default(50),
+  modelTier: z.enum(['basic', 'advanced']).optional().default('basic'), // Model tier selection (basic = nano, advanced = mini)
   
   // Advanced retrieval science features
   enableGradedHints: z.boolean().optional().default(true),

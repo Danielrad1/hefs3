@@ -123,10 +123,11 @@ export default function ManageHintsScreen({ route, navigation }: ManageHintsScre
                 }
               });
 
-              // Navigate to generating screen
-              navigation.navigate('AIHintsGenerating', {
+              // Navigate to model selection screen for regeneration
+              navigation.navigate('AIHintsModelSelection', {
                 deckId,
                 deckName,
+                totalCards: items.length,
                 items,
               });
             } catch (error) {

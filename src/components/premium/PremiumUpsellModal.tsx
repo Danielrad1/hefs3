@@ -72,10 +72,12 @@ export default function PremiumUpsellModal({ visible, onClose, onRestore, contex
 
   const usageBanner = useMemo(() => {
     if (!usage) return null;
-    const hintMaxed = usage.hintGenerations >= usage.limits.hints;
+    const basicHintsMaxed = (usage.basicHintGenerations || 0) >= (usage.limits.basicHints || 3);
+    const advancedHintsMaxed = (usage.advancedHintGenerations || 0) >= (usage.limits.advancedHints || 1);
+    const allHintsMaxed = basicHintsMaxed && advancedHintsMaxed;
     const deckMaxed = usage.deckGenerations >= usage.limits.deck;
-    if (context === 'hints' || hintMaxed) {
-      return 'You\'ve used your free hint this month. Go unlimited with Pro.';
+    if (context === 'hints' || allHintsMaxed) {
+      return 'You\'ve used all your free hints this month. Go unlimited with Pro.';
     }
     if (context === 'deck' || deckMaxed) {
       return `You\'ve used your ${usage.limits.deck} free deck generations. Keep building with Pro.`;

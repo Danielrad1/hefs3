@@ -5,7 +5,7 @@
 
 export const AI_CONFIG = {
   // Default model to use for deck generation
-  defaultModel: 'gpt-5-mini-2025-08-07',
+  defaultModel: 'gpt-5-nano-2025-08-07',
   
   // Available models with their capabilities
   models: [

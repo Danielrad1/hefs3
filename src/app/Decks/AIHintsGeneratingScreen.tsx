@@ -21,6 +21,7 @@ interface AIHintsGeneratingScreenProps {
       deckId: string;
       deckName: string;
       items: HintsInputItem[];
+      modelTier: 'basic' | 'advanced';
     };
   };
   navigation: any;
@@ -28,7 +29,7 @@ interface AIHintsGeneratingScreenProps {
 
 export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGeneratingScreenProps) {
   const theme = useTheme();
-  const { deckId, deckName, items } = route.params;
+  const { deckId, deckName, items, modelTier } = route.params;
   const { setDeck } = useScheduler();
   const { incrementUsage } = usePremium();
   
@@ -129,7 +130,8 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
 
   const closeAiHintsFlow = useCallback(() => {
     const state = navigation.getState?.();
-    const popCount = state ? Math.min(2, state.index + 1) : 1;
+    // Pop all 3 AI hints screens (Config, ModelSelection, Generating) to return to deck screen
+    const popCount = state ? Math.min(3, state.index + 1) : 1;
 
     if (popCount > 0) {
       navigation.dispatch(StackActions.pop(popCount));
@@ -174,6 +176,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       const { hints, skipped } = await AiHintsService.generateHintsForCards(itemsToSend, {
         deckName,
         style: 'concise',
+        modelTier, // Pass the selected model tier to the backend
       });
 
       if (skipped.length > 0) {
@@ -248,8 +251,8 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       // Enable hints for this deck
       await deckMetadataService.setAiHintsEnabled(deckId, true);
 
-      // Increment usage after successful generation
-      await incrementUsage('hints');
+      // Increment usage after successful generation (basic or advanced)
+      await incrementUsage(modelTier === 'basic' ? 'basicHints' : 'advancedHints');
 
       setStatus('Hints ready!');
       setGeneratedCount(hints.length);

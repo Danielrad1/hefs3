@@ -9,6 +9,7 @@ import AIDeckCreatorScreen from '../app/Decks/AIDeckCreatorScreen';
 import AIGeneratingScreen from '../app/Decks/AIGeneratingScreen';
 import AIDeckPreviewScreen from '../app/Decks/AIDeckPreviewScreen';
 import AIHintsConfigScreen from '../app/Decks/AIHintsConfigScreen';
+import AIHintsModelSelectionScreen from '../app/Decks/AIHintsModelSelectionScreen';
 import AIHintsGeneratingScreen from '../app/Decks/AIHintsGeneratingScreen';
 import ManageHintsScreen from '../app/Decks/ManageHintsScreen';
 
@@ -26,6 +27,7 @@ export default function DecksStack() {
       <Stack.Screen name="AIGenerating" component={AIGeneratingScreen} />
       <Stack.Screen name="AIDeckPreview" component={AIDeckPreviewScreen} />
       <Stack.Screen name="AIHintsConfig" component={AIHintsConfigScreen} />
+      <Stack.Screen name="AIHintsModelSelection" component={AIHintsModelSelectionScreen} />
       <Stack.Screen name="AIHintsGenerating" component={AIHintsGeneratingScreen} />
       <Stack.Screen name="ManageHints" component={ManageHintsScreen} />
     </Stack.Navigator>
