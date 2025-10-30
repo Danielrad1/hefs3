@@ -8,8 +8,8 @@ Run these commands to confirm everything is ready:
 cd /Users/danielrad/Desktop/repos/hefs2/memorize-app
 
 # 1. Verify post-clone script exists and is executable
-ls -la ci_post_clone.sh
-# Should show: -rwxr-xr-x ... ci_post_clone.sh
+ls -la ci_scripts/ci_post_clone.sh
+# Should show: -rwxr-xr-x ... ci_scripts/ci_post_clone.sh
 
 # 2. Verify GoogleService-Info.plist is committed
 git ls-files | grep GoogleService-Info.plist
@@ -49,7 +49,7 @@ In Xcode Cloud, configure your workflow with these **exact** settings:
 - **Clean Build**: Recommended for first build
 
 ### Post-Clone Script
-- **Location**: Repository root
+- **Location**: `memorize-app/ci_scripts/`
 - **Script Name**: `ci_post_clone.sh`
 - **Automatically detected**: Xcode Cloud will find and run this script
 
@@ -57,7 +57,7 @@ In Xcode Cloud, configure your workflow with these **exact** settings:
 
 1. **Commit all changes**:
    ```bash
-   git add ci_post_clone.sh XCODE_CLOUD_CHECKLIST.md docs/XCODE_CLOUD_SETUP.md
+   git add ci_scripts/ XCODE_CLOUD_CHECKLIST.md docs/XCODE_CLOUD_SETUP.md
    git commit -m "Add Xcode Cloud configuration and post-clone script"
    ```
 
@@ -82,8 +82,8 @@ In Xcode Cloud, configure your workflow with these **exact** settings:
 ### Issue: "ci_post_clone.sh: Permission denied"
 **Fix**: Make script executable
 ```bash
-chmod +x memorize-app/ci_post_clone.sh
-git add memorize-app/ci_post_clone.sh
+chmod +x memorize-app/ci_scripts/ci_post_clone.sh
+git add memorize-app/ci_scripts/ci_post_clone.sh
 git commit -m "Make post-clone script executable"
 git push
 ```

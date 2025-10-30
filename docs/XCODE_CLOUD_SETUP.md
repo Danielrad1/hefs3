@@ -18,12 +18,12 @@ This app uses **Expo with prebuild**, which means the native `ios/` folder is **
 - **Project/Workspace Path**: `memorize-app/ios/Enqode.xcworkspace`
 - **Scheme**: `Enqode` (must be shared)
 - **Branch**: Your main/master branch
-- **Post-clone Script**: Automatically runs `ci_post_clone.sh` (must be at repo root or in workflow)
+- **Post-clone Script**: Automatically runs `ci_scripts/ci_post_clone.sh`
 
 ### Required Files in Git
 
 ✅ **These files MUST be committed:**
-- `/memorize-app/ci_post_clone.sh` (executable)
+- `/memorize-app/ci_scripts/ci_post_clone.sh` (executable)
 - `/memorize-app/GoogleService-Info.plist`
 - `/memorize-app/package.json` & `package-lock.json`
 - `/memorize-app/app.json` (Expo config)
@@ -36,7 +36,7 @@ This app uses **Expo with prebuild**, which means the native `ios/` folder is **
 
 The script performs these steps:
 
-1. **Navigate to app directory** (`memorize-app/`)
+1. **Navigate to app directory** (from `ci_scripts/` up to `memorize-app/`)
 2. **Install npm dependencies** (`npm ci`)
 3. **Run Expo prebuild** (`npx expo prebuild --platform ios`)
    - Generates the entire `ios/` folder
@@ -53,7 +53,7 @@ The script performs these steps:
 **Cause**: Post-clone script didn't run or failed.
 
 **Fix**:
-1. Verify `ci_post_clone.sh` is executable: `chmod +x ci_post_clone.sh`
+1. Verify script is executable: `chmod +x memorize-app/ci_scripts/ci_post_clone.sh`
 2. Check Xcode Cloud logs for script errors
 3. Ensure Node.js version is compatible (18+)
 
@@ -107,17 +107,17 @@ The build currently uses whatever is committed in `ENV_CONFIG.js`. To use enviro
 To test the post-clone script locally:
 
 ```bash
-# Navigate to repo root
-cd /Users/danielrad/Desktop/repos/hefs2
+# Navigate to app directory
+cd /Users/danielrad/Desktop/repos/hefs2/memorize-app
 
 # Remove existing ios folder
-rm -rf memorize-app/ios
+rm -rf ios
 
 # Run the script
-./memorize-app/ci_post_clone.sh
+./ci_scripts/ci_post_clone.sh
 
 # Verify workspace was created
-ls memorize-app/ios/Enqode.xcworkspace/
+ls ios/Enqode.xcworkspace/
 ```
 
 ## Maintenance
