@@ -28,6 +28,7 @@ export const GenerateDeckRequestSchema = z.object({
   itemLimit: z.number().min(1).max(1000).optional().default(50),
   languageHints: z.array(z.string()).optional(),
   style: StyleSchema.optional(),
+  modelTier: z.enum(['basic', 'advanced']).optional().default('basic'),
 }).refine(
   (data) => (data.sourceType === 'prompt' && data.prompt) || (data.sourceType === 'notes' && data.notesText),
   { message: 'Must provide either prompt or notesText based on sourceType' }

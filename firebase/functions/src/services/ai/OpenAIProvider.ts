@@ -33,6 +33,22 @@ export class OpenAIProvider implements AIProvider {
       request.itemLimit = MAX_DECK_CARDS;
     }
 
+    // Select model based on tier (basic = nano, advanced = mini)
+    const modelTier = request.modelTier || 'basic';
+    const originalModel = this.model;
+    const deckModel = modelTier === 'advanced' 
+      ? 'gpt-5-mini-2025-08-07'
+      : 'gpt-5-nano-2025-08-07';
+    
+    // Temporarily switch to selected model
+    this.model = deckModel;
+    
+    logger.info('[OpenAIProvider] Model selection for deck:', {
+      modelTier,
+      selectedModel: deckModel,
+      originalModel,
+    });
+
     // Always use low reasoning effort for speed and cost efficiency
     const reasoningEffort = 'low';
 
@@ -43,6 +59,8 @@ export class OpenAIProvider implements AIProvider {
       originalLimit: originalLimit !== request.itemLimit ? originalLimit : undefined,
       promptLength: request.prompt?.length,
       notesLength: request.notesText?.length,
+      modelTier,
+      model: deckModel,
       reasoningEffort,
     });
 

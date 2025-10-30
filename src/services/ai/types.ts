@@ -19,6 +19,7 @@ export interface GenerateDeckRequest {
   itemLimit?: number;
   languageHints?: string[];
   style?: Style;
+  modelTier?: 'basic' | 'advanced';
 }
 
 export interface GeneratedNote {
