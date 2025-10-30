@@ -181,6 +181,27 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
 
   const allCards = db.getCardsByDeck(deckId);
 
+  const IMPACT_ICON_SIZE = 36;
+
+  const impactHighlights = [
+    {
+      key: 'retention',
+      title: 'Stronger retention',
+      subtitle: 'Improved long-term recall',
+      icon: 'trending-up' as const,
+      accent: '#F472B6',
+      background: 'rgba(236, 72, 153, 0.16)',
+    },
+    {
+      key: 'mistakes',
+      title: 'Fewer mistakes',
+      subtitle: 'On challenging cards',
+      icon: 'shield-checkmark' as const,
+      accent: '#A855F7',
+      background: 'rgba(139, 92, 246, 0.16)',
+    },
+  ];
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]} edges={['top']}>
       <View style={styles.header}>
@@ -197,25 +218,26 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
           <View style={[styles.iconContainer, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
             <Ionicons name="bulb" size={64} color="#8B5CF6" />
           </View>
-          <Text style={[styles.heroTitle, { color: theme.colors.textPrimary }]}>Learn 40% Faster</Text>
+          <Text style={[styles.heroTitle, { color: theme.colors.textPrimary }]}>Learn Faster with AI Hints</Text>
           <Text style={[styles.heroSubtitle, { color: theme.colors.textSecondary }]}>
-            AI hints cut your average reviews from 10 sessions to 6
+            AI hints streamline your reviews and help you recall faster
           </Text>
         </View>
 
         {/* Impact Stats */}
         <View style={styles.impactGrid}>
-          <View style={[styles.impactCard, { backgroundColor: 'rgba(236, 72, 153, 0.1)' }]}>
-            <Text style={[styles.impactNumber, { color: '#EC4899' }]}>2x</Text>
-            <Text style={[styles.impactLabel, { color: theme.colors.textPrimary }]}>Longer retention</Text>
-            <Text style={[styles.impactDetail, { color: theme.colors.textSecondary }]}>5 weeks vs 3 weeks</Text>
-          </View>
-
-          <View style={[styles.impactCard, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
-            <Text style={[styles.impactNumber, { color: '#8B5CF6' }]}>60%</Text>
-            <Text style={[styles.impactLabel, { color: theme.colors.textPrimary }]}>Fewer errors</Text>
-            <Text style={[styles.impactDetail, { color: theme.colors.textSecondary }]}>On hard cards</Text>
-          </View>
+          {impactHighlights.map(highlight => (
+            <View key={highlight.key} style={[styles.impactCard, { backgroundColor: highlight.background }]}>
+              <Ionicons
+                name={highlight.icon}
+                size={IMPACT_ICON_SIZE}
+                color={highlight.accent}
+                style={styles.impactIcon}
+              />
+              <Text style={[styles.impactLabel, { color: theme.colors.textPrimary }]}>{highlight.title}</Text>
+              <Text style={[styles.impactDetail, { color: theme.colors.textSecondary }]}>{highlight.subtitle}</Text>
+            </View>
+          ))}
         </View>
 
         {/* What You Get */}
@@ -234,7 +256,7 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
             <View style={[styles.valueBullet, { backgroundColor: '#EC4899' }]} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.valueItemTitle, { color: theme.colors.textPrimary }]}>Memory Techniques</Text>
-              <Text style={[styles.valueItemDesc, { color: theme.colors.textSecondary }]}>Mnemonics that make facts stick 2x longer.</Text>
+              <Text style={[styles.valueItemDesc, { color: theme.colors.textSecondary }]}>Mnemonics that make facts stick.</Text>
             </View>
           </View>
 
@@ -242,7 +264,7 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
             <View style={[styles.valueBullet, { backgroundColor: '#10B981' }]} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.valueItemTitle, { color: theme.colors.textPrimary }]}>Fewer Study Sessions</Text>
-              <Text style={[styles.valueItemDesc, { color: theme.colors.textSecondary }]}>spend less time to master more material.</Text>
+              <Text style={[styles.valueItemDesc, { color: theme.colors.textSecondary }]}>Spend less time to master more material.</Text>
             </View>
           </View>
         </View>
@@ -342,13 +364,26 @@ const styles = StyleSheet.create({
   },
   impactGrid: {
     flexDirection: 'row',
-    gap: s.md,
+    gap: s.lg,
   },
   impactCard: {
     flex: 1,
-    padding: s.xl,
+    padding: s.lg,
     borderRadius: r.lg,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: s.sm,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+    aspectRatio: 1,
+    minHeight: 140,
+  },
+  impactIcon: {
+    marginBottom: s.xs,
   },
   impactNumber: {
     fontSize: 48,
@@ -358,11 +393,13 @@ const styles = StyleSheet.create({
   impactLabel: {
     fontSize: 16,
     fontWeight: '700',
+    marginBottom: 2,
     textAlign: 'center',
-    marginBottom: 4,
   },
   impactDetail: {
     fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
     textAlign: 'center',
   },
   valueCard: {

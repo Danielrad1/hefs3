@@ -318,8 +318,8 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     if (!deck) return;
 
     Alert.alert(
-      '🚀 Learn 40% Faster',
-      'AI hints cut your reviews from 10 to 6 sessions and double how long you remember. Get progressive hints and memory techniques for every card.',
+      '🚀 Learn Faster',
+      'AI hints streamline reviews and strengthen long‑term recall. Get progressive hints and memory techniques for every card.',
       [
         { text: 'Not Now', style: 'cancel' },
         {

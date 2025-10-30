@@ -57,7 +57,7 @@ export default function AIHintsPromoModal({ visible, onClose, onEnable }: AIHint
               Stop Wasting Time
             </Text>
             <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-              Most people waste hours memorizing the hard way
+              Learn faster using hints
             </Text>
 
             {/* Benefits */}
@@ -65,7 +65,7 @@ export default function AIHintsPromoModal({ visible, onClose, onEnable }: AIHint
               <View style={[styles.benefitCard, { backgroundColor: 'rgba(236, 72, 153, 0.1)' }]}>
                 <View style={styles.benefitHeader}>
                   <Ionicons name="flash" size={24} color="#EC4899" />
-                  <Text style={[styles.benefitPercent, { color: '#EC4899' }]}>30% Faster</Text>
+                  <Text style={[styles.benefitPercent, { color: '#EC4899' }]}>Faster Learning</Text>
                 </View>
                 <Text style={[styles.benefitText, { color: theme.colors.textPrimary }]}>
                   Learn the same material with less grind
@@ -75,7 +75,7 @@ export default function AIHintsPromoModal({ visible, onClose, onEnable }: AIHint
               <View style={[styles.benefitCard, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
                 <View style={styles.benefitHeader}>
                   <Ionicons name="time" size={24} color="#8B5CF6" />
-                  <Text style={[styles.benefitPercent, { color: '#8B5CF6' }]}>40% Less Time</Text>
+                  <Text style={[styles.benefitPercent, { color: '#8B5CF6' }]}>Less Time Reviewing</Text>
                 </View>
                 <Text style={[styles.benefitText, { color: theme.colors.textPrimary }]}>
                   Cut revision time while scoring just as high
@@ -85,7 +85,7 @@ export default function AIHintsPromoModal({ visible, onClose, onEnable }: AIHint
               <View style={[styles.benefitCard, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
                 <View style={styles.benefitHeader}>
                   <Ionicons name="trophy" size={24} color="#10B981" />
-                  <Text style={[styles.benefitPercent, { color: '#10B981' }]}>2x Retention</Text>
+                  <Text style={[styles.benefitPercent, { color: '#10B981' }]}>Stronger Retention</Text>
                 </View>
                 <Text style={[styles.benefitText, { color: theme.colors.textPrimary }]}>
                   Remember weeks later what others forgot
@@ -122,7 +122,7 @@ export default function AIHintsPromoModal({ visible, onClose, onEnable }: AIHint
                   <Text style={styles.stepNumberText}>3</Text>
                 </View>
                 <Text style={[styles.stepText, { color: theme.colors.textPrimary }]}>
-                  Memory techniques help facts stick 2x longer
+                  Memory techniques help facts stick
                 </Text>
               </View>
             </View>
