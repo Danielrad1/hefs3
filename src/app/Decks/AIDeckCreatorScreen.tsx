@@ -238,14 +238,9 @@ export default function AIDeckCreatorScreen() {
             <Ionicons name="arrow-back" size={24} color={theme.colors.textPrimary} />
           </Pressable>
           <View style={styles.headerContent}>
-            <LinearGradient
-              colors={['#8B5CF6', '#EC4899']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.headerIconGradient}
-            >
-              <Ionicons name="sparkles" size={20} color="#FFF" />
-            </LinearGradient>
+            <View style={[styles.headerIconGradient, { backgroundColor: theme.colors.overlay.primary }]}>
+              <Ionicons name="sparkles" size={20} color={theme.colors.primary} />
+            </View>
             <View>
               <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Create with AI</Text>
               <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Generate ~{itemLimit} cards instantly</Text>
@@ -502,27 +497,19 @@ export default function AIDeckCreatorScreen() {
 
         {/* Generate Button with Magic */}
         <View style={[styles.footer, { backgroundColor: theme.colors.bg, borderTopColor: theme.colors.border }]}>
-          {!isPremiumEffective && usage && (
-            <View style={[styles.usageBar, { backgroundColor: theme.colors.surface2 }]}>
-              <Ionicons name="information-circle-outline" size={16} color={theme.colors.textMed} />
-              <Text style={[styles.usageText, { color: theme.colors.textMed }]}>
-                {usage.deckGenerations}/{usage.limits.deck} free generations used this month
-              </Text>
-            </View>
-          )}
           <Pressable
             style={styles.generateButton}
             onPress={handleGenerate}
           >
             <LinearGradient
-              colors={['#8B5CF6', '#EC4899']}
+              colors={[theme.colors.accent, theme.colors.accent]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.gradientButton}
             >
               <View style={styles.buttonContent}>
-                <Ionicons name="sparkles" size={20} color="#FFF" />
-                <Text style={styles.generateButtonTextWhite}>Generate Deck</Text>
+                <Ionicons name="sparkles" size={20} color="#000" />
+                <Text style={styles.generateButtonText}>Generate Deck</Text>
               </View>
             </LinearGradient>
           </Pressable>

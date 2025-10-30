@@ -205,23 +205,6 @@ export default function AIDeckModelSelectionScreen({ route, navigation }: AIDeck
                   </Text>
                 </View>
 
-                {/* Description */}
-                <Text style={[styles.modelDescription, { color: theme.colors.textSecondary }]}>
-                  {option.description}
-                </Text>
-
-                {/* Features */}
-                <View style={styles.featuresList}>
-                  {option.features.map((feature, index) => (
-                    <View key={index} style={styles.featureItem}>
-                      <Ionicons name="checkmark" size={16} color={option.color} />
-                      <Text style={[styles.featureText, { color: theme.colors.textMed }]}>
-                        {feature}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
                 {/* Usage Badge */}
                 {!isPremiumEffective && (
                   <View
@@ -361,10 +344,6 @@ const styles = StyleSheet.create({
     borderRadius: r.md,
   },
   timeText: { fontSize: 14, fontWeight: '600' },
-  modelDescription: { fontSize: 15, lineHeight: 22, marginTop: s.sm, marginBottom: s.xs },
-  featuresList: { gap: s.sm, marginTop: s.md },
-  featureItem: { flexDirection: 'row', alignItems: 'center', gap: s.sm },
-  featureText: { fontSize: 14, fontWeight: '500' },
   usageBadge: {
     padding: s.sm,
     paddingHorizontal: s.md,
