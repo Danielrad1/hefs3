@@ -66,7 +66,7 @@ export function DeckDetailModal({
       {/* Icon */}
       <View style={styles.heroIcon}>
         {glyphs.primary.kind === 'icon' ? (
-          <Ionicons name={glyphs.primary.value as any} size={64} color="#FFFFFF" />
+          <Ionicons name={glyphs.primary.value as any} size={48} color="#FFFFFF" />
         ) : (
           <Text style={styles.heroEmoji}>{glyphs.primary.value}</Text>
         )}
@@ -130,16 +130,20 @@ export function DeckDetailModal({
 
             {/* Details Grid */}
             <View style={styles.detailsGrid}>
-              <View style={[styles.detailCard, { backgroundColor: theme.colors.bg }]}>
-                <Ionicons name="language" size={24} color={theme.colors.accent} />
-                <Text style={[styles.detailLabel, { color: theme.colors.textTertiary }]}>Language</Text>
-                <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>{deck.language}</Text>
+              <View style={styles.detailCard}>
+                <Ionicons name="globe-outline" size={22} color={theme.colors.accent} />
+                <View style={styles.detailTextContainer}>
+                  <Text style={[styles.detailLabel, { color: theme.colors.textTertiary }]}>Language</Text>
+                  <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>{deck.language}</Text>
+                </View>
               </View>
               {deck.size && (
-                <View style={[styles.detailCard, { backgroundColor: theme.colors.bg }]}>
-                  <Ionicons name="document" size={24} color={theme.colors.accent} />
-                  <Text style={[styles.detailLabel, { color: theme.colors.textTertiary }]}>Size</Text>
-                  <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>{sizeInMB} MB</Text>
+                <View style={styles.detailCard}>
+                  <Ionicons name="document-outline" size={22} color={theme.colors.accent} />
+                  <View style={styles.detailTextContainer}>
+                    <Text style={[styles.detailLabel, { color: theme.colors.textTertiary }]}>Size</Text>
+                    <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>{sizeInMB} MB</Text>
+                  </View>
                 </View>
               )}
             </View>
@@ -240,47 +244,49 @@ const styles = StyleSheet.create({
     paddingBottom: s.xl,
   },
   heroSection: {
-    paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingHorizontal: s.lg,
+    paddingTop: s.md,
+    paddingBottom: s.lg,
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: s.lg,
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
   },
   heroIcon: {
-    marginBottom: 16,
+    marginBottom: s.sm,
   },
   heroEmoji: {
-    fontSize: 64,
+    fontSize: 48,
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   heroTitle: {
-    fontSize: 26,
-    fontWeight: '900',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 12,
-    letterSpacing: -0.5,
+    marginBottom: s.sm,
+    letterSpacing: -0.3,
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+    paddingHorizontal: s.md,
   },
   heroMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: s.sm,
   },
   heroMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: s.xs / 2,
   },
   heroMetaText: {
     color: 'rgba(255,255,255,0.95)',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   heroDivider: {
@@ -293,9 +299,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    marginBottom: 12,
+    marginBottom: s.sm,
   },
   previewCard: {
     padding: 24,
@@ -331,58 +337,74 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   descriptionSection: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    paddingHorizontal: s.lg,
+    marginBottom: s.lg,
   },
   description: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 21,
   },
   detailsGrid: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    gap: s.sm,
+    paddingHorizontal: s.lg,
+    marginBottom: s.lg,
   },
   detailCard: {
     flex: 1,
-    padding: 16,
-    borderRadius: 12,
+    padding: s.md,
+    borderRadius: r.md,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: s.sm,
+  },
+  detailTextContainer: {
+    flex: 1,
+    gap: 2,
   },
   detailLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    opacity: 0.6,
   },
   detailValue: {
     fontSize: 16,
     fontWeight: '700',
   },
   tagsContainer: {
+    paddingHorizontal: s.lg,
     marginBottom: s.lg,
   },
   tagsLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: s.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: s.xs,
   },
   tags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: s.xs,
+    marginTop: s.xs,
   },
   tag: {
-    paddingHorizontal: s.sm,
-    paddingVertical: s.xs / 2,
-    borderRadius: r.sm,
+    paddingHorizontal: s.md,
+    paddingVertical: s.xs,
+    borderRadius: r.md,
   },
   tagText: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '500',
   },
   author: {
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center',
+    marginTop: s.md,
+    marginBottom: s.lg,
+    paddingHorizontal: s.lg,
   },
   footer: {
     padding: s.lg,
