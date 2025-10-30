@@ -112,7 +112,8 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
         setImageDimensions({ width: displayWidth, height: displayHeight });
       },
       (error) => {
-        logger.error('[ImageOcclusionRenderer] Failed to get image size:', error);
+        // HEIC images often fail getSize on iOS, but we have naturalSize fallback
+        logger.debug('[ImageOcclusionRenderer] Image.getSize failed (expected for HEIC), using naturalSize fallback');
 
         // Attempt fallback using naturalSize (stored during authoring/import)
         const natural = occlusionData.naturalSize as any;
@@ -129,7 +130,7 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
             displayWidth = displayHeight / aspectRatio;
           }
 
-          logger.warn('[ImageOcclusionRenderer] Using naturalSize fallback for rendering', {
+          logger.debug('[ImageOcclusionRenderer] Using naturalSize fallback for rendering', {
             width: naturalWidth,
             height: naturalHeight,
           });
@@ -183,11 +184,15 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
             let maskStyle: any;
 
             if (isHideAllMode) {
+              // Hide-All: all masks opaque on front, all hidden on back
               maskStyle = revealed ? ioStyles.hidden : ioStyles.opaque;
             } else {
+              // Hide-One: ONLY show target mask, hide all others completely
               if (revealed) {
+                // Back: highlight target, hide others
                 maskStyle = isTarget ? ioStyles.highlight : ioStyles.hidden;
               } else {
+                // Front: show target as opaque, hide others
                 maskStyle = isTarget ? ioStyles.opaque : ioStyles.hidden;
               }
             }

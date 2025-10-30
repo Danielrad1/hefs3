@@ -53,6 +53,8 @@ export class SchedulerV2 {
       ? this.db.getCardsByDeck(deckId)
       : this.db.getAllCards();
 
+    console.log(`[SchedulerV2] getNext: Total cards: ${cards.length}, Buried note IDs: ${this.buriedNoteIds.size}`, Array.from(this.buriedNoteIds));
+
     // Filter out suspended, buried, and session-buried siblings
     const activeCards = cards.filter(
       (c) => c.queue !== CardQueue.Suspended &&
@@ -60,6 +62,8 @@ export class SchedulerV2 {
              c.queue !== CardQueue.SchedBuried &&
              !this.buriedNoteIds.has(c.nid)
     );
+    
+    console.log(`[SchedulerV2] getNext: Active cards after filtering: ${activeCards.length}`);
 
     // Prioritize: learning > review > new
     
@@ -154,6 +158,8 @@ export class SchedulerV2 {
       ? this.db.getCardsByDeck(deckId)
       : this.db.getAllCards();
 
+    console.log(`[SchedulerV2] peekNext: Total cards: ${cards.length}, Buried note IDs: ${this.buriedNoteIds.size}`, Array.from(this.buriedNoteIds));
+
     // Filter out suspended, buried, and session-buried siblings
     const activeCards = cards.filter(
       (c) => c.queue !== CardQueue.Suspended &&
@@ -161,6 +167,8 @@ export class SchedulerV2 {
              c.queue !== CardQueue.SchedBuried &&
              !this.buriedNoteIds.has(c.nid)
     );
+    
+    console.log(`[SchedulerV2] peekNext: Active cards after filtering: ${activeCards.length}`);
 
     // Get all due cards (same priority as getNext)
     const allDue = [

@@ -56,9 +56,12 @@ interface ImageOcclusionEditorScreenProps {
 
 // Draggable mask component
 const MIN_MASK_SIZE = 0.05;
-const HANDLE_SIZE = 18;
+const HANDLE_SIZE = 24; // Increased for easier touch
 
-const clampValue = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const clampValue = (value: number, min: number, max: number) => {
+  'worklet';
+  return Math.max(min, Math.min(max, value));
+};
 
 type ResizeCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -77,6 +80,7 @@ const DraggableMask = ({
   onUpdate: (id: string, updates: Partial<Mask>) => void;
   onSelect: (id: string) => void;
 }) => {
+  const [activeHandle, setActiveHandle] = React.useState<ResizeCorner | null>(null);
   const baseLeft = mask.x * displayWidth;
   const baseTop = mask.y * displayHeight;
   const maskWidth = mask.w * displayWidth;
@@ -84,6 +88,12 @@ const DraggableMask = ({
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  
+  // Shared values for resize animation
+  const resizeOffsetX = useSharedValue(0);
+  const resizeOffsetY = useSharedValue(0);
+  const resizeOffsetW = useSharedValue(0);
+  const resizeOffsetH = useSharedValue(0);
 
   const startX = useSharedValue(mask.x);
   const startY = useSharedValue(mask.y);
@@ -101,9 +111,16 @@ const DraggableMask = ({
     startY.value = mask.y;
     startW.value = mask.w;
     startH.value = mask.h;
-  }, [mask, startX, startY, startW, startH]);
+    // Reset resize offsets when mask changes
+    resizeOffsetX.value = 0;
+    resizeOffsetY.value = 0;
+    resizeOffsetW.value = 0;
+    resizeOffsetH.value = 0;
+  }, [mask, startX, startY, startW, startH, resizeOffsetX, resizeOffsetY, resizeOffsetW, resizeOffsetH]);
 
+  // Simple pan gesture for moving (only when no handle is active)
   const panGesture = Gesture.Pan()
+    .enabled(!activeHandle)
     .onUpdate((e) => {
       translateX.value = e.translationX;
       translateY.value = e.translationY;
@@ -116,16 +133,24 @@ const DraggableMask = ({
       translateY.value = withSpring(0);
 
       runOnJS(onUpdate)(mask.id, { x: newX, y: newY });
-      runOnJS(onSelect)(mask.id);
     });
 
-  const tapGesture = Gesture.Tap().onEnd(() => runOnJS(onSelect)(mask.id));
+  const tapGesture = Gesture.Tap()
+    .enabled(!activeHandle)
+    .onEnd(() => runOnJS(onSelect)(mask.id));
 
-  const composed = Gesture.Exclusive(panGesture, tapGesture);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    const left = resizeOffsetX.value * displayWidth;
+    const top = resizeOffsetY.value * displayHeight;
+    const width = resizeOffsetW.value * displayWidth;
+    const height = resizeOffsetH.value * displayHeight;
+    
+    return {
+      transform: [{ translateX: translateX.value + left }, { translateY: translateY.value + top }],
+      width: maskWidth + width,
+      height: maskHeight + height,
+    };
+  });
 
   const applyResize = React.useCallback(
     (
@@ -181,27 +206,86 @@ const DraggableMask = ({
     startY.value = mask.y;
     startW.value = mask.w;
     startH.value = mask.h;
+    resizeOffsetX.value = 0;
+    resizeOffsetY.value = 0;
+    resizeOffsetW.value = 0;
+    resizeOffsetH.value = 0;
     runOnJS(setResizing)(true);
     runOnJS(onSelect)(mask.id);
   };
 
+  const calculateResize = (
+    corner: ResizeCorner,
+    dx: number,
+    dy: number,
+    start: { x: number; y: number; w: number; h: number },
+  ) => {
+    'worklet';
+    let newX = start.x;
+    let newY = start.y;
+    let newW = start.w;
+    let newH = start.h;
+
+    const clampWidth = (x: number, width: number) => clampValue(width, MIN_MASK_SIZE, 1 - x);
+    const clampHeight = (y: number, height: number) => clampValue(height, MIN_MASK_SIZE, 1 - y);
+
+    switch (corner) {
+      case 'top-left': {
+        newX = clampValue(start.x + dx, 0, start.x + start.w - MIN_MASK_SIZE);
+        newY = clampValue(start.y + dy, 0, start.y + start.h - MIN_MASK_SIZE);
+        newW = clampWidth(newX, start.x + start.w - newX);
+        newH = clampHeight(newY, start.y + start.h - newY);
+        break;
+      }
+      case 'top-right': {
+        newY = clampValue(start.y + dy, 0, start.y + start.h - MIN_MASK_SIZE);
+        newW = clampWidth(start.x, start.w + dx);
+        newH = clampHeight(newY, start.y + start.h - newY);
+        break;
+      }
+      case 'bottom-left': {
+        newX = clampValue(start.x + dx, 0, start.x + start.w - MIN_MASK_SIZE);
+        newW = clampWidth(newX, start.x + start.w - newX);
+        newH = clampHeight(start.y, start.h + dy);
+        break;
+      }
+      case 'bottom-right': {
+        newW = clampWidth(start.x, start.w + dx);
+        newH = clampHeight(start.y, start.h + dy);
+        break;
+      }
+    }
+
+    return { x: newX, y: newY, w: newW, h: newH };
+  };
+
   const topLeftGesture = Gesture.Pan()
-    .requireExternalGestureToFail(panGesture)
     .hitSlop(HANDLE_SIZE)
-    .onBegin(initResizeGesture)
+    .onBegin(() => {
+      runOnJS(setActiveHandle)('top-left');
+      initResizeGesture();
+    })
     .onUpdate((e) => {
       const dx = e.translationX / displayWidth;
       const dy = e.translationY / displayHeight;
-      runOnJS(applyResize)('top-left', mask.id, dx, dy, {
+      const result = calculateResize('top-left', dx, dy, {
         x: startX.value,
         y: startY.value,
         w: startW.value,
         h: startH.value,
       });
+      resizeOffsetX.value = result.x - startX.value;
+      resizeOffsetY.value = result.y - startY.value;
+      resizeOffsetW.value = result.w - startW.value;
+      resizeOffsetH.value = result.h - startH.value;
     })
     .onEnd((e) => {
       const dx = e.translationX / displayWidth;
       const dy = e.translationY / displayHeight;
+      resizeOffsetX.value = withSpring(0);
+      resizeOffsetY.value = withSpring(0);
+      resizeOffsetW.value = withSpring(0);
+      resizeOffsetH.value = withSpring(0);
       runOnJS(applyResize)('top-left', mask.id, dx, dy, {
         x: startX.value,
         y: startY.value,
@@ -209,28 +293,40 @@ const DraggableMask = ({
         h: startH.value,
       });
       runOnJS(setResizing)(false);
+      runOnJS(setActiveHandle)(null);
     })
     .onFinalize(() => {
       runOnJS(setResizing)(false);
+      runOnJS(setActiveHandle)(null);
     });
 
   const topRightGesture = Gesture.Pan()
-    .requireExternalGestureToFail(panGesture)
     .hitSlop(HANDLE_SIZE)
-    .onBegin(initResizeGesture)
+    .onBegin(() => {
+      runOnJS(setActiveHandle)('top-right');
+      initResizeGesture();
+    })
     .onUpdate((e) => {
       const dx = e.translationX / displayWidth;
       const dy = e.translationY / displayHeight;
-      runOnJS(applyResize)('top-right', mask.id, dx, dy, {
+      const result = calculateResize('top-right', dx, dy, {
         x: startX.value,
         y: startY.value,
         w: startW.value,
         h: startH.value,
       });
+      resizeOffsetX.value = result.x - startX.value;
+      resizeOffsetY.value = result.y - startY.value;
+      resizeOffsetW.value = result.w - startW.value;
+      resizeOffsetH.value = result.h - startH.value;
     })
     .onEnd((e) => {
       const dx = e.translationX / displayWidth;
       const dy = e.translationY / displayHeight;
+      resizeOffsetX.value = withSpring(0);
+      resizeOffsetY.value = withSpring(0);
+      resizeOffsetW.value = withSpring(0);
+      resizeOffsetH.value = withSpring(0);
       runOnJS(applyResize)('top-right', mask.id, dx, dy, {
         x: startX.value,
         y: startY.value,
@@ -238,28 +334,40 @@ const DraggableMask = ({
         h: startH.value,
       });
       runOnJS(setResizing)(false);
+      runOnJS(setActiveHandle)(null);
     })
     .onFinalize(() => {
       runOnJS(setResizing)(false);
+      runOnJS(setActiveHandle)(null);
     });
 
   const bottomLeftGesture = Gesture.Pan()
-    .requireExternalGestureToFail(panGesture)
     .hitSlop(HANDLE_SIZE)
-    .onBegin(initResizeGesture)
+    .onBegin(() => {
+      runOnJS(setActiveHandle)('bottom-left');
+      initResizeGesture();
+    })
     .onUpdate((e) => {
       const dx = e.translationX / displayWidth;
       const dy = e.translationY / displayHeight;
-      runOnJS(applyResize)('bottom-left', mask.id, dx, dy, {
+      const result = calculateResize('bottom-left', dx, dy, {
         x: startX.value,
         y: startY.value,
         w: startW.value,
         h: startH.value,
       });
+      resizeOffsetX.value = result.x - startX.value;
+      resizeOffsetY.value = result.y - startY.value;
+      resizeOffsetW.value = result.w - startW.value;
+      resizeOffsetH.value = result.h - startH.value;
     })
     .onEnd((e) => {
       const dx = e.translationX / displayWidth;
       const dy = e.translationY / displayHeight;
+      resizeOffsetX.value = withSpring(0);
+      resizeOffsetY.value = withSpring(0);
+      resizeOffsetW.value = withSpring(0);
+      resizeOffsetH.value = withSpring(0);
       runOnJS(applyResize)('bottom-left', mask.id, dx, dy, {
         x: startX.value,
         y: startY.value,
@@ -267,28 +375,40 @@ const DraggableMask = ({
         h: startH.value,
       });
       runOnJS(setResizing)(false);
+      runOnJS(setActiveHandle)(null);
     })
     .onFinalize(() => {
       runOnJS(setResizing)(false);
+      runOnJS(setActiveHandle)(null);
     });
 
   const bottomRightGesture = Gesture.Pan()
-    .requireExternalGestureToFail(panGesture)
     .hitSlop(HANDLE_SIZE)
-    .onBegin(initResizeGesture)
+    .onBegin(() => {
+      runOnJS(setActiveHandle)('bottom-right');
+      initResizeGesture();
+    })
     .onUpdate((e) => {
       const dx = e.translationX / displayWidth;
       const dy = e.translationY / displayHeight;
-      runOnJS(applyResize)('bottom-right', mask.id, dx, dy, {
+      const result = calculateResize('bottom-right', dx, dy, {
         x: startX.value,
         y: startY.value,
         w: startW.value,
         h: startH.value,
       });
+      resizeOffsetX.value = result.x - startX.value;
+      resizeOffsetY.value = result.y - startY.value;
+      resizeOffsetW.value = result.w - startW.value;
+      resizeOffsetH.value = result.h - startH.value;
     })
     .onEnd((e) => {
       const dx = e.translationX / displayWidth;
       const dy = e.translationY / displayHeight;
+      resizeOffsetX.value = withSpring(0);
+      resizeOffsetY.value = withSpring(0);
+      resizeOffsetW.value = withSpring(0);
+      resizeOffsetH.value = withSpring(0);
       runOnJS(applyResize)('bottom-right', mask.id, dx, dy, {
         x: startX.value,
         y: startY.value,
@@ -296,13 +416,15 @@ const DraggableMask = ({
         h: startH.value,
       });
       runOnJS(setResizing)(false);
+      runOnJS(setActiveHandle)(null);
     })
     .onFinalize(() => {
       runOnJS(setResizing)(false);
+      runOnJS(setActiveHandle)(null);
     });
 
   return (
-    <GestureDetector gesture={composed}>
+    <GestureDetector gesture={Gesture.Race(panGesture, tapGesture)}>
       <Animated.View
         style={[
           styles.mask,
@@ -323,21 +445,25 @@ const DraggableMask = ({
             <GestureDetector gesture={topLeftGesture}>
               <View
                 style={[styles.resizeHandle, { left: -HANDLE_SIZE / 2, top: -HANDLE_SIZE / 2 }]}
+                pointerEvents="auto"
               />
             </GestureDetector>
             <GestureDetector gesture={topRightGesture}>
               <View
                 style={[styles.resizeHandle, { right: -HANDLE_SIZE / 2, top: -HANDLE_SIZE / 2 }]}
+                pointerEvents="auto"
               />
             </GestureDetector>
             <GestureDetector gesture={bottomLeftGesture}>
               <View
                 style={[styles.resizeHandle, { left: -HANDLE_SIZE / 2, bottom: -HANDLE_SIZE / 2 }]}
+                pointerEvents="auto"
               />
             </GestureDetector>
             <GestureDetector gesture={bottomRightGesture}>
               <View
                 style={[styles.resizeHandle, { right: -HANDLE_SIZE / 2, bottom: -HANDLE_SIZE / 2 }]}
+                pointerEvents="auto"
               />
             </GestureDetector>
           </>
@@ -614,7 +740,7 @@ export default function ImageOcclusionEditorScreen({
       // Reload scheduler so cards show up immediately
       reload();
 
-      const cardCount = mode === 'hide-one' ? masks.length : masks.length;
+      const cardCount = mode === 'hide-one' ? masks.length : 1;
       logger.info(
         '[ImageOcclusionEditor] Created note with',
         masks.length,
@@ -829,7 +955,7 @@ export default function ImageOcclusionEditorScreen({
                   >
                     {mode === 'hide-one'
                       ? 'One mask hidden at a time (creates ' + masks.length + ' cards)'
-                      : 'All masks hidden together (creates ' + masks.length + ' cards)'}
+                      : 'All masks hidden together (creates 1 card)'}
                   </Text>
                   <View style={styles.buttonRow}>
                     <Pressable
@@ -990,6 +1116,7 @@ const styles = StyleSheet.create({
   mask: {
     position: 'absolute',
     borderRadius: 4,
+    overflow: 'visible', // Allow handles to be touchable outside bounds
   },
   resizeHandle: {
     position: 'absolute',
@@ -997,8 +1124,13 @@ const styles = StyleSheet.create({
     height: HANDLE_SIZE,
     borderRadius: HANDLE_SIZE / 2,
     backgroundColor: '#FFF',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#3B82F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   maskInfoContainer: {
     flexDirection: 'row',
