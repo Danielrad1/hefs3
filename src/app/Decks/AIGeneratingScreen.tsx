@@ -1,13 +1,73 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
+import { usePremium } from '../../context/PremiumContext';
 import { s } from '../../design/spacing';
+import { AiService } from '../../services/ai/AiService';
+import { logger } from '../../utils/logger';
 
-export default function AIGeneratingScreen() {
+interface AIGeneratingScreenProps {
+  route: {
+    params: {
+      prompt: string;
+      notesText: string;
+      noteModel: string;
+      itemLimit: number;
+      modelTier: 'basic' | 'advanced';
+    };
+  };
+  navigation: any;
+}
+
+export default function AIGeneratingScreen({ route, navigation }: AIGeneratingScreenProps) {
   const theme = useTheme();
-  
+  const { incrementUsage } = usePremium();
+  const { prompt, notesText, noteModel, itemLimit, modelTier } = route.params;
+
+  // Generate deck on mount
+  useEffect(() => {
+    const generateDeck = async () => {
+      try {
+        const sourceType = notesText.trim() ? 'notes' : 'prompt';
+        
+        const response = await AiService.generateDeck({
+          sourceType,
+          prompt: prompt.trim() ? prompt : undefined,
+          notesText: notesText.trim() ? notesText : undefined,
+          deckName: undefined,
+          noteModel: noteModel as 'basic' | 'cloze',
+          itemLimit,
+          modelTier, // Pass the selected model tier
+        });
+
+        // Increment usage after successful generation
+        await incrementUsage(modelTier === 'basic' ? 'basicDecks' : 'advancedDecks');
+
+        // Replace loading screen with preview (can't go back to loading)
+        navigation.replace('AIDeckPreview', {
+          deckName: response.deckName,
+          noteModel: response.model,
+          notes: response.notes,
+          metadata: response.metadata,
+        });
+      } catch (error) {
+        logger.error('[AIGenerating] Deck generation error:', error);
+        // Go back to creator screen
+        navigation.navigate('AIDeckCreator');
+        
+        const errorMessage = error instanceof Error ? error.message : '';
+        Alert.alert(
+          'Generation Failed',
+          errorMessage || 'Failed to generate deck. Please try again.'
+        );
+      }
+    };
+    
+    generateDeck();
+  }, []);
+
   // Multiple sparkle animations
   const sparkle1 = useRef(new Animated.Value(0)).current;
   const sparkle2 = useRef(new Animated.Value(0)).current;

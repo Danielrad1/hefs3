@@ -179,9 +179,6 @@ export default function AIDeckCreatorScreen() {
   };
 
   const handleGenerate = async () => {
-    // Determine source type based on what user filled in
-    const sourceType = notesText.trim() ? 'notes' : 'prompt';
-    
     // Validation
     if (!prompt.trim() && !notesText.trim()) {
       Alert.alert('Missing Input', 'Please enter either a prompt or paste your notes.');
@@ -201,53 +198,13 @@ export default function AIDeckCreatorScreen() {
 
     const limit = parseInt(itemLimit) || 50;
 
-    // Check quota before generating
-    if (!isPremiumEffective && usage) {
-      if (usage.deckGenerations >= usage.limits.deck) {
-        setShowPremiumModal(true);
-        return;
-      }
-    }
-
-    // Navigate to loading screen with handler
-    navigation.navigate('AIGenerating' as any);
-
-    try {
-      const response = await AiService.generateDeck({
-        sourceType,
-        prompt: prompt.trim() ? prompt : undefined,
-        notesText: notesText.trim() ? notesText : undefined,
-        deckName: undefined,
-        noteModel,
-        itemLimit: limit,
-      });
-
-      // Increment usage after successful generation
-      await incrementUsage('deck');
-
-      // Replace loading screen with preview (can't go back to loading)
-      navigation.replace('AIDeckPreview', {
-        deckName: response.deckName,
-        noteModel: response.model,
-        notes: response.notes,
-        metadata: response.metadata,
-      });
-    } catch (error) {
-      logger.error('AI generation error:', error);
-      // Go back to creator screen
-      navigation.goBack();
-      
-      // Check if quota exceeded
-      const errorMessage = error instanceof Error ? error.message : '';
-      if (errorMessage.includes('limit reached') || errorMessage.includes('quota')) {
-        setShowPremiumModal(true);
-      } else {
-        Alert.alert(
-          'Generation Failed',
-          errorMessage || 'Failed to generate deck. Please try again.'
-        );
-      }
-    }
+    // Navigate to model selection screen
+    navigation.navigate('AIDeckModelSelection' as any, {
+      prompt: prompt.trim(),
+      notesText: notesText.trim(),
+      noteModel,
+      itemLimit: limit,
+    });
   };
 
   const handleSubscribePress = async () => {

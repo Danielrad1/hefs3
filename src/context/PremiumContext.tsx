@@ -23,11 +23,15 @@ if (Platform.OS === 'ios') {
 
 export interface UsageData {
   monthKey: string;
-  deckGenerations: number;
+  deckGenerations: number; // Legacy - kept for backward compat
+  basicDeckGenerations: number;
+  advancedDeckGenerations: number;
   basicHintGenerations: number;
   advancedHintGenerations: number;
   limits: {
-    deck: number;
+    deck: number; // Legacy - kept for backward compat
+    basicDecks: number;
+    advancedDecks: number;
     basicHints: number;
     advancedHints: number;
   };
@@ -44,7 +48,7 @@ export interface PremiumContextType {
   restore: () => Promise<void>;
   refreshEntitlements: () => Promise<void>;
   fetchUsage: () => Promise<void>;
-  incrementUsage: (kind: 'deck' | 'basicHints' | 'advancedHints') => Promise<void>;
+  incrementUsage: (kind: 'deck' | 'basicDecks' | 'advancedDecks' | 'basicHints' | 'advancedHints') => Promise<void>;
 }
 
 const PremiumContext = createContext<PremiumContextType | undefined>(undefined);
@@ -175,10 +179,14 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
         data = {
           monthKey,
           deckGenerations: 0,
+          basicDeckGenerations: 0,
+          advancedDeckGenerations: 0,
           basicHintGenerations: 0,
           advancedHintGenerations: 0,
           limits: {
             deck: 3,
+            basicDecks: 3,
+            advancedDecks: 1,
             basicHints: 3,
             advancedHints: 1,
           },
@@ -192,10 +200,14 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     } catch (err) {
       logger.error('[Premium] Error fetching usage:', err);
       // Don't set error - just use default values
-      const limits = isPremiumEffective ? { deck: 999999, basicHints: 999999, advancedHints: 999999 } : { deck: 3, basicHints: 3, advancedHints: 1 };
+      const limits = isPremiumEffective 
+        ? { deck: 999999, basicDecks: 999999, advancedDecks: 999999, basicHints: 999999, advancedHints: 999999 }
+        : { deck: 3, basicDecks: 3, advancedDecks: 1, basicHints: 3, advancedHints: 1 };
       setUsage({
         monthKey: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
         deckGenerations: 0,
+        basicDeckGenerations: 0,
+        advancedDeckGenerations: 0,
         basicHintGenerations: 0,
         advancedHintGenerations: 0,
         limits,
@@ -208,7 +220,9 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
    */
   useEffect(() => {
     if (usage) {
-      const newLimits = isPremiumEffective ? { deck: 999999, basicHints: 999999, advancedHints: 999999 } : { deck: 3, basicHints: 3, advancedHints: 1 };
+      const newLimits = isPremiumEffective 
+        ? { deck: 999999, basicDecks: 999999, advancedDecks: 999999, basicHints: 999999, advancedHints: 999999 }
+        : { deck: 3, basicDecks: 3, advancedDecks: 1, basicHints: 3, advancedHints: 1 };
       setUsage({ ...usage, limits: newLimits });
     }
   }, [isPremiumEffective]);
@@ -216,7 +230,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   /**
    * Increment usage count for a specific feature
    */
-  const incrementUsage = useCallback(async (kind: 'deck' | 'basicHints' | 'advancedHints') => {
+  const incrementUsage = useCallback(async (kind: 'deck' | 'basicDecks' | 'advancedDecks' | 'basicHints' | 'advancedHints') => {
     try {
       if (!user) {
         logger.warn('[Premium] Cannot increment usage: no user');
@@ -237,14 +251,26 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
         data = JSON.parse(stored);
         logger.debug(`[Premium] Found existing usage data:`, data);
         
-        // Migrate old data that doesn't have new hint fields
+        // Migrate old data that doesn't have new fields
+        if (data.basicDeckGenerations === undefined) {
+          data.basicDeckGenerations = 0;
+        }
+        if (data.advancedDeckGenerations === undefined) {
+          data.advancedDeckGenerations = 0;
+        }
         if (data.basicHintGenerations === undefined) {
           data.basicHintGenerations = 0;
         }
         if (data.advancedHintGenerations === undefined) {
           data.advancedHintGenerations = 0;
         }
-        // Ensure limits object has hint fields
+        // Ensure limits object has all fields
+        if (!data.limits.basicDecks) {
+          data.limits.basicDecks = 3;
+        }
+        if (!data.limits.advancedDecks) {
+          data.limits.advancedDecks = 1;
+        }
         if (!data.limits.basicHints) {
           data.limits.basicHints = 3;
         }
@@ -253,10 +279,14 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
         }
       } else {
         logger.info(`[Premium] No existing usage data, creating new`);
-        const limits = isPremiumEffective ? { deck: 999999, basicHints: 999999, advancedHints: 999999 } : { deck: 3, basicHints: 3, advancedHints: 1 };
+        const limits = isPremiumEffective 
+          ? { deck: 999999, basicDecks: 999999, advancedDecks: 999999, basicHints: 999999, advancedHints: 999999 }
+          : { deck: 3, basicDecks: 3, advancedDecks: 1, basicHints: 3, advancedHints: 1 };
         data = {
           monthKey,
           deckGenerations: 0,
+          basicDeckGenerations: 0,
+          advancedDeckGenerations: 0,
           basicHintGenerations: 0,
           advancedHintGenerations: 0,
           limits,
@@ -268,6 +298,12 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
         let canIncrement = true;
         if (kind === 'deck' && data.deckGenerations >= data.limits.deck) {
           logger.warn(`[Premium] Cannot increment deck: limit reached (${data.deckGenerations}/${data.limits.deck})`);
+          canIncrement = false;
+        } else if (kind === 'basicDecks' && data.basicDeckGenerations >= data.limits.basicDecks) {
+          logger.warn(`[Premium] Cannot increment basicDecks: limit reached (${data.basicDeckGenerations}/${data.limits.basicDecks})`);
+          canIncrement = false;
+        } else if (kind === 'advancedDecks' && data.advancedDeckGenerations >= data.limits.advancedDecks) {
+          logger.warn(`[Premium] Cannot increment advancedDecks: limit reached (${data.advancedDeckGenerations}/${data.limits.advancedDecks})`);
           canIncrement = false;
         } else if (kind === 'basicHints' && data.basicHintGenerations >= data.limits.basicHints) {
           logger.warn(`[Premium] Cannot increment basicHints: limit reached (${data.basicHintGenerations}/${data.limits.basicHints})`);
@@ -287,6 +323,10 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       // Increment the appropriate counter
       if (kind === 'deck') {
         data.deckGenerations += 1;
+      } else if (kind === 'basicDecks') {
+        data.basicDeckGenerations += 1;
+      } else if (kind === 'advancedDecks') {
+        data.advancedDeckGenerations += 1;
       } else if (kind === 'basicHints') {
         data.basicHintGenerations += 1;
       } else {
@@ -295,8 +335,10 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       
       logger.info(`[Premium] Incremented ${kind} usage. New counts:`, {
         deck: data.deckGenerations,
-        basic: data.basicHintGenerations,
-        advanced: data.advancedHintGenerations,
+        basicDecks: data.basicDeckGenerations,
+        advancedDecks: data.advancedDeckGenerations,
+        basicHints: data.basicHintGenerations,
+        advancedHints: data.advancedHintGenerations,
       });
       
       // Save back to storage
