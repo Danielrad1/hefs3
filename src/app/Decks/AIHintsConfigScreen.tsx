@@ -64,25 +64,12 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         return;
       }
 
-      // Limit free users to 250 cards for hint generation
-      if (!isPremiumEffective && cards.length > 250) {
-        Alert.alert(
-          'Upgrade to Premium',
-          `Free users can generate hints for up to 250 cards. This deck has ${cards.length} cards.\n\nUpgrade to Premium for unlimited hint generation.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Upgrade', onPress: () => setShowPremiumModal(true) },
-          ]
-        );
-        return;
-      }
-
-      // Enforce backend's 500-card limit for all users
+      // Enforce backend's 500-card limit for all users (free and premium)
       const MAX_HINTS_CARDS = 500;
       if (cards.length > MAX_HINTS_CARDS) {
         Alert.alert(
-          'Deck Too Large',
-          `AI hints can process up to ${MAX_HINTS_CARDS} cards at a time. This deck has ${cards.length} cards.\n\nWould you like to generate hints for the first ${MAX_HINTS_CARDS} cards?`,
+          'Large Deck',
+          `AI hints will process the first ${MAX_HINTS_CARDS} cards. This deck has ${cards.length} cards.\n\nWe'll generate hints for the first ${MAX_HINTS_CARDS} cards.`,
           [
             { text: 'Cancel', style: 'cancel' },
             { 
