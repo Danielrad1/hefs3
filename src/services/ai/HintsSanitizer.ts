@@ -104,8 +104,8 @@ export function sanitizeHintsInput(
         const front = stripHtml(item.front || '');
         const back = stripHtml(item.back || '');
         
-        // Skip if no substantive content
-        if (!hasSubstantiveText(front) || !hasSubstantiveText(back)) {
+        // Skip if front has no substantive content
+        if (!hasSubstantiveText(front)) {
           skipped.push({
             id: item.id,
             reason: 'empty-content',
@@ -113,7 +113,7 @@ export function sanitizeHintsInput(
           continue;
         }
         
-        // Skip if back is image-only
+        // Skip if back is image-only (separate check for better error message)
         if (!hasSubstantiveText(back)) {
           skipped.push({
             id: item.id,

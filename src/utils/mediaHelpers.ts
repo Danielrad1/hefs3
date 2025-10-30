@@ -43,9 +43,17 @@ export function sanitizeMediaFilename(filename: string): string {
   
   // Limit length to 200 chars to leave room for encoding expansion
   if (sanitized.length > 200) {
-    const ext = sanitized.substring(sanitized.lastIndexOf('.'));
-    const name = sanitized.substring(0, 200 - ext.length);
-    sanitized = name + ext;
+    const lastDot = sanitized.lastIndexOf('.');
+    const hasExtension = lastDot > 0 && lastDot < sanitized.length - 1;
+    
+    if (hasExtension) {
+      const ext = sanitized.substring(lastDot);
+      const name = sanitized.substring(0, 200 - ext.length);
+      sanitized = name + ext;
+    } else {
+      // No extension, just truncate
+      sanitized = sanitized.substring(0, 200);
+    }
   }
   
   return sanitized;
