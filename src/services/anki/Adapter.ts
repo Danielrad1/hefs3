@@ -18,6 +18,7 @@ import {
 import { InMemoryDb } from './InMemoryDb';
 import { nowSeconds, generateId } from './time';
 import { logger } from '../../utils/logger';
+import * as TemplateEngine from './TemplateEngine';
 
 /**
  * Bootstrap the database with seed cards
@@ -111,17 +112,26 @@ export function toViewCard(ankiCard: AnkiCard, db: InMemoryDb): Card {
     return toImageOcclusionCard(ankiCard, note, db);
   }
 
-  // Standard and cloze cards
-  const fields = note.flds.split(FIELD_SEPARATOR);
-  const front = fields[0] || '';
-  const back = fields[1] || '';
-
-  return {
-    id: ankiCard.id,
-    front,
-    back,
-    deckId: ankiCard.did || DEFAULT_DECK_ID,
-  };
+  // Standard and cloze cards - use TemplateEngine for template rendering
+  try {
+    const rendered = TemplateEngine.render(model, note, ankiCard.ord, 'q');
+    return {
+      id: ankiCard.id,
+      front: rendered.front,
+      back: rendered.back,
+      deckId: ankiCard.did || DEFAULT_DECK_ID,
+    };
+  } catch (error) {
+    // Fallback to simple field rendering if template fails
+    logger.error(`[Adapter] Template rendering failed for card ${ankiCard.id}:`, error);
+    const fields = note.flds.split(FIELD_SEPARATOR);
+    return {
+      id: ankiCard.id,
+      front: fields[0] || '',
+      back: fields[1] || '',
+      deckId: ankiCard.did || DEFAULT_DECK_ID,
+    };
+  }
 }
 
 /**
