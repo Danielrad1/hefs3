@@ -272,19 +272,21 @@ export class NoteService {
 
       const { masks, mode } = this.parseImageOcclusionData(note);
 
-      if (mode === 'hide-all') {
+      // Generate one card per mask for BOTH hide-one and hide-all modes
+      // The mode is stored in note.data.io.mode and used by the renderer
+      masks.forEach((_, maskIndex) => {
         const cardId = generateId();
         logger.info(
-          '[NoteService] Creating single hide-all card',
+          `[NoteService] Creating ${mode} card for mask index`,
+          maskIndex,
+          'card ID:',
           cardId,
-          'mask count:',
-          masks.length,
         );
         const card: AnkiCard = {
           id: cardId,
           nid: note.id,
           did: deckId,
-          ord: 0,
+          ord: maskIndex, // ord = mask index (0-based)
           mod: now,
           usn: -1,
           type: CardType.New,
@@ -301,33 +303,7 @@ export class NoteService {
           data: '',
         };
         this.db.addCard(card);
-      } else {
-        masks.forEach((_, maskIndex) => {
-          const cardId = generateId();
-          logger.info('[NoteService] Creating card for mask index', maskIndex, 'card ID:', cardId);
-          const card: AnkiCard = {
-            id: cardId,
-            nid: note.id,
-            did: deckId,
-            ord: maskIndex, // ord = mask index (0-based)
-            mod: now,
-            usn: -1,
-            type: CardType.New,
-            queue: CardQueue.New,
-            due: this.db.incrementNextPos(),
-            ivl: 0,
-            factor: DEFAULT_EASE_FACTOR,
-            reps: 0,
-            lapses: 0,
-            left: 0,
-            odue: 0,
-            odid: '0',
-            flags: 0,
-            data: '',
-          };
-          this.db.addCard(card);
-        });
-      }
+      });
     } else {
       // Standard model: generate one card per template
       model.tmpls.forEach((template: any) => {

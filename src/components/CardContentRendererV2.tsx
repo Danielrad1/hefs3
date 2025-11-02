@@ -86,7 +86,8 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
   const isHideAllMode = occlusionData.mode === 'hide-all';
   const ord = parseInt(ordAttr, 10);
   const masks = occlusionData.masks || [];
-  const targetMask = !isHideAllMode && Number.isFinite(ord) ? masks[ord] : null;
+  // For both hide-one and hide-all, target is the mask at index ord
+  const targetMask = Number.isFinite(ord) ? masks[ord] : null;
   const imageUri = getMediaUri(occlusionData.image);
 
   // Calculate image dimensions maintaining aspect ratio
@@ -184,8 +185,12 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
             let maskStyle: any;
 
             if (isHideAllMode) {
-              // Hide-All: all masks opaque on front, all hidden on back
-              maskStyle = revealed ? ioStyles.hidden : ioStyles.opaque;
+              // Hide-All: all masks opaque on front, target highlighted + others faint on back
+              if (revealed) {
+                maskStyle = isTarget ? ioStyles.highlight : ioStyles.faint;
+              } else {
+                maskStyle = ioStyles.opaque;
+              }
             } else {
               // Hide-One: ONLY show target mask, hide all others completely
               if (revealed) {

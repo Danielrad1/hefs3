@@ -158,7 +158,8 @@ function toImageOcclusionCard(ankiCard: AnkiCard, note: AnkiNote, db: InMemoryDb
     logger.error('[Adapter] Failed to parse image occlusion data:', e);
   }
 
-  const ordAttr = mode === 'hide-all' ? 'all' : String(ankiCard.ord);
+  // Always use numeric ord - one card per mask for both hide-one and hide-all
+  const ordAttr = String(ankiCard.ord);
 
   // Front: occlusion element with ord
   const front = `<io-occlude data='${occlusionData}' ord='${ordAttr}'></io-occlude>`;
