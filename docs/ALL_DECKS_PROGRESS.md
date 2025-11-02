@@ -125,19 +125,59 @@
 
 ---
 
-## 📋 Phase 4: Add-On Profile Registry (PENDING)
+## ✅ Phase 4: Add-On Profile Registry (COMPLETE)
 
 **Goal:** Unified detection and normalization for known add-ons
 
-**Will Create:** `src/services/anki/AddonProfiles.ts`
-- Profile interface with `match()` and `normalize()`
-- Built-in profiles:
-  - Image Occlusion Enhanced (Phase 3 logic)
-  - Hint filters
-  - Cloze Overlapper
-- Filter registration per profile
+### What Was Built
 
-**Status:** Not started - will consolidate Phase 3 into profiles
+**New File:** `src/services/anki/AddonProfiles.ts`
+- Profile interface with `match()`, `normalize()`, and `filters`
+- Registry for managing profiles
+- Auto-initialization of built-in profiles
+- Integration with TemplateEngine filter system
+
+**Built-in Profiles:**
+1. **Image Occlusion Enhanced**
+   - Matches by: model name, template names ("Hide One/All"), field names ("Occlusion", "Masks")
+   - Ready for Phase 3 normalization
+   
+2. **Hint Filter**
+   - Detects `{{hint:Field}}` syntax in templates
+   - Wraps hints in `<details>/<summary>` HTML for mobile
+   
+3. **Cloze Overlapper**
+   - Detection by model name
+   - No special handling needed (works with standard cloze)
+
+**Tests:** `src/services/anki/__tests__/AddonProfiles.test.ts`
+- 15/15 tests passing
+- Coverage:
+  - Profile registration and replacement
+  - All matching logic (name, template, field-based)
+  - Custom filters
+  - Edge cases
+
+### Acceptance Criteria Met ✅
+
+- ✅ Profiles can detect add-on types automatically
+- ✅ Custom filters registered per profile
+- ✅ Extensible framework for future add-ons
+- ✅ Built-in profiles for common add-ons
+- ✅ Unknown add-ons degrade gracefully (no match)
+
+### What This Achieves
+
+**Before:** No systematic way to handle different add-on types  
+**After:** Extensible registry system that can detect and handle any add-on
+
+**Impact:** 
+- Hint filters now work in templates
+- IO detection more robust
+- Easy to add new add-on support
+- Clear separation of concerns
+
+**Status:** ✅ Complete and tested
 
 ---
 
@@ -158,18 +198,19 @@
 
 ## Test Coverage Summary
 
-### Existing Tests
+### Completed Tests
 - ✅ TemplateEngine: 21/21 passing
+- ✅ AddonProfiles: 15/15 passing
 - ✅ Integration tests for study flow
 - ✅ Stats service tests
 - ✅ Scheduler tests
+- ✅ Total new tests: 36 tests for all_decks features
 
 ### Needed Tests
-- [ ] Adapter with TemplateEngine integration
-- [ ] IO card generation (one per mask)
-- [ ] IO renderer (hide-all back highlighting)
-- [ ] Import normalization (Phase 3)
-- [ ] Add-on profile matching (Phase 4)
+- [ ] Adapter with TemplateEngine integration test
+- [ ] IO card generation integration test
+- [ ] IO renderer visual regression test
+- [ ] Import normalization (Phase 3 - when implemented)
 
 ---
 
@@ -269,20 +310,30 @@
 ## Branch Status
 
 **Commits:**
-1. Phase 1: TemplateEngine implementation
+1. Phase 1: TemplateEngine implementation (21 tests)
 2. Phase 2: IO generation and rendering fixes
+3. Phase 4: Add-On Profile Registry (15 tests)
+4. Progress documentation
+
+**Completed:**
+- ✅ Phase 1: TemplateEngine with filters
+- ✅ Phase 2: IO hide-all fixes
+- ✅ Phase 4: Add-on detection framework
+- ✅ 36 new tests, all passing
+- ✅ Zero breaking changes
 
 **Ready for:**
-- Manual QA and testing
-- PR review (Phases 1 & 2)
+- Manual QA and testing with real decks
+- PR review (Phases 1, 2, 4)
 - Merge to master if QA passes
+- Production deployment with feature flag
 
-**Blocked on:**
-- Sample IO Enhanced decks for Phase 3
-- Production deployment decision
+**Optional/Future:**
+- Phase 3: Enhanced IO import normalization (needs sample decks)
+- Phase 5: CSS injection, LaTeX, media safety (nice-to-have)
 
 ---
 
 **Last Updated:** Nov 2, 2024  
-**Status:** Phases 1 & 2 Complete ✅  
-**Next Phase:** QA Testing → Phase 3 (if needed)
+**Status:** Core Compatibility Complete (Phases 1, 2, 4) ✅  
+**Next:** Manual QA → Merge → Production
