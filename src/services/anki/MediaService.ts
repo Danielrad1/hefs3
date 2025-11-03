@@ -454,4 +454,42 @@ export class MediaService {
         return 'application/octet-stream';
     }
   }
+
+  /**
+   * Check for missing media files and return list of missing filenames
+   * Useful for diagnosing deck import issues or after simulator resets
+   */
+  async findMissingMedia(): Promise<{ total: number; missing: string[]; present: number }> {
+    const allMedia = this.db.getAllMedia();
+    const missing: string[] = [];
+    let present = 0;
+
+    for (const media of allMedia) {
+      const filePath = `${MEDIA_DIR}${media.filename}`;
+      try {
+        const info = await FileSystem.getInfoAsync(filePath);
+        if (!info.exists) {
+          missing.push(media.filename);
+          logger.warn('[MediaService] Missing file:', media.filename);
+        } else {
+          present++;
+        }
+      } catch (error) {
+        missing.push(media.filename);
+        logger.error('[MediaService] Error checking file:', media.filename, error);
+      }
+    }
+
+    logger.info('[MediaService] Media audit:', {
+      total: allMedia.length,
+      present,
+      missing: missing.length,
+    });
+
+    return {
+      total: allMedia.length,
+      missing,
+      present,
+    };
+  }
 }

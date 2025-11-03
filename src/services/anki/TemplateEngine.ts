@@ -27,6 +27,7 @@ type FilterFn = (
  * Registry of template filters
  */
 const filterRegistry: Record<string, FilterFn> = {};
+const seenUnknownFilters = new Set<string>();
 
 /**
  * Register a custom filter
@@ -120,16 +121,26 @@ function applyFilter(
     case 'type':
       // Type answer - just return content (typing UI not implemented)
       return fieldContent;
+    
+    case 'edit':
+      // Community decks often use edit: as a passthrough helper
+      return fieldContent;
       
     case 'cloze':
       // Cloze handling - registered separately based on model type
       // If not registered, return unchanged
-      logger.warn(`[TemplateEngine] cloze filter used but not registered`);
+      if (!seenUnknownFilters.has(lowerFilter)) {
+        seenUnknownFilters.add(lowerFilter);
+        logger.warn('[TemplateEngine] cloze filter used but not registered');
+      }
       return fieldContent;
       
     default:
-      // Unknown filter - log once and passthrough
-      logger.warn(`[TemplateEngine] Unknown filter: ${filterName}, passing through content`);
+      // Unknown filter - log once per filter name and passthrough
+      if (!seenUnknownFilters.has(lowerFilter)) {
+        seenUnknownFilters.add(lowerFilter);
+        logger.warn(`[TemplateEngine] Unknown filter: ${filterName}, passing through content`);
+      }
       return fieldContent;
   }
 }

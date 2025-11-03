@@ -132,12 +132,13 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
       }
       // Batch state updates together in a single runOnJS call
       runOnJS(updateRevealedState)();
-      // Cloze cards: instant reveal (no crossfade needed)
+      // Cloze cards and IO cards: instant reveal (no crossfade needed to prevent image flash)
       // Normal cards: smooth crossfade
       const isCloze = card.front.includes('{{c');
+      const isImageOcclusion = card.front.includes('<io-occlude') || card.back.includes('<io-occlude');
       // Use spring for smoother initial animation (avoids timing easing calculations)
-      revealProgress.value = isCloze 
-        ? withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) })
+      revealProgress.value = (isCloze || isImageOcclusion)
+        ? withTiming(1, { duration: 1 }) // 1ms = truly instant, no flash
         : withSpring(1, { damping: 20, stiffness: 180, mass: 0.5 });
     }
   };
@@ -146,21 +147,22 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
     'worklet';
     // Toggle between question and answer
     const isCloze = card.front.includes('{{c');
+    const isImageOcclusion = card.front.includes('<io-occlude') || card.back.includes('<io-occlude');
     
     if (revealProgress.value === 0) {
-      // Show answer - instant for cloze, smooth spring for normal
-      revealProgress.value = isCloze 
-        ? withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) })
+      // Show answer - instant for cloze/IO, smooth spring for normal
+      revealProgress.value = (isCloze || isImageOcclusion)
+        ? withTiming(1, { duration: 1 }) // 1ms = truly instant, no flash
         : withSpring(1, { damping: 20, stiffness: 180, mass: 0.5 });
       runOnJS(selection)();
       handleReveal();
     } else {
       // Hide answer - go back to question
-      revealProgress.value = isCloze 
-        ? withTiming(0, { duration: 200, easing: Easing.out(Easing.ease) })
+      revealProgress.value = (isCloze || isImageOcclusion)
+        ? withTiming(0, { duration: 1 }) // 1ms = truly instant, no flash
         : withSpring(0, { damping: 20, stiffness: 180, mass: 0.5 });
       runOnJS(selection)();
-      // Reset revealed state for cloze cards
+      // Reset revealed state for cloze/IO cards
       isRevealed.value = false;
       if (isRevealedShared) {
         isRevealedShared.value = false;
@@ -430,8 +432,9 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
     };
   });
 
-  // Check if this is a cloze card (contains cloze deletions)
+  // Check if this is a cloze card (contains cloze deletions) or Image Occlusion card
   const isClozeCard = card.front.includes('{{c');
+  const isImageOcclusionCard = card.front.includes('<io-occlude') || card.back.includes('<io-occlude');
 
   // Memoize HTML strings to prevent re-processing and maintain stable references
   const frontHtml = React.useMemo(() => card.front, [card.id]);
@@ -466,12 +469,12 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
     }
   }, [card.id]); // Only depend on card.id for clean resets
 
-  // Smooth reveal - no flash for cloze cards
+  // Smooth reveal - no flash for cloze/IO cards
   const frontOpacity = useAnimatedStyle(() => {
-    // For cloze cards, don't crossfade - just hide front instantly at midpoint
-    // For normal cards, smooth crossfade
-    const opacity = isClozeCard 
-      ? interpolate(revealProgress.value, [0, 0.01, 1], [1, 0, 0], Extrapolate.CLAMP)
+    // For cloze/IO cards, instant swap (no crossfade to prevent image flash)
+    // For normal cards, smooth crossfade with midpoint
+    const opacity = (isClozeCard || isImageOcclusionCard)
+      ? interpolate(revealProgress.value, [0, 1], [1, 0], Extrapolate.CLAMP)
       : interpolate(revealProgress.value, [0, 0.5, 1], [1, 0, 0], Extrapolate.CLAMP);
     
     return { 
@@ -480,10 +483,10 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
   });
   
   const backOpacity = useAnimatedStyle(() => {
-    // For cloze cards, show back immediately to avoid flash
-    // For normal cards, smooth crossfade
-    const opacity = isClozeCard
-      ? interpolate(revealProgress.value, [0, 0.01, 1], [0, 1, 1], Extrapolate.CLAMP)
+    // For cloze/IO cards, instant swap (no crossfade to prevent image flash)
+    // For normal cards, smooth crossfade with midpoint
+    const opacity = (isClozeCard || isImageOcclusionCard)
+      ? interpolate(revealProgress.value, [0, 1], [0, 1], Extrapolate.CLAMP)
       : interpolate(revealProgress.value, [0, 0.5, 1], [0, 0, 1], Extrapolate.CLAMP);
     
     return { 

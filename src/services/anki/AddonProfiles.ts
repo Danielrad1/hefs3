@@ -167,11 +167,12 @@ const hintFilterProfile: AddonProfile = {
   filters: {
     hint: (content: string) => {
       // In Anki, hints are collapsible
-      // For mobile, we'll show them with a label
+      // For mobile, show as a styled hint block (RN-friendly HTML)
       if (!content || content.trim().length === 0) {
         return '';
       }
-      return `<details><summary>Show Hint</summary>${content}</details>`;
+      // Use simple div with styling that RenderHTML can handle
+      return `<div style="margin: 8px 0; padding: 12px; background-color: rgba(59, 130, 246, 0.1); border-left: 3px solid rgba(59, 130, 246, 0.5); border-radius: 4px;"><div style="font-size: 12px; font-weight: 600; color: rgba(59, 130, 246, 1); margin-bottom: 4px;">💡 Hint</div>${content}</div>`;
     },
   },
 };

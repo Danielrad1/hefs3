@@ -37,10 +37,8 @@ describe('AddonProfiles', () => {
     css: '',
     latexPre: '',
     latexPost: '',
-    latexsvg: false,
     req: [],
     tags: [],
-    vers: [],
   };
 
   describe('profile registration', () => {
@@ -239,7 +237,7 @@ describe('AddonProfiles', () => {
   });
 
   describe('custom filters', () => {
-    it('hint filter wraps content in details/summary', () => {
+    it('hint filter wraps content in styled div for RN', () => {
       const hintModel: Model = {
         ...basicModel,
         tmpls: [
@@ -262,8 +260,8 @@ describe('AddonProfiles', () => {
       // Test the filter function directly
       if (profile?.filters?.hint) {
         const result = profile.filters.hint('This is a hint');
-        expect(result).toContain('<details>');
-        expect(result).toContain('<summary>');
+        expect(result).toContain('<div');
+        expect(result).toContain('💡 Hint');
         expect(result).toContain('This is a hint');
       }
     });

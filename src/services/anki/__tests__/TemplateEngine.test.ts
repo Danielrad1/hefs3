@@ -24,21 +24,17 @@ describe('TemplateEngine', () => {
         bqfmt: '',
         bafmt: '',
         did: null,
-        bfont: '',
-        bsize: 0,
       },
     ],
     flds: [
-      { name: 'Front', ord: 0, sticky: false, rtl: false, font: '', size: 0, description: '', plainText: false },
-      { name: 'Back', ord: 1, sticky: false, rtl: false, font: '', size: 0, description: '', plainText: false },
+      { name: 'Front', ord: 0, sticky: false, rtl: false, font: '', size: 0, description: '' },
+      { name: 'Back', ord: 1, sticky: false, rtl: false, font: '', size: 0, description: '' },
     ],
     css: '',
     latexPre: '',
     latexPost: '',
-    latexsvg: false,
     req: [],
     tags: [],
-    vers: [],
   };
 
   const testNote: AnkiNote = {
@@ -49,7 +45,7 @@ describe('TemplateEngine', () => {
     usn: -1,
     tags: '',
     flds: 'What is 2+2?\x1f4',
-    sfld: 'What is 2+2?',
+    sfld: 0,
     csum: 0,
     flags: 0,
     data: '',
@@ -209,11 +205,9 @@ describe('TemplateEngine', () => {
           bqfmt: '',
           bafmt: '',
           did: null,
-          bfont: '',
-          bsize: 0,
         }],
         flds: [
-          { name: 'Text', ord: 0, sticky: false, rtl: false, font: '', size: 0, description: '', plainText: false },
+          { name: 'Text', ord: 0, sticky: false, rtl: false, font: '', size: 0, description: '' },
         ],
       };
 
@@ -347,8 +341,6 @@ describe('TemplateEngine', () => {
             bqfmt: '',
             bafmt: '',
             did: null,
-            bfont: '',
-            bsize: 0,
           },
           // Card 2: Back -> Front (reversed)
           {
@@ -359,8 +351,6 @@ describe('TemplateEngine', () => {
             bqfmt: '',
             bafmt: '',
             did: null,
-            bfont: '',
-            bsize: 0,
           },
         ],
       };
