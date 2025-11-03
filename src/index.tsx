@@ -20,7 +20,6 @@ import { PersistenceService } from './services/anki/PersistenceService';
 import { db } from './services/anki/InMemoryDb';
 import { deckMetadataService } from './services/anki/DeckMetadataService';
 import { logger } from './utils/logger';
-import { OfflineBanner } from './components/OfflineBanner';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -70,7 +69,6 @@ export default function App() {
             <PremiumProvider>
               <SchedulerProvider>
                 <RootNav />
-                <OfflineBanner />
                 <StatusBar style="auto" />
               </SchedulerProvider>
             </PremiumProvider>

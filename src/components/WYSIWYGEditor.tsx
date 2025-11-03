@@ -22,6 +22,7 @@ interface WYSIWYGEditorProps {
   onInsertAudio?: () => void;
   onInsertCloze?: () => void;
   multiline?: boolean;
+  onContentLoaded?: () => void;
 }
 
 export interface WYSIWYGEditorRef {
@@ -41,6 +42,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
       onInsertAudio,
       onInsertCloze,
       multiline = true,
+      onContentLoaded,
     },
     ref
   ) => {
@@ -48,6 +50,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
     const richText = useRef<RichEditor>(null);
     const lastValueRef = useRef<string | null>(null);
     const isUserTypingRef = useRef(false);
+    const hasCalledOnLoadRef = useRef(false);
 
     // Process HTML to convert filenames to base64 for display
     const [processedValue, setProcessedValue] = useState(value);
@@ -133,12 +136,30 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WYSIWYGEditorProps>(
     // Only force content update when value changes externally (not from user typing)
     useEffect(() => {
       if (!isProcessing && processedValue && richText.current && !isUserTypingRef.current) {
-        // Small delay to ensure WebView is ready
+        // Minimal delay to ensure WebView is ready
         setTimeout(() => {
           richText.current?.setContentHTML(processedValue);
-        }, 100);
+          // Notify parent that content is loaded (only once)
+          if (onContentLoaded && !hasCalledOnLoadRef.current) {
+            hasCalledOnLoadRef.current = true;
+            setTimeout(() => onContentLoaded(), 100);
+          }
+        }, 10);
       }
     }, [processedValue, isProcessing]);
+    
+    // Immediately set content on mount to avoid blank screen
+    useEffect(() => {
+      if (richText.current && value) {
+        // Set initial content immediately, even if images aren't processed yet
+        richText.current.setContentHTML(value);
+        // Notify parent after a short delay (only once)
+        if (onContentLoaded && !hasCalledOnLoadRef.current) {
+          hasCalledOnLoadRef.current = true;
+          setTimeout(() => onContentLoaded(), 100);
+        }
+      }
+    }, []);
 
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({

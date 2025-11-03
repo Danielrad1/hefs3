@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback, ActionSheetIOS } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback, ActionSheetIOS, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../design/theme';
@@ -26,6 +26,7 @@ interface NoteEditorScreenProps {
       noteId?: string;
       modelId?: string;
       deckId?: string;
+      returnToStudy?: boolean;
     };
   };
   navigation?: any;
@@ -37,6 +38,7 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
   const theme = useTheme();
   const { reload } = useScheduler();
   const noteId = route?.params?.noteId;
+  const returnToStudy = route?.params?.returnToStudy;
   
   // Smart default: use first available model if modelId not provided (memoized to prevent re-renders)
   const getDefaultModelId = React.useMemo(() => {
@@ -71,6 +73,7 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
   const [mediaPickerVisible, setMediaPickerVisible] = useState(false);
   const [mediaType, setMediaType] = useState<MediaType>('image');
   const [isSaving, setIsSaving] = useState(false);
+  const [fieldsLoaded, setFieldsLoaded] = useState(false);
   const editorRefs = React.useRef<Record<number, WYSIWYGEditorRef | null>>({});
 
   const model = db.getModel(modelId);
@@ -111,8 +114,12 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
 
   // Load note if editing
   useEffect(() => {
+    const loadStartTime = Date.now();
+    logger.info('[NoteEditor] ⏱️ Load started');
+    
     if (noteId) {
       const note = db.getNote(noteId);
+      logger.info(`[NoteEditor] ⏱️ db.getNote took ${Date.now() - loadStartTime}ms`);
       if (note) {
         setModelId(note.mid);
         const noteFields = note.flds.split(FIELD_SEPARATOR);
@@ -130,6 +137,8 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
       // Initialize empty fields for new note
       setFields(new Array(model.flds.length).fill(''));
     }
+    
+    logger.info(`[NoteEditor] ⏱️ Total load took ${Date.now() - loadStartTime}ms`);
   }, [noteId]);
 
   const handleFieldChange = (index: number, value: string) => {
@@ -233,18 +242,23 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
 
       await PersistenceService.save(db);
       
-      // Reload scheduler to pick up changes (new cards, updated counts)
+      // Reload scheduler to pick up changes
       reload();
       
-      // Note: SearchIndex will reindex when CardBrowser screen is focused
-      // via useFocusEffect hook we added earlier
-      
-      Alert.alert('Success', noteId ? 'Note updated' : 'Note created', [
-        {
-          text: 'OK',
-          onPress: () => navigation?.goBack?.(),
-        },
-      ]);
+      // Auto-navigate after save
+      setTimeout(() => {
+        if (returnToStudy && noteId) {
+          // Pop editor from stack then go to Study
+          if (navigation?.canGoBack?.()) {
+            navigation.goBack();
+          }
+          setTimeout(() => {
+            navigation?.navigate?.('Study');
+          }, 50);
+        } else {
+          navigation?.goBack?.();
+        }
+      }, 100);
     } catch (error) {
       logger.error('[NoteEditor] Error saving:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save note');
@@ -385,8 +399,20 @@ export default function NoteEditorScreen({ route, navigation }: NoteEditorScreen
               onInsertImage={() => handleInsertImage(currentFieldIndex)}
               onInsertAudio={() => handleInsertAudio(currentFieldIndex)}
               onInsertCloze={model.type === MODEL_TYPE_CLOZE ? () => handleInsertCloze(currentFieldIndex) : undefined}
-              multiline
+              onContentLoaded={() => {
+                logger.info('[NoteEditor] ⏱️ Content loaded in editor');
+                setFieldsLoaded(true);
+              }}
             />
+            {/* Loading overlay on editor */}
+            {!fieldsLoaded && (
+              <View style={[styles.editorLoadingOverlay, { backgroundColor: theme.colors.surface + 'F0' }]}>
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+                <Text style={[styles.editorLoadingText, { color: theme.colors.textSecondary }]}>
+                  Loading content...
+                </Text>
+              </View>
+            )}
           </View>
         </TouchableWithoutFeedback>
       </ScrollView>
@@ -547,6 +573,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     padding: s.xl,
+  },
+  editorLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: s.sm,
+  },
+  editorLoadingText: {
+    fontSize: 14,
   },
   cardTypeSelector: {
     paddingHorizontal: s.lg,

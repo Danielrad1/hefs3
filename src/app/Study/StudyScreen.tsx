@@ -104,7 +104,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     return () => { mounted = false; };
   }, [current, uid]);
 
-  // Reload hints when screen comes into focus (e.g., after generating hints)
+  // Reload hints when screen comes into focus (e.g., after generating hints or editing)
   useFocusEffect(
     React.useCallback(() => {
       const reloadHints = async () => {
@@ -155,8 +155,10 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     if (!current) return;
 
     // Haptics are handled in CardPage.tsx with specialized patterns
-    // Only trigger confetti for easy answers
-    if (difficulty === 'easy') {
+    // Only trigger confetti for easy answers FROM SWIPE (not button taps)
+    // Button taps have small translateX/Y values (~200), swipes have large values (>400)
+    const isSwipeGesture = Math.abs(currentTranslateX.value) > 300 || Math.abs(currentTranslateY.value) > 300;
+    if (difficulty === 'easy' && isSwipeGesture) {
       confettiRef.current?.start();
     }
 

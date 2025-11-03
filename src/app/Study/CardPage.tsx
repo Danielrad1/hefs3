@@ -1,5 +1,7 @@
 import React, { useRef } from 'react';
 import { View, StyleSheet, Dimensions, Text, ScrollView, Pressable, Modal, InteractionManager } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { db } from '../../services/anki/InMemoryDb';
 import Animated, { 
   useAnimatedStyle, 
   withTiming, 
@@ -50,6 +52,7 @@ type CardPageProps = {
 const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared, translateYShared, isRevealedShared, onReveal, disabled = false, hint, onRequestEnableHints, aiHintsEnabled = false, hintsLoading = false, onHintRevealed }: CardPageProps) {
   const theme = useTheme();
   const { selection, ratingEasy, ratingGood, ratingHard, ratingAgain } = useHaptics();
+  const navigation = useNavigation<any>();
   const panRef = useRef<GestureType | undefined>(undefined);
   const scrollRef = useRef<Animated.ScrollView>(null);
   
@@ -175,6 +178,70 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
     'worklet';
     runOnJS(onAnswer)(difficulty);
   };
+
+  // Programmatic rating - EXACT COPY of swipe gesture animation
+  const triggerRating = React.useCallback((difficulty: Difficulty) => {
+    'worklet';
+    // Guard: only allow rating when revealed
+    if (!isRevealed.value || revealProgress.value !== 1) return;
+    
+    // Simulate touch position for rotation pivot (buttons are at bottom)
+    // touchStartY affects rotation: positive = touch below center = less rotation
+    touchStartY.value = height / 4; // Bottom of screen touch
+    
+    // Hide buttons instantly (but keep isRevealed true for overlay)
+    runOnJS(setRevealed)(false);
+    
+    // EXACT COPY of swipe onEnd animation code
+    if (difficulty === 'again') {
+      runOnJS(ratingAgain)();
+      translateX.value = 0;
+      translateY.value = withSpring(height * 1.5, {
+        velocity: 800, damping: 15, stiffness: 120
+      });
+      // Sync parent shared values
+      if (translateXShared) translateXShared.value = translateX.value;
+      if (translateYShared) translateYShared.value = translateY.value;
+    } else if (difficulty === 'hard') {
+      runOnJS(ratingHard)();
+      translateY.value = 0;
+      translateX.value = withSpring(-width * 1.5, {
+        velocity: 800, damping: 15, stiffness: 120
+      });
+      // Sync parent shared values
+      if (translateXShared) translateXShared.value = translateX.value;
+      if (translateYShared) translateYShared.value = translateY.value;
+    } else if (difficulty === 'good') {
+      runOnJS(ratingGood)();
+      translateY.value = 0;
+      translateX.value = withSpring(width * 1.5, {
+        velocity: 800, damping: 15, stiffness: 120
+      });
+      // Sync parent shared values
+      if (translateXShared) translateXShared.value = translateX.value;
+      if (translateYShared) translateYShared.value = translateY.value;
+    } else if (difficulty === 'easy') {
+      runOnJS(ratingEasy)();
+      translateX.value = 0;
+      translateY.value = withSpring(-height * 1.5, {
+        velocity: 800, damping: 15, stiffness: 120
+      });
+      // Sync parent shared values
+      if (translateXShared) translateXShared.value = translateX.value;
+      if (translateYShared) translateYShared.value = translateY.value;
+    }
+    
+    // Call onAnswer (StudyScreen delays scheduler update for animation)
+    runOnJS(onAnswer)(difficulty);
+  }, [onAnswer, ratingAgain, ratingHard, ratingGood, ratingEasy]);
+
+  // Edit handler to jump to Note Editor
+  const handleEdit = React.useCallback(() => {
+    const ankiCard = db.getCard(card.id);
+    const noteId = ankiCard?.nid;
+    if (!noteId) return;
+    navigation.navigate('Decks', { screen: 'NoteEditor', params: { noteId, returnToStudy: true } });
+  }, [card.id, navigation]);
 
   // Scroll handler for tracking scroll position
   const onScroll = useAnimatedScrollHandler({
@@ -437,12 +504,18 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
   const isImageOcclusionCard = card.front.includes('<io-occlude') || card.back.includes('<io-occlude');
 
   // Memoize HTML strings to prevent re-processing and maintain stable references
-  const frontHtml = React.useMemo(() => card.front, [card.id]);
-  const backHtml = React.useMemo(() => card.back, [card.id]);
+  // CRITICAL: Depend on actual HTML content, not just ID, so edits are detected
+  const frontHtml = React.useMemo(() => card.front, [card.front]);
+  const backHtml = React.useMemo(() => card.back, [card.back]);
   const clozeBackHtml = React.useMemo(() => 
     `${card.front}<hr style="margin: 24px 0; border: none; border-top: 2px solid rgba(128,128,128,0.25);" /><div style="margin-top: 16px;">${card.back}</div>`,
-    [card.id, card.front, card.back]
+    [card.front, card.back]
   );
+  
+  // Create content hash for keys to force remount when content changes
+  const contentHash = React.useMemo(() => {
+    return `${card.front.length}-${card.back.length}-${card.front.substring(0, 20)}`;
+  }, [card.front, card.back]);
 
   // Track previous card ID to detect actual card changes vs position changes
   const prevCardIdRef = React.useRef(card.id);
@@ -599,9 +672,27 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
 
   return (
     <View style={styles.container}>
-      {/* Top area - non-interactive, contains hint button (outside animation) */}
+      {/* Top area - edit button (left) and hint button (right) */}
       {!disabled && (
         <View style={styles.topArea}>
+          {/* Edit button - top left */}
+          <Pressable
+            onPress={handleEdit}
+            style={({ pressed }) => [
+              styles.floatingButton,
+              {
+                backgroundColor: theme.colors.surface,
+                borderWidth: 2,
+                borderColor: 'rgba(128, 128, 128, 0.15)',
+                opacity: pressed ? 0.7 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              },
+            ]}
+          >
+            <Ionicons name="create-outline" size={22} color={theme.colors.textPrimary} />
+          </Pressable>
+
+          {/* Hint/Tip button - top right */}
           {!revealed && (
             <Pressable 
               style={({ pressed }) => [
@@ -617,7 +708,6 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
                 if (hint) {
                   setShowHintModal(true);
                 } else if (!aiHintsEnabled && !hintsLoading && onRequestEnableHints) {
-                  // Only show enable prompt if hints are disabled and not loading
                   onRequestEnableHints();
                 }
               }}
@@ -625,7 +715,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
               <Ionicons 
                 name="bulb-outline" 
                 size={24} 
-                color="#8B5CF6" 
+                color={theme.colors.accent} 
               />
             </Pressable>
           )}
@@ -644,7 +734,6 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
                 if (hint) {
                   setShowTipModal(true);
                 } else if (!aiHintsEnabled && !hintsLoading && onRequestEnableHints) {
-                  // Only show enable prompt if hints are disabled and not loading
                   onRequestEnableHints();
                 }
               }}
@@ -652,7 +741,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
               <Ionicons 
                 name="sparkles" 
                 size={24} 
-                color="#EC4899" 
+                color={theme.colors.accent} 
               />
             </Pressable>
           )}
@@ -682,7 +771,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
                 {/* Spacer to establish scroll height */}
                 <View style={{ opacity: 0, pointerEvents: 'none' }}>
                   <CardContentRenderer
-                    key={`spacer-${card.id}`}
+                    key={`spacer-${card.id}-${contentHash}`}
                     html={isClozeCard ? clozeBackHtml : backHtml}
                     revealed={true}
                     clozeIndex={0}
@@ -696,7 +785,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
                   pointerEvents={revealed ? 'none' : 'auto'}
                 >
                   <CardContentRenderer
-                    key={`front-${card.id}`}
+                    key={`front-${card.id}-${contentHash}`}
                     html={frontHtml}
                     revealed={false}
                     clozeIndex={0}
@@ -710,7 +799,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
                   pointerEvents={revealed ? 'auto' : 'none'}
                 >
                   <CardContentRenderer
-                    key={`back-${card.id}`}
+                    key={`back-${card.id}-${contentHash}`}
                     html={isClozeCard ? clozeBackHtml : backHtml}
                     revealed={true}
                     clozeIndex={0}
@@ -761,6 +850,67 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
           </Animated.View>
         </Animated.View>
       </GestureDetector>
+
+      {/* Bottom Action Bar - Rating Buttons (Tinder-style, all same size) */}
+      {!disabled && revealed && (
+        <View style={styles.bottomActions} pointerEvents="box-none">
+          <Pressable
+            onPress={() => triggerRating('again')}
+            style={({ pressed }) => [
+              styles.ratingButton,
+              { 
+                backgroundColor: theme.isDark ? 'rgba(50, 50, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                opacity: pressed ? 0.7 : 1,
+                transform: [{ scale: pressed ? 0.92 : 1 }],
+              },
+            ]}
+          >
+            <Ionicons name="close" size={28} color="#EF4444" />
+          </Pressable>
+          
+          <Pressable
+            onPress={() => triggerRating('hard')}
+            style={({ pressed }) => [
+              styles.ratingButton,
+              { 
+                backgroundColor: theme.isDark ? 'rgba(50, 50, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                opacity: pressed ? 0.7 : 1,
+                transform: [{ scale: pressed ? 0.92 : 1 }],
+              },
+            ]}
+          >
+            <Ionicons name="alert-circle-outline" size={28} color="#F59E0B" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => triggerRating('good')}
+            style={({ pressed }) => [
+              styles.ratingButton,
+              { 
+                backgroundColor: theme.isDark ? 'rgba(50, 50, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                opacity: pressed ? 0.7 : 1,
+                transform: [{ scale: pressed ? 0.92 : 1 }],
+              },
+            ]}
+          >
+            <Ionicons name="heart" size={28} color="#10B981" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => triggerRating('easy')}
+            style={({ pressed }) => [
+              styles.ratingButton,
+              { 
+                backgroundColor: theme.isDark ? 'rgba(50, 50, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                opacity: pressed ? 0.7 : 1,
+                transform: [{ scale: pressed ? 0.92 : 1 }],
+              },
+            ]}
+          >
+            <Ionicons name="flash" size={28} color="#3B82F6" />
+          </Pressable>
+        </View>
+      )}
 
       {/* Hint Modal - Bottom Sheet */}
       <Modal
@@ -860,15 +1010,13 @@ const styles = StyleSheet.create({
   },
   topArea: {
     position: 'absolute',
-    top: 0,
+    top: 60, // Fixed position below status bar, above card
     left: 0,
     right: 0,
-    height: height * 0.125,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingRight: s.lg + 4,
-    paddingTop: 8,
+    paddingHorizontal: s.xl,
     zIndex: 1000,
   },
   cardArea: {
@@ -899,6 +1047,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: s.lg,
+    paddingTop: 20, // Extra padding to avoid icon overlap
   },
   
   card: {
@@ -1051,5 +1200,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#8B5CF6',
+  },
+  // Bottom action bar - Tinder-style rating buttons
+  bottomActions: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: s.xl + 8,
+    paddingBottom: s.xl + 32,
+    gap: s.md,
+    zIndex: 999,
+  },
+  ratingButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 12,
   },
 });
