@@ -698,7 +698,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
               style={({ pressed }) => [
                 styles.floatingButton, 
                 { 
-                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  backgroundColor: theme.colors.accent + '26', // 15% opacity in hex
                   opacity: pressed ? 0.7 : 1,
                   transform: [{ scale: pressed ? 0.95 : 1 }],
                 }
@@ -724,7 +724,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
               style={({ pressed }) => [
                 styles.floatingButton, 
                 { 
-                  backgroundColor: 'rgba(236, 72, 153, 0.15)',
+                  backgroundColor: theme.colors.accent + '26', // 15% opacity in hex
                   opacity: pressed ? 0.7 : 1,
                   transform: [{ scale: pressed ? 0.95 : 1 }],
                 }
