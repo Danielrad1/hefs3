@@ -445,17 +445,6 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
         <View style={[styles.section, { backgroundColor: theme.colors.surface2 }]}>
           <Pressable 
             style={styles.actionRow} 
-            onPress={() => navigation.navigate('DeckSettings', { deckId })}
-          >
-            <Ionicons name="settings-outline" size={22} color={theme.colors.textHigh} />
-            <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>Deck Settings</Text>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
-          </Pressable>
-          
-          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-          
-          <Pressable 
-            style={styles.actionRow} 
             onPress={() => navigation.navigate('DeckStats', { deckId, deckName: deck.name })}
           >
             <Ionicons name="stats-chart-outline" size={22} color={theme.colors.textHigh} />
@@ -503,6 +492,17 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
               </Pressable>
             </>
           )}
+          
+          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+          
+          <Pressable 
+            style={styles.actionRow} 
+            onPress={() => navigation.navigate('DeckOptions', { deckId })}
+          >
+            <Ionicons name="options-outline" size={22} color={theme.colors.textHigh} />
+            <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>Study Options</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
+          </Pressable>
           
           {deckId !== '1' && (
             <>

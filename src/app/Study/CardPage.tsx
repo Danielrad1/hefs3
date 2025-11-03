@@ -61,6 +61,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
   const isRevealed = useSharedValue(false);
   const revealProgress = useSharedValue(0);
   const touchStartY = useSharedValue(0); // Track where finger started vertically
+  const isSwiping = useSharedValue(false); // Track if user is actively swiping
   
   // Scroll tracking for edge-gated rating swipes
   const scrollY = useSharedValue(0);
@@ -293,6 +294,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
     .onBegin((event) => {
       'worklet';
       touchStartY.value = event.y - (height / 2);
+      isSwiping.value = false; // Reset at start
       
       // Lock permissions at gesture BEGIN
       const EPS = 12;
@@ -320,6 +322,11 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
       const absX = Math.abs(event.translationX);
       const absY = Math.abs(event.translationY);
       const totalMovement = absX + absY;
+      
+      // Hide buttons when user starts swiping (threshold: 20px movement)
+      if (totalMovement > 20 && !isSwiping.value) {
+        isSwiping.value = true;
+      }
       
       // Determine gesture direction once we have meaningful movement
       const isVertical = absY > absX;
@@ -392,6 +399,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
         if (gestureIsScroll.value && !isHorizontalGesture) {
           translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
           translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
+          isSwiping.value = false; // Show buttons back
           // Sync to parent shared values
           if (translateXShared) translateXShared.value = withSpring(0, { damping: 15, stiffness: 150 });
           if (translateYShared) translateYShared.value = withSpring(0, { damping: 15, stiffness: 150 });
@@ -455,14 +463,53 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
           
           handleAnswer(difficulty);
         } else {
+          // Swipe cancelled - return to center and show buttons again
           translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
           translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
+          isSwiping.value = false; // Show buttons back
           // Sync to parent shared values
           if (translateXShared) translateXShared.value = withSpring(0, { damping: 15, stiffness: 150 });
           if (translateYShared) translateYShared.value = withSpring(0, { damping: 15, stiffness: 150 });
         }
       }
     });
+
+  // Animated style for buttons - instant reveal, fade out during swipe
+  const buttonsAnimatedStyle = useAnimatedStyle(() => {
+    'worklet';
+    // Show instantly when revealed (no bridge crossing delay)
+    const shouldShow = isRevealed.value && !isSwiping.value && revealProgress.value === 1;
+    return {
+      opacity: withTiming(shouldShow ? 1 : 0, { duration: shouldShow ? 100 : 200 }),
+      transform: [
+        { scale: withTiming(shouldShow ? 1 : 0.9, { duration: shouldShow ? 100 : 200 }) }
+      ],
+    };
+  });
+
+  // Animated style for hint button (before reveal)
+  const hintButtonStyle = useAnimatedStyle(() => {
+    'worklet';
+    const shouldShow = !isRevealed.value;
+    return {
+      opacity: withTiming(shouldShow ? 1 : 0, { duration: 150 }),
+      transform: [
+        { scale: withTiming(shouldShow ? 1 : 0.8, { duration: 150 }) }
+      ],
+    };
+  });
+
+  // Animated style for tip button (after reveal)
+  const tipButtonStyle = useAnimatedStyle(() => {
+    'worklet';
+    const shouldShow = isRevealed.value;
+    return {
+      opacity: withTiming(shouldShow ? 1 : 0, { duration: 150 }),
+      transform: [
+        { scale: withTiming(shouldShow ? 1 : 0.8, { duration: 150 }) }
+      ],
+    };
+  });
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
     const transforms: any[] = [
@@ -536,6 +583,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
       setShowTipModal(false);
       verticalRatingAllowed.value = false;
       gestureIsScroll.value = false;
+      isSwiping.value = false;
       
       // Reset scroll position to top
       scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -692,63 +740,65 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
             <Ionicons name="create-outline" size={22} color={theme.colors.textPrimary} />
           </Pressable>
 
-          {/* Hint/Tip button - top right */}
-          {!revealed && (
-            <Pressable 
-              style={({ pressed }) => [
-                styles.floatingButton, 
-                { 
-                  backgroundColor: theme.colors.surface,
-                  borderWidth: 2,
-                  borderColor: 'rgba(128, 128, 128, 0.15)',
-                  opacity: pressed ? 0.7 : 1,
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
-                }
-              ]}
-              onPress={() => {
-                selection();
-                if (hint) {
-                  setShowHintModal(true);
-                } else if (!aiHintsEnabled && !hintsLoading && onRequestEnableHints) {
-                  onRequestEnableHints();
-                }
-              }}
-            >
-              <Ionicons 
-                name="bulb-outline" 
-                size={24} 
-                color={theme.colors.textPrimary} 
-              />
-            </Pressable>
-          )}
-          {revealed && (
-            <Pressable 
-              style={({ pressed }) => [
-                styles.floatingButton, 
-                { 
-                  backgroundColor: theme.colors.surface,
-                  borderWidth: 2,
-                  borderColor: 'rgba(128, 128, 128, 0.15)',
-                  opacity: pressed ? 0.7 : 1,
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
-                }
-              ]}
-              onPress={() => {
-                selection();
-                if (hint) {
-                  setShowTipModal(true);
-                } else if (!aiHintsEnabled && !hintsLoading && onRequestEnableHints) {
-                  onRequestEnableHints();
-                }
-              }}
-            >
-              <Ionicons 
-                name="sparkles" 
-                size={24} 
-                color={theme.colors.textPrimary} 
-              />
-            </Pressable>
-          )}
+          {/* Hint/Tip buttons - top right (always rendered, animated, overlapping at same position) */}
+          <View style={{ position: 'relative', width: 48, height: 48 }}>
+            <Animated.View style={[StyleSheet.absoluteFill, hintButtonStyle]} pointerEvents={!isRevealed.value ? 'auto' : 'none'}>
+              <Pressable 
+                style={({ pressed }) => [
+                  styles.floatingButton,
+                  { 
+                    backgroundColor: theme.colors.surface,
+                    borderWidth: 2,
+                    borderColor: 'rgba(128, 128, 128, 0.15)',
+                    opacity: pressed ? 0.7 : 1,
+                    transform: [{ scale: pressed ? 0.95 : 1 }],
+                  }
+                ]}
+                onPress={() => {
+                  selection();
+                  if (hint) {
+                    setShowHintModal(true);
+                  } else if (!aiHintsEnabled && !hintsLoading && onRequestEnableHints) {
+                    onRequestEnableHints();
+                  }
+                }}
+              >
+                <Ionicons 
+                  name="bulb-outline" 
+                  size={24} 
+                  color={theme.colors.textPrimary} 
+                />
+              </Pressable>
+            </Animated.View>
+            <Animated.View style={[StyleSheet.absoluteFill, tipButtonStyle]} pointerEvents={isRevealed.value ? 'auto' : 'none'}>
+              <Pressable 
+                style={({ pressed }) => [
+                  styles.floatingButton,
+                  { 
+                    backgroundColor: theme.colors.surface,
+                    borderWidth: 2,
+                    borderColor: 'rgba(128, 128, 128, 0.15)',
+                    opacity: pressed ? 0.7 : 1,
+                    transform: [{ scale: pressed ? 0.95 : 1 }],
+                  }
+                ]}
+                onPress={() => {
+                  selection();
+                  if (hint) {
+                    setShowTipModal(true);
+                  } else if (!aiHintsEnabled && !hintsLoading && onRequestEnableHints) {
+                    onRequestEnableHints();
+                  }
+                }}
+              >
+                <Ionicons 
+                  name="sparkles" 
+                  size={24} 
+                  color={theme.colors.textPrimary} 
+                />
+              </Pressable>
+            </Animated.View>
+          </View>
         </View>
       )}
 
@@ -856,8 +906,8 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
       </GestureDetector>
 
       {/* Bottom Action Bar - Rating Buttons (Tinder-style, all same size) */}
-      {!disabled && revealed && (
-        <View style={styles.bottomActions} pointerEvents="box-none">
+      {!disabled && (
+        <Animated.View style={[styles.bottomActions, buttonsAnimatedStyle]} pointerEvents="box-none">
           <Pressable
             onPress={() => triggerRating('again')}
             style={({ pressed }) => [
@@ -913,7 +963,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
           >
             <Ionicons name="flash" size={28} color="#3B82F6" />
           </Pressable>
-        </View>
+        </Animated.View>
       )}
 
       {/* Hint Modal - Bottom Sheet */}

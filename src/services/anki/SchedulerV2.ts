@@ -23,6 +23,7 @@ import {
   isDue,
 } from './time';
 import { TodayCountsService } from './TodayCountsService';
+import { selectAlgorithm, AlgorithmHelpers } from './algorithms';
 
 // Re-export isDue for use by other services
 export { isDue } from './time';
@@ -240,6 +241,7 @@ export class SchedulerV2 {
 
   /**
    * Answer a card and update its scheduling
+   * Delegates to the selected algorithm (SM-2, FSRS, Leitner, AI)
    */
   answer(
     cardId: string,
@@ -260,37 +262,46 @@ export class SchedulerV2 {
     const now = nowSeconds();
     const lastIvl = card.ivl;
     const lastFactor = card.factor;
+    const oldType = card.type;
 
-    // Process based on card type
-    let newCard: Partial<AnkiCard>;
-    let revlogType: RevlogType;
+    // Select algorithm based on deck config
+    const algorithm = selectAlgorithm(deckConfig);
 
-    if (card.type === CardType.New) {
-      newCard = this.answerNew(card, ease, deckConfig, now);
-      revlogType = RevlogType.Learn;
-    } else if (card.type === CardType.Learning) {
-      newCard = this.answerLearning(card, ease, deckConfig, now);
-      revlogType = RevlogType.Learn;
-    } else if (card.type === CardType.Review) {
-      newCard = this.answerReview(card, ease, deckConfig, now);
-      revlogType = RevlogType.Review;
-    } else if (card.type === CardType.Relearning) {
-      newCard = this.answerRelearning(card, ease, deckConfig, now);
-      revlogType = RevlogType.Relearn;
-    } else {
-      throw new Error(`Unknown card type: ${card.type}`);
-    }
+    // Build helpers for algorithm
+    const helpers: AlgorithmHelpers = {
+      nowSeconds: now,
+      colCrt: col.crt,
+      rng: this.rng,
+      addMinutes: (nowSec: number, minutes: number) => addMinutes(nowSec, minutes),
+      daysSinceCrt: (nowSec: number) => daysSinceCrt(col, nowSec),
+    };
+
+    // Delegate to algorithm
+    const newCard = algorithm.scheduleAnswer(card, ease, deckConfig, helpers);
 
     // Update card in database
     this.db.updateCard(cardId, newCard);
 
+    // Determine revlog type based on old type
+    let revlogType: RevlogType;
+    if (oldType === CardType.New || oldType === CardType.Learning) {
+      revlogType = RevlogType.Learn;
+    } else if (oldType === CardType.Review) {
+      revlogType = RevlogType.Review;
+    } else if (oldType === CardType.Relearning) {
+      revlogType = RevlogType.Relearn;
+    } else {
+      revlogType = RevlogType.Learn;
+    }
+
     // Add revlog entry (ID must be timestamp in milliseconds for stats calculation)
+    const updatedCard = { ...card, ...newCard };
     const revlogEntry: AnkiRevlog = {
       id: Date.now().toString(), // Use timestamp directly, not generateId()
       cid: cardId,
       usn: -1,
       ease,
-      ivl: this.revlogIvl(newCard as AnkiCard, newCard.type ?? card.type),
+      ivl: this.revlogIvl(updatedCard, newCard.type ?? card.type),
       lastIvl: this.revlogIvl(card, card.type),
       factor: newCard.factor ?? lastFactor,
       time: responseTimeMs,
@@ -301,285 +312,8 @@ export class SchedulerV2 {
   }
 
   // ==========================================================================
-  // ANSWER LOGIC BY TYPE
-  // ==========================================================================
-
-  private answerNew(
-    card: AnkiCard,
-    ease: RevlogEase,
-    config: DeckConfig,
-    now: number
-  ): Partial<AnkiCard> {
-    // Start learning
-    const delays = config.new.delays;
-
-    if (ease === RevlogEase.Again) {
-      // First learning step
-      return {
-        type: CardType.Learning,
-        queue: CardQueue.Learning,
-        due: addMinutes(now, delays[0]),
-        ivl: 0,
-        factor: config.new.initialFactor,
-        reps: card.reps + 1,
-        left: this.setLeft(delays.length, delays.length),
-      };
-    } else if (ease === RevlogEase.Good) {
-      // Move through learning steps or graduate
-      if (delays.length > 1) {
-        // Second learning step
-        return {
-          type: CardType.Learning,
-          queue: CardQueue.Learning,
-          due: addMinutes(now, delays[1]),
-          ivl: 0,
-          factor: config.new.initialFactor,
-          reps: card.reps + 1,
-          left: this.setLeft(delays.length - 1, delays.length),
-        };
-      } else {
-        // Graduate immediately
-        const col = this.db.getCol();
-        const graduatingIvl = config.new.ints[0];
-        return {
-          type: CardType.Review,
-          queue: CardQueue.Review,
-          due: daysSinceCrt(col, now) + graduatingIvl,
-          ivl: graduatingIvl,
-          factor: config.new.initialFactor,
-          reps: card.reps + 1,
-          left: 0,
-        };
-      }
-    } else if (ease === RevlogEase.Easy) {
-      // Graduate with easy interval
-      const col = this.db.getCol();
-      const easyIvl = config.new.ints[1];
-      return {
-        type: CardType.Review,
-        queue: CardQueue.Review,
-        due: daysSinceCrt(col, now) + easyIvl,
-        ivl: easyIvl,
-        factor: config.new.initialFactor + config.rev.ease4,
-        reps: card.reps + 1,
-        left: 0,
-      };
-    }
-
-    // Default (shouldn't reach)
-    return {};
-  }
-
-  private answerLearning(
-    card: AnkiCard,
-    ease: RevlogEase,
-    config: DeckConfig,
-    now: number
-  ): Partial<AnkiCard> {
-    const delays = config.new.delays;
-    const [repsLeft, stepsTotal] = this.getLeft(card.left);
-
-    if (ease === RevlogEase.Again) {
-      // Restart learning
-      return {
-        type: CardType.Learning,
-        queue: CardQueue.Learning,
-        due: addMinutes(now, delays[0]),
-        ivl: 0,
-        reps: card.reps + 1,
-        left: this.setLeft(stepsTotal, stepsTotal),
-      };
-    } else if (ease === RevlogEase.Good) {
-      const currentStepIndex = stepsTotal - repsLeft;
-      
-      if (currentStepIndex + 1 < delays.length) {
-        // Next learning step
-        return {
-          type: CardType.Learning,
-          queue: CardQueue.Learning,
-          due: addMinutes(now, delays[currentStepIndex + 1]),
-          ivl: 0,
-          reps: card.reps + 1,
-          left: this.setLeft(repsLeft - 1, stepsTotal),
-        };
-      } else {
-        // Graduate
-        const col = this.db.getCol();
-        const graduatingIvl = config.new.ints[0];
-        return {
-          type: CardType.Review,
-          queue: CardQueue.Review,
-          due: daysSinceCrt(col, now) + graduatingIvl,
-          ivl: graduatingIvl,
-          reps: card.reps + 1,
-          left: 0,
-        };
-      }
-    } else if (ease === RevlogEase.Easy) {
-      // Graduate with easy interval
-      const col = this.db.getCol();
-      const easyIvl = config.new.ints[1];
-      return {
-        type: CardType.Review,
-        queue: CardQueue.Review,
-        due: daysSinceCrt(col, now) + easyIvl,
-        ivl: easyIvl,
-        factor: card.factor + config.rev.ease4,
-        reps: card.reps + 1,
-        left: 0,
-      };
-    }
-
-    return {};
-  }
-
-  private answerReview(
-    card: AnkiCard,
-    ease: RevlogEase,
-    config: DeckConfig,
-    now: number
-  ): Partial<AnkiCard> {
-    const col = this.db.getCol();
-
-    if (ease === RevlogEase.Again) {
-      // Lapse - go to relearning
-      // Always apply ease penalty on lapse (clamped to MIN_EASE_FACTOR)
-      const newFactor = Math.max(
-        MIN_EASE_FACTOR,
-        card.factor - 200
-      );
-      
-      return {
-        type: CardType.Relearning,
-        queue: CardQueue.Learning,
-        due: addMinutes(now, config.lapse.delays[0]),
-        ivl: Math.max(1, Math.floor(card.ivl * config.lapse.mult)),
-        factor: newFactor,
-        reps: card.reps + 1,
-        lapses: card.lapses + 1,
-        left: this.setLeft(config.lapse.delays.length, config.lapse.delays.length),
-      };
-    } else {
-      // Update ease factor
-      let newFactor = card.factor;
-      
-      if (ease === RevlogEase.Hard) {
-        newFactor = Math.max(MIN_EASE_FACTOR, card.factor - 150);
-      } else if (ease === RevlogEase.Easy) {
-        newFactor = card.factor + config.rev.ease4;
-      }
-
-      // Calculate new interval
-      let newIvl: number;
-      const fct = card.factor / 1000;
-
-      if (ease === RevlogEase.Hard) {
-        newIvl = Math.ceil(card.ivl * 1.2 * config.rev.ivlFct);
-      } else if (ease === RevlogEase.Good) {
-        newIvl = Math.ceil(card.ivl * fct * config.rev.ivlFct);
-      } else if (ease === RevlogEase.Easy) {
-        newIvl = Math.ceil(card.ivl * fct * config.rev.ivlFct * 1.3);
-      } else {
-        newIvl = card.ivl;
-      }
-
-      // Apply fuzz and cap
-      newIvl = this.applyFuzz(newIvl, config.rev.fuzz);
-      newIvl = Math.min(newIvl, config.rev.maxIvl);
-      newIvl = Math.max(newIvl, card.ivl + 1);  // Ensure growth
-
-      return {
-        type: CardType.Review,
-        queue: CardQueue.Review,
-        due: daysSinceCrt(col, now) + newIvl,
-        ivl: newIvl,
-        factor: newFactor,
-        reps: card.reps + 1,
-      };
-    }
-  }
-
-  private answerRelearning(
-    card: AnkiCard,
-    ease: RevlogEase,
-    config: DeckConfig,
-    now: number
-  ): Partial<AnkiCard> {
-    const delays = config.lapse.delays;
-    const [repsLeft, stepsTotal] = this.getLeft(card.left);
-
-    if (ease === RevlogEase.Again) {
-      // Restart relearning
-      return {
-        type: CardType.Relearning,
-        queue: CardQueue.Learning,
-        due: addMinutes(now, delays[0]),
-        reps: card.reps + 1,
-        left: this.setLeft(stepsTotal, stepsTotal),
-      };
-    } else {
-      const currentStepIndex = stepsTotal - repsLeft;
-      
-      if (currentStepIndex + 1 < delays.length) {
-        // Next relearning step
-        return {
-          type: CardType.Relearning,
-          queue: CardQueue.Learning,
-          due: addMinutes(now, delays[currentStepIndex + 1]),
-          reps: card.reps + 1,
-          left: this.setLeft(repsLeft - 1, stepsTotal),
-        };
-      } else {
-        // Graduate back to review
-        const col = this.db.getCol();
-        const newIvl = Math.max(config.lapse.minInt, card.ivl);
-        
-        return {
-          type: CardType.Review,
-          queue: CardQueue.Review,
-          due: daysSinceCrt(col, now) + newIvl,
-          ivl: newIvl,
-          reps: card.reps + 1,
-          left: 0,
-        };
-      }
-    }
-  }
-
-  // ==========================================================================
   // UTILITIES
   // ==========================================================================
-
-  /**
-   * Encode left field: a*1000+b where a=reps left, b=steps total
-   */
-  private setLeft(repsLeft: number, stepsTotal: number): number {
-    return repsLeft * 1000 + stepsTotal;
-  }
-
-  /**
-   * Decode left field: returns [repsLeft, stepsTotal]
-   */
-  private getLeft(left: number): [number, number] {
-    const repsLeft = Math.floor(left / 1000);
-    const stepsTotal = left % 1000;
-    return [repsLeft, stepsTotal];
-  }
-
-  /**
-   * Apply fuzz to interval (±5%)
-   * Uses injected RNG for deterministic testing
-   */
-  private applyFuzz(ivl: number, fuzzFactor: number): number {
-    if (ivl < 2) return ivl;
-    
-    const fuzz = Math.floor(ivl * fuzzFactor);
-    const minIvl = ivl - fuzz;
-    const maxIvl = ivl + fuzz;
-    
-    // Random between min and max (using injected RNG)
-    return Math.floor(this.rng() * (maxIvl - minIvl + 1) + minIvl);
-  }
 
   /**
    * Convert interval to revlog format

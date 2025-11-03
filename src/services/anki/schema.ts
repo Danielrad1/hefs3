@@ -163,6 +163,30 @@ export interface DeckConfig {
   dyn: boolean;              // is filtered deck
   usn: number;
   mod: number;
+  
+  // Algorithm selection (optional, defaults to 'sm2')
+  algo?: 'sm2' | 'fsrs' | 'leitner' | 'ai';
+  
+  // Algorithm-specific parameters (optional)
+  algoParams?: {
+    // FSRS parameters
+    fsrs?: {
+      retention: number;       // target retention (0-1, e.g., 0.9)
+      weights?: number[];      // trained FSRS weights
+      dailyMinutes?: number;   // daily study time budget (for AI mode)
+    };
+    // Leitner parameters
+    leitner?: {
+      intervals: number[];     // box intervals in days
+      dropBoxes: number;       // how many boxes to drop on wrong answer
+    };
+    // AI mode parameters
+    ai?: {
+      goal: 'retention' | 'time' | 'balanced';
+      dailyMinutes: number;    // daily study time budget
+      retention: number;       // target retention
+    };
+  };
 }
 
 /** Collection config (from col.conf) */
