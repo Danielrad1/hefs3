@@ -88,7 +88,12 @@ export class StatsService {
     // Use TodayCountsService for accurate due counts with daily limits
     const colConfig = this.db.getColConfig();
     const allDecks = this.db.getAllDecks().filter(d => d.id !== '1'); // Exclude default deck
-    const activeDecks = colConfig?.activeDecks || allDecks.map(d => d.id);
+    
+    // If activeDecks is not set, or is only the Default deck, use all decks
+    let activeDecks = colConfig?.activeDecks || [];
+    if (activeDecks.length === 0 || (activeDecks.length === 1 && activeDecks[0] === '1')) {
+      activeDecks = allDecks.map(d => d.id);
+    }
     
     console.log('[StatsService] getGlobalSnapshot - allDecks:', allDecks.length);
     console.log('[StatsService] activeDecks:', activeDecks);
