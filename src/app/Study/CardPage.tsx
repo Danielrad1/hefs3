@@ -136,37 +136,25 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
       }
       // Batch state updates together in a single runOnJS call
       runOnJS(updateRevealedState)();
-      // Cloze cards and IO cards: instant reveal (no crossfade needed to prevent image flash)
-      // Normal cards: smooth crossfade
-      const isCloze = card.front.includes('{{c');
-      const isImageOcclusion = card.front.includes('<io-occlude') || card.back.includes('<io-occlude');
-      // Use spring for smoother initial animation (avoids timing easing calculations)
-      revealProgress.value = (isCloze || isImageOcclusion)
-        ? withTiming(1, { duration: 1 }) // 1ms = truly instant, no flash
-        : withSpring(1, { damping: 20, stiffness: 180, mass: 0.5 });
+      // Instant reveal for all card types (no animation needed)
+      revealProgress.value = withTiming(1, { duration: 1 }); // 1ms = truly instant
     }
   };
 
   const handleToggle = () => {
     'worklet';
     // Toggle between question and answer
-    const isCloze = card.front.includes('{{c');
-    const isImageOcclusion = card.front.includes('<io-occlude') || card.back.includes('<io-occlude');
     
     if (revealProgress.value === 0) {
-      // Show answer - instant for cloze/IO, smooth spring for normal
-      revealProgress.value = (isCloze || isImageOcclusion)
-        ? withTiming(1, { duration: 1 }) // 1ms = truly instant, no flash
-        : withSpring(1, { damping: 20, stiffness: 180, mass: 0.5 });
+      // Show answer - instant for all card types
+      revealProgress.value = withTiming(1, { duration: 1 }); // 1ms = truly instant
       runOnJS(selection)();
       handleReveal();
     } else {
       // Hide answer - go back to question
-      revealProgress.value = (isCloze || isImageOcclusion)
-        ? withTiming(0, { duration: 1 }) // 1ms = truly instant, no flash
-        : withSpring(0, { damping: 20, stiffness: 180, mass: 0.5 });
+      revealProgress.value = withTiming(0, { duration: 1 }); // 1ms = truly instant
       runOnJS(selection)();
-      // Reset revealed state for cloze/IO cards
+      // Reset revealed state
       isRevealed.value = false;
       if (isRevealedShared) {
         isRevealedShared.value = false;
@@ -191,8 +179,9 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
     touchStartY.value = height / 4; // Bottom of screen touch
     
     // Hide buttons instantly on UI thread (no bridge delay)
+    isRevealed.value = false; // Set on UI thread immediately
     revealProgress.value = 0; // This triggers buttonsAnimatedStyle to hide instantly
-    runOnJS(setRevealed)(false);
+    runOnJS(setRevealed)(false); // Sync to React state (can be delayed)
     
     // EXACT COPY of swipe onEnd animation code
     if (difficulty === 'again') {
@@ -475,15 +464,15 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
       }
     });
 
-  // Animated style for buttons - instant reveal, fade out during swipe
+  // Animated style for buttons - instant reveal, smooth hide
   const buttonsAnimatedStyle = useAnimatedStyle(() => {
     'worklet';
-    // Show instantly when revealed (no bridge crossing delay)
-    const shouldShow = isRevealed.value && !isSwiping.value && revealProgress.value === 1;
+    // Show/hide when revealed state changes
+    const shouldShow = isRevealed.value && !isSwiping.value;
     return {
-      opacity: withTiming(shouldShow ? 1 : 0, { duration: shouldShow ? 100 : 200 }),
+      opacity: withTiming(shouldShow ? 1 : 0, { duration: shouldShow ? 1 : 150 }), // instant show, smooth hide
       transform: [
-        { scale: withTiming(shouldShow ? 1 : 0.9, { duration: shouldShow ? 100 : 200 }) }
+        { scale: withTiming(shouldShow ? 1 : 0.9, { duration: shouldShow ? 1 : 150 }) } // instant show, smooth hide
       ],
     };
   });
