@@ -190,7 +190,8 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
     // touchStartY affects rotation: positive = touch below center = less rotation
     touchStartY.value = height / 4; // Bottom of screen touch
     
-    // Hide buttons instantly (but keep isRevealed true for overlay)
+    // Hide buttons instantly on UI thread (no bridge delay)
+    revealProgress.value = 0; // This triggers buttonsAnimatedStyle to hide instantly
     runOnJS(setRevealed)(false);
     
     // EXACT COPY of swipe onEnd animation code
