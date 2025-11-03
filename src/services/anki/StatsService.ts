@@ -90,7 +90,8 @@ export class StatsService {
     const allDecks = this.db.getAllDecks().filter(d => d.id !== '1'); // Exclude default deck
     const activeDecks = colConfig?.activeDecks || allDecks.map(d => d.id);
     
-    const globalCounts = this.todayCountsService.getGlobalTodayCounts(activeDecks, now * 1000);
+    // TodayCountsService expects milliseconds (converts internally to seconds)
+    const globalCounts = this.todayCountsService.getGlobalTodayCounts(activeDecks, Date.now());
     const dueCount = globalCounts.dueTodayTotal;
     const learnCount = globalCounts.learningTotal;
     const currentDay = Math.floor(now / 86400);
@@ -229,8 +230,8 @@ export class StatsService {
     const leechCount = cards.filter(c => c.lapses >= 3).length;
     
     // Today's due - use TodayCountsService for accurate counts with daily limits
-    const now = nowSeconds();
-    const deckCounts = this.todayCountsService.getDeckTodayCounts(deckId, now * 1000);
+    // TodayCountsService expects milliseconds (converts internally to seconds)
+    const deckCounts = this.todayCountsService.getDeckTodayCounts(deckId, Date.now());
     const dueToday = deckCounts.dueTodayTotal;
     const learnToday = deckCounts.learningDueToday;
     

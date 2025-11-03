@@ -121,18 +121,36 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     });
     
     // Get accurate due counts from TodayCountsService (respects daily limits)
-    const deckDueCounts = new Map<string, number>();
+    // First, calculate due counts for each deck (their own cards only)
+    const deckOwnDueCounts = new Map<string, number>();
     allDecks.forEach(d => {
       const deckCounts = todayCountsService.getDeckTodayCounts(d.id);
-      deckDueCounts.set(d.name, deckCounts.dueTodayTotal);
+      deckOwnDueCounts.set(d.name, deckCounts.dueTodayTotal);
+    });
+    
+    // Then, calculate total due counts including children (bottom-up aggregation)
+    const deckDueCounts = new Map<string, number>();
+    
+    // Process decks from deepest to shallowest (by :: count)
+    const sortedDecks = [...allDecks].sort((a, b) => {
+      const aDepth = a.name.split('::').length;
+      const bDepth = b.name.split('::').length;
+      return bDepth - aDepth; // Deepest first
+    });
+    
+    sortedDecks.forEach(d => {
+      // Start with this deck's own due count
+      let totalDue = deckOwnDueCounts.get(d.name) || 0;
       
-      // Also update parent decks with this deck's due count
-      const parts = d.name.split('::');
-      for (let i = 1; i < parts.length; i++) {
-        const parentName = parts.slice(0, i).join('::');
-        const parentDue = deckDueCounts.get(parentName) || 0;
-        deckDueCounts.set(parentName, parentDue + deckCounts.dueTodayTotal);
-      }
+      // Add all direct children's totals
+      sortedDecks.forEach(child => {
+        if (child.name.startsWith(d.name + '::') && 
+            child.name.split('::').length === d.name.split('::').length + 1) {
+          totalDue += deckDueCounts.get(child.name) || 0;
+        }
+      });
+      
+      deckDueCounts.set(d.name, totalDue);
     });
     
     // Map decks to final structure
