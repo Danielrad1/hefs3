@@ -12,6 +12,7 @@
 import { InMemoryDb } from './InMemoryDb';
 import { AnkiCard, AnkiRevlog } from './schema';
 import { nowSeconds, isDue } from './time';
+import { TodayCountsService } from './TodayCountsService';
 import { CoreStatsService, HomeStats, DailyStats, GlobalSnapshot } from './CoreStatsService';
 import { ForecastService, ForecastPoint } from './ForecastService';
 import { AnalyticsService, BestHoursData, HintStats, WeeklyCoachReport } from './AnalyticsService';
@@ -57,11 +58,15 @@ export interface DeckSnapshot {
  */
 export class StatsService {
   private core: CoreStatsService;
+  private db: InMemoryDb;
+  private todayCountsService: TodayCountsService;
   private forecast: ForecastService;
   private analytics: AnalyticsService;
 
-  constructor(private db: InMemoryDb) {
+  constructor(db: InMemoryDb) {
+    this.db = db;
     this.core = new CoreStatsService(db);
+    this.todayCountsService = new TodayCountsService(db);
     this.forecast = new ForecastService(db);
     this.analytics = new AnalyticsService(db);
   }
@@ -78,41 +83,17 @@ export class StatsService {
     const today = this.core.getTodayString();
     const revlog = this.db.getAllRevlog();
     const allCards = this.db.getAllCards();
-    const col = this.db.getCol();
     const now = nowSeconds();
-    const currentDay = Math.floor(now / 86400);
     
-    // Calculate due counts
-    let dueCount = 0;
-    let learnCount = 0;
-    
-    const allDecks = this.db.getAllDecks();
-    const allDeckConfigs = this.db.getAllDeckConfigs();
+    // Use TodayCountsService for accurate due counts with daily limits
     const colConfig = this.db.getColConfig();
+    const allDecks = this.db.getAllDecks().filter(d => d.id !== '1'); // Exclude default deck
     const activeDecks = colConfig?.activeDecks || allDecks.map(d => d.id);
     
-    // New cards (capped by deck limits)
-    for (const deck of allDecks) {
-      if (!activeDecks.includes(deck.id)) continue;
-      
-      const deckConfig = allDeckConfigs.find(dc => dc.id === deck.conf);
-      const newPerDay = deckConfig?.new?.perDay || 20;
-      const newCardsInDeck = allCards.filter(c => c.did === deck.id && c.type === 0);
-      const availableNew = Math.min(newCardsInDeck.length, newPerDay);
-      dueCount += availableNew;
-    }
-    
-    // Learning and review cards that are actually due
-    for (const c of allCards) {
-      if (!isDue(c.due, c.type, col, now)) continue;
-      
-      if (c.type === 1 || c.type === 3) { // Learning/relearning
-        dueCount++;
-        learnCount++;
-      } else if (c.type === 2) { // Review
-        dueCount++;
-      }
-    }
+    const globalCounts = this.todayCountsService.getGlobalTodayCounts(activeDecks, now * 1000);
+    const dueCount = globalCounts.dueTodayTotal;
+    const learnCount = globalCounts.learningTotal;
+    const currentDay = Math.floor(now / 86400);
     
     // Filter revlog by window
     const windowStart = new Date();
@@ -205,10 +186,7 @@ export class StatsService {
       date: today,
       todayDue: dueCount,
       todayLearn: learnCount,
-      todayNewLimit: allDecks.reduce((sum, d) => {
-        const cfg = allDeckConfigs.find(dc => dc.id === d.conf);
-        return sum + (cfg?.new?.perDay || 20);
-      }, 0),
+      todayNewLimit: globalCounts.newTotal, // Actual new cards available today
       estTimeP50Sec,
       reviewsToday: todayReviewCount,
       minutesToday: Math.round(todayTimeMs / 60000),

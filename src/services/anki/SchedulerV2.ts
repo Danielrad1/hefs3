@@ -22,6 +22,7 @@ import {
   addMinutes,
   isDue,
 } from './time';
+import { TodayCountsService } from './TodayCountsService';
 
 // Re-export isDue for use by other services
 export { isDue } from './time';
@@ -30,6 +31,7 @@ export class SchedulerV2 {
   // Session-based buried note IDs (to prevent sibling cards from showing)
   private buriedNoteIds: Set<string> = new Set();
   private buriedCardQueues: Map<string, CardQueue> = new Map();
+  private todayCountsService: TodayCountsService;
 
   /**
    * @param db - The in-memory database
@@ -39,7 +41,9 @@ export class SchedulerV2 {
   constructor(
     private db: InMemoryDb,
     private rng: () => number = Math.random
-  ) {}
+  ) {
+    this.todayCountsService = new TodayCountsService(db);
+  }
 
   // ==========================================================================
   // QUEUE SELECTION
@@ -82,25 +86,56 @@ export class SchedulerV2 {
       return learning[0];
     }
 
-    // 2. Review cards (due now)
-    const reviews = activeCards
-      .filter((c) => 
-        c.queue === CardQueue.Review &&
-        isDue(c.due, c.type, col, now)
-      )
-      .sort((a, b) => a.due - b.due);
-    
-    if (reviews.length > 0) {
-      return reviews[0];
+    // 2. Review cards (due now) - check daily limit
+    if (deckId) {
+      const capacity = this.todayCountsService.getRemainingCapacity(deckId, now * 1000);
+      if (capacity.canShowReview) {
+        const reviews = activeCards
+          .filter((c) => 
+            c.queue === CardQueue.Review &&
+            isDue(c.due, c.type, col, now)
+          )
+          .sort((a, b) => a.due - b.due);
+        
+        if (reviews.length > 0) {
+          return reviews[0];
+        }
+      }
+    } else {
+      // No deck filter - show reviews without limit check
+      const reviews = activeCards
+        .filter((c) => 
+          c.queue === CardQueue.Review &&
+          isDue(c.due, c.type, col, now)
+        )
+        .sort((a, b) => a.due - b.due);
+      
+      if (reviews.length > 0) {
+        return reviews[0];
+      }
     }
 
-    // 3. New cards (FIFO by due order)
-    const newCards = activeCards
-      .filter((c) => c.queue === CardQueue.New)
-      .sort((a, b) => a.due - b.due);
-    
-    if (newCards.length > 0) {
-      return newCards[0];
+    // 3. New cards (FIFO by due order) - check daily limit
+    if (deckId) {
+      const capacity = this.todayCountsService.getRemainingCapacity(deckId, now * 1000);
+      if (capacity.canShowNew) {
+        const newCards = activeCards
+          .filter((c) => c.queue === CardQueue.New)
+          .sort((a, b) => a.due - b.due);
+        
+        if (newCards.length > 0) {
+          return newCards[0];
+        }
+      }
+    } else {
+      // No deck filter - show new without limit check
+      const newCards = activeCards
+        .filter((c) => c.queue === CardQueue.New)
+        .sort((a, b) => a.due - b.due);
+      
+      if (newCards.length > 0) {
+        return newCards[0];
+      }
     }
 
     return null;

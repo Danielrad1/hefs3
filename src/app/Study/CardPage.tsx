@@ -698,7 +698,9 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
               style={({ pressed }) => [
                 styles.floatingButton, 
                 { 
-                  backgroundColor: theme.colors.accent + '26', // 15% opacity in hex
+                  backgroundColor: theme.colors.surface,
+                  borderWidth: 2,
+                  borderColor: 'rgba(128, 128, 128, 0.15)',
                   opacity: pressed ? 0.7 : 1,
                   transform: [{ scale: pressed ? 0.95 : 1 }],
                 }
@@ -715,7 +717,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
               <Ionicons 
                 name="bulb-outline" 
                 size={24} 
-                color={theme.colors.accent} 
+                color={theme.colors.textPrimary} 
               />
             </Pressable>
           )}
@@ -724,7 +726,9 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
               style={({ pressed }) => [
                 styles.floatingButton, 
                 { 
-                  backgroundColor: theme.colors.accent + '26', // 15% opacity in hex
+                  backgroundColor: theme.colors.surface,
+                  borderWidth: 2,
+                  borderColor: 'rgba(128, 128, 128, 0.15)',
                   opacity: pressed ? 0.7 : 1,
                   transform: [{ scale: pressed ? 0.95 : 1 }],
                 }
@@ -741,7 +745,7 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
               <Ionicons 
                 name="sparkles" 
                 size={24} 
-                color={theme.colors.accent} 
+                color={theme.colors.textPrimary} 
               />
             </Pressable>
           )}

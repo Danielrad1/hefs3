@@ -17,6 +17,7 @@ import { PersistenceService } from '../../services/anki/PersistenceService';
 import { useScheduler } from '../../context/SchedulerProvider';
 import { CardQueue } from '../../services/anki/schema';
 import { isDue } from '../../services/anki/time';
+import { TodayCountsService } from '../../services/anki/TodayCountsService';
 import TextInputModal from '../../components/TextInputModal';
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { cardHintsService } from '../../services/anki/CardHintsService';
@@ -61,6 +62,11 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
   const learningCards = cards.filter((c) => c.type === 1 || c.type === 3);
   const reviewCards = cards.filter((c) => c.type === 2);
   const suspendedCards = cards.filter((c) => c.queue === CardQueue.Suspended);
+  
+  // Use TodayCountsService for accurate due count with daily limits
+  const todayCountsService = new TodayCountsService(db);
+  const deckCounts = todayCountsService.getDeckTodayCounts(deckId);
+  const dueTodayCount = deckCounts.dueTodayTotal;
   
   // Use proper isDue function to check if cards are actually available
   const actuallyDueCards = cards.filter((c) => isDue(c.due, c.type, col));
@@ -326,7 +332,7 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
         {/* Stats Cards */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: theme.colors.surface2 }]}>
-            <Text style={[styles.statNumber, { color: theme.colors.textHigh }]}>{actuallyDueCards.length}</Text>
+            <Text style={[styles.statNumber, { color: theme.colors.textHigh }]}>{dueTodayCount}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textMed }]}>DUE TODAY</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: theme.colors.surface2 }]}>
