@@ -12,6 +12,7 @@ import { CardType, RevlogEase } from '../services/anki/schema';
 import { toViewCard, bootstrapFromSeed } from '../services/anki/Adapter';
 import { isDue } from '../services/anki/time';
 import { todayUsageRepository, TodayUsageRepository } from '../services/anki/db/TodayUsageRepository';
+import { TodayCountsService } from '../services/anki/TodayCountsService';
 import { PersistenceService } from '../services/anki/PersistenceService';
 import { logger } from '../utils/logger';
 
@@ -92,45 +93,57 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     // Update decks list with due counts (exclude Default deck)
     const allDecks = db.getAllDecks().filter(d => d.id !== '1');
     const allCards = db.getAllCards();
+    const todayCountsService = new TodayCountsService(db);
     
-    // OPTIMIZED: Single pass through cards instead of nested loops
-    // Build a map of deck name -> cards for O(n) instead of O(n*m)
-    const col = db.getCol();
-    const deckCardsMap = new Map<string, { total: number; due: number }>();
+    // Build a map of deck name -> card counts
+    const deckCardsMap = new Map<string, number>();
     
     // Initialize all decks with zero counts
     allDecks.forEach(d => {
-      deckCardsMap.set(d.name, { total: 0, due: 0 });
+      deckCardsMap.set(d.name, 0);
     });
     
-    // Single pass: count cards for each deck (including parent decks)
+    // Single pass: count total cards for each deck (including parent decks)
     allCards.forEach(card => {
       const cardDeck = db.getDeck(card.did);
       if (!cardDeck) return;
-      
-      const isDueCard = isDue(card.due, card.type, col);
       
       // Update this deck and all parent decks
       // e.g., "A::B::C" should update "A", "A::B", and "A::B::C"
       const parts = cardDeck.name.split('::');
       for (let i = 1; i <= parts.length; i++) {
         const deckName = parts.slice(0, i).join('::');
-        const counts = deckCardsMap.get(deckName);
-        if (counts) {
-          counts.total++;
-          if (isDueCard) counts.due++;
+        const count = deckCardsMap.get(deckName);
+        if (count !== undefined) {
+          deckCardsMap.set(deckName, count + 1);
         }
+      }
+    });
+    
+    // Get accurate due counts from TodayCountsService (respects daily limits)
+    const deckDueCounts = new Map<string, number>();
+    allDecks.forEach(d => {
+      const deckCounts = todayCountsService.getDeckTodayCounts(d.id);
+      deckDueCounts.set(d.name, deckCounts.dueTodayTotal);
+      
+      // Also update parent decks with this deck's due count
+      const parts = d.name.split('::');
+      for (let i = 1; i < parts.length; i++) {
+        const parentName = parts.slice(0, i).join('::');
+        const parentDue = deckDueCounts.get(parentName) || 0;
+        deckDueCounts.set(parentName, parentDue + deckCounts.dueTodayTotal);
       }
     });
     
     // Map decks to final structure
     setDecks(allDecks.map(d => {
-      const counts = deckCardsMap.get(d.name) || { total: 0, due: 0 };
+      const cardCount = deckCardsMap.get(d.name) || 0;
+      const dueCount = deckDueCounts.get(d.name) || 0;
       return {
         id: d.id,
         name: d.name,
-        cardCount: counts.total,
-        dueCount: counts.due,
+        cardCount,
+        dueCount,
       };
     }));
   }, []);
