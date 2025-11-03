@@ -90,8 +90,14 @@ export class StatsService {
     const allDecks = this.db.getAllDecks().filter(d => d.id !== '1'); // Exclude default deck
     const activeDecks = colConfig?.activeDecks || allDecks.map(d => d.id);
     
+    console.log('[StatsService] getGlobalSnapshot - allDecks:', allDecks.length);
+    console.log('[StatsService] activeDecks:', activeDecks);
+    console.log('[StatsService] colConfig.activeDecks:', colConfig?.activeDecks);
+    
     // TodayCountsService expects milliseconds (converts internally to seconds)
     const globalCounts = this.todayCountsService.getGlobalTodayCounts(activeDecks, Date.now());
+    console.log('[StatsService] globalCounts:', globalCounts);
+    
     const dueCount = globalCounts.dueTodayTotal;
     const learnCount = globalCounts.learningTotal;
     const currentDay = Math.floor(now / 86400);

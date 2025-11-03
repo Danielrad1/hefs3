@@ -52,6 +52,17 @@ export class TodayCountsService {
     // Get all cards for this deck
     const cards = this.db.getCardsByDeck(deckId);
     
+    const deck = this.db.getDeck(deckId);
+    console.log(`[TodayCountsService] getDeckTodayCounts for ${deck?.name}:`, {
+      deckId,
+      cardCount: cards.length,
+      usage,
+      newPerDay,
+      revPerDay,
+      dayKey,
+      nowSec
+    });
+    
     let learningDueToday = 0;
     let reviewDueRaw = 0;
     let newRaw = 0;
@@ -107,6 +118,9 @@ export class TodayCountsService {
     const decks = activeDeckIds 
       ? activeDeckIds.map(id => this.db.getDeck(id)).filter(d => d !== undefined)
       : this.db.getAllDecks().filter(d => d.id !== '1'); // Exclude default deck
+    
+    console.log('[TodayCountsService] getGlobalTodayCounts - activeDeckIds:', activeDeckIds);
+    console.log('[TodayCountsService] decks to process:', decks.map(d => d?.name));
     
     let dueTodayTotal = 0;
     let learningTotal = 0;
