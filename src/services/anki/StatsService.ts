@@ -228,18 +228,11 @@ export class StatsService {
     const buriedCount = cards.filter(c => c.queue === -2 || c.queue === -3).length;
     const leechCount = cards.filter(c => c.lapses >= 3).length;
     
-    // Today's due
-    const col = this.db.getCol();
+    // Today's due - use TodayCountsService for accurate counts with daily limits
     const now = nowSeconds();
-    let dueToday = 0;
-    let learnToday = 0;
-    
-    for (const c of cards) {
-      if (isDue(c.due, c.type, col, now)) {
-        dueToday++;
-        if (c.type === 1 || c.type === 3) learnToday++;
-      }
-    }
+    const deckCounts = this.todayCountsService.getDeckTodayCounts(deckId, now * 1000);
+    const dueToday = deckCounts.dueTodayTotal;
+    const learnToday = deckCounts.learningDueToday;
     
     // Retention by maturity
     const youngCards = cards.filter(c => c.type === 2 && c.ivl < MATURE_THRESHOLD);

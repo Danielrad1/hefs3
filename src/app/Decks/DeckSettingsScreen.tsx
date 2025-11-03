@@ -56,9 +56,11 @@ export default function DeckSettingsScreen({ route, navigation }: DeckSettingsSc
     try {
       setSaving(true);
 
-      // Update deck config
-      deckConfig.new.perDay = newPerDayNum;
-      deckConfig.rev.perDay = revPerDayNum;
+      // Update deck config using proper method (updates mod/usn consistently)
+      db.updateDeckConfig(deckConfig.id, {
+        new: { ...deckConfig.new, perDay: newPerDayNum },
+        rev: { ...deckConfig.rev, perDay: revPerDayNum },
+      });
 
       // Save to database
       await PersistenceService.save(db);

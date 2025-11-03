@@ -41,6 +41,9 @@ export class TodayCountsService {
     const dayKey = TodayUsageRepository.getDayKey(colConfig, now);
     const usage = this.usageRepo.getTodayUsage(deckId, dayKey);
     
+    // CRITICAL: isDue expects seconds, but now is in milliseconds
+    const nowSec = Math.floor(now / 1000);
+    
     // Get deck config for daily limits
     const deckConfig = this.db.getDeckConfigForDeck(deckId);
     const newPerDay = deckConfig?.new?.perDay ?? 20;
@@ -57,7 +60,7 @@ export class TodayCountsService {
       // Skip suspended/buried
       if (card.queue < 0) continue;
       
-      const cardIsDue = isDue(card.due, card.type, col, now);
+      const cardIsDue = isDue(card.due, card.type, col, nowSec);
       
       if (card.type === CardType.Learning || card.type === CardType.Relearning) {
         // Learning/Relearning due now (always included, not capped)

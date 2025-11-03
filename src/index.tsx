@@ -19,6 +19,7 @@ import { ThemeProvider } from './design/theme';
 import { PersistenceService } from './services/anki/PersistenceService';
 import { db } from './services/anki/InMemoryDb';
 import { deckMetadataService } from './services/anki/DeckMetadataService';
+import { todayUsageRepository, TodayUsageRepository } from './services/anki/db/TodayUsageRepository';
 import { logger } from './utils/logger';
 
 export default function App() {
@@ -34,6 +35,12 @@ export default function App() {
         } else {
           logger.info('[App] No saved database found, starting fresh');
         }
+        
+        // Clean up old usage days to bound memory
+        const colConfig = db.getColConfig();
+        const currentDayKey = TodayUsageRepository.getDayKey(colConfig);
+        todayUsageRepository.clearOldDays(currentDayKey);
+        logger.info('[App] Cleared old usage days, current day:', currentDayKey);
         
         // Preload metadata in parallel to avoid delays later
         await Promise.all([

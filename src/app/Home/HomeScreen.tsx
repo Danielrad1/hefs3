@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
 import { db } from '../../services/anki/InMemoryDb';
 import { StatsService, HomeStats, GlobalSnapshot, WeeklyCoachReport as WeeklyCoachReportType } from '../../services/anki/StatsService';
+import { TodayCountsService } from '../../services/anki/TodayCountsService';
 import { BacklogPressureCard, EfficiencyCard, StreakCalendarCard, WeeklyCoachReport, BestHoursCard, AddsTimelineMini, BacklogClearByCard } from '../../components/stats';
 import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
@@ -22,7 +23,7 @@ export default function HomeScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { bootstrap } = useScheduler();
+  const { bootstrap, setDeck } = useScheduler();
   const [homeStats, setHomeStats] = useState<HomeStats | null>(null);
   const [globalSnapshot, setGlobalSnapshot] = useState<GlobalSnapshot | null>(null);
   const [weeklyCoachReport, setWeeklyCoachReport] = useState<WeeklyCoachReportType | null>(null);
@@ -33,6 +34,28 @@ export default function HomeScreen() {
   const [userName, setUserName] = useState<string>('there');
   const isCalculatingRef = React.useRef(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+  // CRITICAL: Set active deck before studying to respect daily limits
+  const handleStartStudy = () => {
+    // Find deck with most due cards and set it as active
+    const allDecks = db.getAllDecks().filter(d => d.id !== '1');
+    const todayCountsService = new TodayCountsService(db);
+    
+    let bestDeckId: string | null = null;
+    let maxDue = 0;
+    
+    for (const deck of allDecks) {
+      const counts = todayCountsService.getDeckTodayCounts(deck.id);
+      if (counts.dueTodayTotal > maxDue) {
+        maxDue = counts.dueTodayTotal;
+        bestDeckId = deck.id;
+      }
+    }
+    
+    // Set the deck with most due cards (or null if none)
+    setDeck(bestDeckId);
+    navigation.navigate('Study' as never);
+  };
   
   // Contextual motivational message
   const getMotivationalMessage = React.useCallback(() => {
@@ -219,7 +242,7 @@ export default function HomeScreen() {
         {globalSnapshot && globalSnapshot.todayDue > 0 ? (
           <Pressable 
             style={styles.heroCard}
-            onPress={() => navigation.navigate('Study' as never)}
+            onPress={handleStartStudy}
           >
             <LinearGradient
               colors={theme.colors.primaryGradient}

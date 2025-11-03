@@ -290,7 +290,7 @@ export class SchedulerV2 {
       cid: cardId,
       usn: -1,
       ease,
-      ivl: this.revlogIvl(newCard as AnkiCard, card.type),
+      ivl: this.revlogIvl(newCard as AnkiCard, newCard.type ?? card.type),
       lastIvl: this.revlogIvl(card, card.type),
       factor: newCard.factor ?? lastFactor,
       time: responseTimeMs,
