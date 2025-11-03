@@ -132,7 +132,7 @@ export class InMemoryDb {
     };
 
     const defaultColConfig: ColConfig = {
-      activeDecks: [DEFAULT_DECK_ID],
+      activeDecks: [], // Empty = use all decks (don't restrict to Default only)
       nextPos: 1,  // next position for new cards
       sortType: 'noteFld',
       sortBackwards: false,
