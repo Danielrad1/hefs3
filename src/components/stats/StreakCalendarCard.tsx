@@ -64,6 +64,15 @@ export function StreakCalendarCard({
       });
     }
     
+    // Pad the last row with empty cells to always have complete weeks (7 cells per row)
+    const remainder = days.length % 7;
+    if (remainder !== 0) {
+      const emptyCellsNeeded = 7 - remainder;
+      for (let i = 0; i < emptyCellsNeeded; i++) {
+        days.push({ date: null, dateStr: '', reviewCount: 0, isToday: false });
+      }
+    }
+    
     return {
       days,
       monthName: firstDay.toLocaleString('default', { month: 'long' }),

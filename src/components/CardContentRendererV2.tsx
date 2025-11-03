@@ -47,6 +47,8 @@ interface ImageOcclusionData {
   mode: 'hide-one' | 'hide-all';
   masks: ImageOcclusionMask[];
   naturalSize?: { w: number; h: number };
+  targetIndices?: number[]; // For hide-all mode: which masks are targets
+  svgRefDimensions?: { w: number; h: number }; // For old-style SVG: original SVG dimensions
 }
 
 /**
@@ -56,8 +58,7 @@ interface ImageOcclusionData {
 const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
   const { tnode } = props;
   const theme = useTheme();
-  const [layout, setLayout] = useState<{ width: number; height: number } | null>(null);
-
+  
   // Extract attributes from the node
   const dataAttr = tnode.attributes?.data || '{}';
   const ordAttr = tnode.attributes?.ord || '0';
@@ -71,9 +72,15 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
   // Parse occlusion data
   const occlusionData = React.useMemo<ImageOcclusionData>(() => {
     try {
-      return JSON.parse(dataAttr);
+      const parsed = JSON.parse(dataAttr);
+      logger.info('[ImageOcclusionRenderer] Parsed IO data:', {
+        image: parsed.image,
+        mode: parsed.mode,
+        maskCount: parsed.masks?.length,
+      });
+      return parsed;
     } catch (e) {
-      logger.error('[ImageOcclusionRenderer] Failed to parse data:', e);
+      logger.error('[ImageOcclusionRenderer] Failed to parse data:', e, 'raw:', dataAttr?.substring(0, 200));
       return {
         version: 1,
         image: '',
@@ -86,11 +93,50 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
   const isHideAllMode = occlusionData.mode === 'hide-all';
   const ord = parseInt(ordAttr, 10);
   const masks = occlusionData.masks || [];
-  const targetMask = !isHideAllMode && Number.isFinite(ord) ? masks[ord] : null;
+  const targetIndices = occlusionData.targetIndices || [];
+  
+  // Determine which masks are targets based on mode:
+  // - hide-one: single mask at index ord
+  // - hide-all: multiple masks specified in targetIndices array
+  const isTargetMask = (maskIndex: number) => {
+    if (isHideAllMode && targetIndices.length > 0) {
+      return targetIndices.includes(maskIndex);
+    }
+    return maskIndex === ord;
+  };
+  
   const imageUri = getMediaUri(occlusionData.image);
-
+  
+  // Log IO render details for debugging
+  React.useEffect(() => {
+    logger.info('[ImageOcclusionRenderer] ===== RENDER =====');
+    logger.info('[ImageOcclusionRenderer] Image:', occlusionData.image);
+    logger.info('[ImageOcclusionRenderer] URI:', imageUri);
+    logger.info('[ImageOcclusionRenderer] Mode:', occlusionData.mode);
+    logger.info('[ImageOcclusionRenderer] Ord:', ord);
+    logger.info('[ImageOcclusionRenderer] Revealed:', revealed);
+    logger.info('[ImageOcclusionRenderer] Total masks:', masks.length);
+    logger.info('[ImageOcclusionRenderer] Target indices:', isHideAllMode ? targetIndices : [ord]);
+    if (masks.length > 0) {
+      logger.info('[ImageOcclusionRenderer] First mask:', masks[0]);
+      logger.info('[ImageOcclusionRenderer] Last mask:', masks[masks.length - 1]);
+    }
+    if (occlusionData.svgRefDimensions) {
+      logger.info('[ImageOcclusionRenderer] SVG ref dims:', occlusionData.svgRefDimensions);
+    }
+  }, [imageUri, revealed]); // Log on image or reveal change
+  
   // Calculate image dimensions maintaining aspect ratio
+  // Reset state when imageUri changes to prevent stale dimensions across cards
   const [imageDimensions, setImageDimensions] = useState({ width: contentWidth, height: 300 });
+  const [layout, setLayout] = useState<{ width: number; height: number } | null>(null);
+
+  // Reset layout and dimensions when imageUri changes (critical for deck switching)
+  React.useEffect(() => {
+    setLayout(null);
+    // Also reset dimensions to prevent stale size from previous card
+    setImageDimensions({ width: contentWidth, height: 300 });
+  }, [imageUri, contentWidth]);
 
   React.useEffect(() => {
     if (!occlusionData.image) {
@@ -153,6 +199,23 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
     setLayout({ width, height });
   };
 
+  // Memoize the Image component to prevent re-mount when revealed changes
+  // Use imageUri as key to force remount on deck switch
+  const imageComponent = React.useMemo(() => (
+    <Image
+      key={imageUri}
+      source={{ uri: imageUri }}
+      style={{
+        width: imageDimensions.width,
+        height: imageDimensions.height,
+      }}
+      resizeMode="contain"
+      onError={(error) => {
+        logger.error('[ImageOcclusionRenderer] Image failed to load:', imageUri, error.nativeEvent);
+      }}
+    />
+  ), [imageUri, imageDimensions.width, imageDimensions.height]);
+
   return (
     <View style={[ioStyles.container, { alignSelf: 'center' }]}>
       <View
@@ -163,19 +226,19 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
         }}
         onLayout={handleLayout}
       >
-        <Image
-          source={{ uri: imageUri }}
-          style={{
-            width: imageDimensions.width,
-            height: imageDimensions.height,
-          }}
-          resizeMode="contain"
-        />
+        {imageComponent}
 
         {/* Render masks as overlays */}
         {layout &&
           masks.map((mask, index) => {
-            const isTarget = targetMask && mask.id === targetMask.id;
+            // Skip masks with non-finite coordinates (safety check)
+            if (!Number.isFinite(mask.x) || !Number.isFinite(mask.y) || 
+                !Number.isFinite(mask.w) || !Number.isFinite(mask.h)) {
+              logger.warn('[ImageOcclusionRenderer] Skipping mask with non-finite coords:', { index, mask });
+              return null;
+            }
+            
+            const isTarget = isTargetMask(index);
             const left = mask.x * layout.width;
             const top = mask.y * layout.height;
             const width = mask.w * layout.width;
@@ -184,8 +247,14 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
             let maskStyle: any;
 
             if (isHideAllMode) {
-              // Hide-All: all masks opaque on front, all hidden on back
-              maskStyle = revealed ? ioStyles.hidden : ioStyles.opaque;
+              // Hide-All mode (Anki IO Enhanced behavior):
+              if (revealed) {
+                // Back: targets transparent (revealed), non-targets opaque (still blocking)
+                maskStyle = isTarget ? ioStyles.hidden : ioStyles.nonTargetBack;
+              } else {
+                // Front: targets highlighted (red = "guess these"), non-targets opaque (blocking)
+                maskStyle = isTarget ? ioStyles.targetFront : ioStyles.nonTargetFront;
+              }
             } else {
               // Hide-One: ONLY show target mask, hide all others completely
               if (revealed) {
@@ -214,6 +283,15 @@ const ImageOcclusionRenderer: CustomBlockRenderer = (props: any) => {
             );
           })}
       </View>
+    </View>
+  );
+};
+
+const ButtonRenderer: CustomBlockRenderer = (props: any) => {
+  const { TDefaultRenderer } = props;
+  return (
+    <View style={buttonStyles.button} pointerEvents="none">
+      <TDefaultRenderer {...props} />
     </View>
   );
 };
@@ -280,6 +358,28 @@ const CardContentRendererV2 = React.memo(
           return `<img${before}src="${mediaPath}"${after}>`;
         },
       );
+
+      // Additional normalization: handle single-quoted src and skip absolute/data/about/file schemes
+      processed = processed.replace(
+        /<img([^>]*?)src=(["'])([^"']+)\2([^>]*)>/gi,
+        (match: string, before: string, quote: string, src: string, after: string) => {
+          const lower = (src || '').toLowerCase();
+          if (
+            lower.startsWith('http://') ||
+            lower.startsWith('https://') ||
+            lower.startsWith('data:') ||
+            lower.startsWith('file:') ||
+            lower.startsWith('about:')
+          ) {
+            return match;
+          }
+          const mediaPath = getMediaUri(src);
+          return `<img${before}src=${quote}${mediaPath}${quote}${after}>`;
+        },
+      );
+
+      // Remove any explicit about: images to avoid RN crash when decks intentionally include placeholders
+      processed = processed.replace(/<img[^>]*src=(["'])about:[^"']+\1[^>]*>/gi, '');
 
       // Remove audio tags
       const audioRegex = /\[sound:([^\]]+)\]/gi;
@@ -525,6 +625,12 @@ const CardContentRendererV2 = React.memo(
           isVoid: false,
           isOpaque: true,
         }),
+        button: HTMLElementModel.fromCustomModel({
+          tagName: 'button',
+          contentModel: HTMLContentModel.mixed,
+          isVoid: false,
+          isOpaque: false,
+        }),
       }),
       [],
     );
@@ -532,6 +638,7 @@ const CardContentRendererV2 = React.memo(
     const renderers = React.useMemo(
       () => ({
         'io-occlude': ImageOcclusionRenderer,
+        button: ButtonRenderer,
       }),
       [],
     );
@@ -559,6 +666,7 @@ const CardContentRendererV2 = React.memo(
           renderersProps={renderersPropsWithIO}
           customHTMLElementModels={customHTMLElementModels as any}
           renderers={renderers}
+          ignoredDomTags={['script']}
         />
 
         {/* Audio Players */}
@@ -779,6 +887,7 @@ const ioStyles = StyleSheet.create({
     position: 'absolute',
     borderRadius: 4,
   },
+  // Hide-one mode styles
   opaque: {
     backgroundColor: 'rgba(0, 0, 0, 1)',
   },
@@ -791,6 +900,37 @@ const ioStyles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 0,
     borderColor: 'transparent',
+  },
+  // Hide-all mode styles (Anki IO Enhanced)
+  targetFront: {
+    // Front: red/distinct color to indicate "guess these"
+    backgroundColor: 'rgba(239, 68, 68, 1)', 
+    borderWidth: 2,
+    borderColor: 'rgba(239, 68, 68, 1)',
+  },
+  nonTargetFront: {
+    // Front: FULLY OPAQUE to block text (not guessing these)
+    backgroundColor: 'rgba(250, 204, 21, 1)', // yellow-400 at 100%
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 1)', // yellow-500
+  },
+  nonTargetBack: {
+    // Back: FULLY OPAQUE to still block text
+    backgroundColor: 'rgba(250, 204, 21, 1)', // yellow-400 at 100%
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 1)',
+  },
+});
+
+const buttonStyles = StyleSheet.create({
+  button: {
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.4)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(128, 128, 128, 0.12)',
   },
 });
 

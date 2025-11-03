@@ -1,6 +1,11 @@
 // Load Firebase app module early to ensure proper initialization order
 import '@react-native-firebase/app';
 
+import './services/anki/AddonProfiles';
+
+// Initialize add-on profiles (registers template filters)
+import './services/anki/AddonProfiles';
+
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator } from 'react-native';

@@ -5,6 +5,8 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 // Check production status once at module load to avoid repeated checks
 const IS_PRODUCTION = Constants.expoConfig?.extra?.environment === 'production';
 const IS_DEV = __DEV__;
+// Allow forcing verbose logs in production builds by setting extra.verboseLogs=true
+const FORCE_VERBOSE = (Constants.expoConfig?.extra as any)?.verboseLogs === true;
 
 /**
  * Optimized logger that is truly silent in production
@@ -44,17 +46,17 @@ class Logger {
   }
 
   debug(message: string, ...args: any[]): void {
-    // Completely silent in production - zero overhead
-    if (IS_PRODUCTION) return;
-    if (IS_DEV) {
+    // Silent in production unless FORCE_VERBOSE is enabled
+    if (IS_PRODUCTION && !FORCE_VERBOSE) return;
+    if (IS_DEV || FORCE_VERBOSE) {
       console.log(`[DEBUG] ${message}`, ...args);
     }
   }
 
   info(message: string, ...args: any[]): void {
-    // Completely silent in production - zero overhead
-    if (IS_PRODUCTION) return;
-    if (IS_DEV) {
+    // Silent in production unless FORCE_VERBOSE is enabled
+    if (IS_PRODUCTION && !FORCE_VERBOSE) return;
+    if (IS_DEV || FORCE_VERBOSE) {
       console.log(`[INFO] ${message}`, ...args);
     }
   }

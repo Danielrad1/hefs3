@@ -18,6 +18,7 @@ import {
 import { InMemoryDb } from './InMemoryDb';
 import { nowSeconds, generateId } from './time';
 import { logger } from '../../utils/logger';
+import * as TemplateEngine from './TemplateEngine';
 
 /**
  * Bootstrap the database with seed cards
@@ -111,17 +112,39 @@ export function toViewCard(ankiCard: AnkiCard, db: InMemoryDb): Card {
     return toImageOcclusionCard(ankiCard, note, db);
   }
 
-  // Standard and cloze cards
-  const fields = note.flds.split(FIELD_SEPARATOR);
-  const front = fields[0] || '';
-  const back = fields[1] || '';
+  // Handle Cloze cards - pass raw fields to CardContentRenderer for blue placeholder rendering
+  // Don't use TemplateEngine which converts {{c1::text::hint}} to [hint] text
+  const MODEL_TYPE_CLOZE = 1;
+  if (model.type === MODEL_TYPE_CLOZE) {
+    const fields = note.flds.split(FIELD_SEPARATOR);
+    return {
+      id: ankiCard.id,
+      front: fields[0] || '',
+      back: fields[1] || '',
+      deckId: ankiCard.did || DEFAULT_DECK_ID,
+    };
+  }
 
-  return {
-    id: ankiCard.id,
-    front,
-    back,
-    deckId: ankiCard.did || DEFAULT_DECK_ID,
-  };
+  // Standard cards - use TemplateEngine for template rendering
+  try {
+    const rendered = TemplateEngine.render(model, note, ankiCard.ord, 'q');
+    return {
+      id: ankiCard.id,
+      front: rendered.front,
+      back: rendered.back,
+      deckId: ankiCard.did || DEFAULT_DECK_ID,
+    };
+  } catch (error) {
+    // Fallback to simple field rendering if template fails
+    logger.error(`[Adapter] Template rendering failed for card ${ankiCard.id}:`, error);
+    const fields = note.flds.split(FIELD_SEPARATOR);
+    return {
+      id: ankiCard.id,
+      front: fields[0] || '',
+      back: fields[1] || '',
+      deckId: ankiCard.did || DEFAULT_DECK_ID,
+    };
+  }
 }
 
 /**
@@ -129,7 +152,12 @@ export function toViewCard(ankiCard: AnkiCard, db: InMemoryDb): Card {
  */
 function toImageOcclusionCard(ankiCard: AnkiCard, note: AnkiNote, db: InMemoryDb): Card {
   const fields = note.flds.split(FIELD_SEPARATOR);
-  const extraField = fields[1] || '';
+  let extraField = fields[1] || '';
+  
+  // Strip metadata from extraField (targetIndices and svgDim are for internal use)
+  extraField = extraField.replace(/targetIndices:[0-9,]+/g, '').replace(/svgDim:[0-9.]+x[0-9.]+/g, '');
+  // Remove pipe separators and trim
+  extraField = extraField.replace(/^\|+|\|+$/g, '').replace(/\|+/g, '|').trim();
 
   // Parse occlusion data from note.data
   let occlusionData = '{}';
@@ -142,13 +170,25 @@ function toImageOcclusionCard(ankiCard: AnkiCard, note: AnkiNote, db: InMemoryDb
         if (data.io.mode === 'hide-all') {
           mode = 'hide-all';
         }
+        logger.info('[Adapter] IO card data:', {
+          noteId: note.id,
+          cardId: ankiCard.id,
+          image: data.io.image,
+          maskCount: data.io.masks?.length,
+          mode,
+        });
+      } else {
+        logger.warn('[Adapter] note.data exists but no data.io:', { noteId: note.id, dataKeys: Object.keys(data) });
       }
+    } else {
+      logger.warn('[Adapter] No note.data for IO note:', { noteId: note.id });
     }
   } catch (e) {
     logger.error('[Adapter] Failed to parse image occlusion data:', e);
   }
 
-  const ordAttr = mode === 'hide-all' ? 'all' : String(ankiCard.ord);
+  // Always use numeric ord - one card per mask for both hide-one and hide-all
+  const ordAttr = String(ankiCard.ord);
 
   // Front: occlusion element with ord
   const front = `<io-occlude data='${occlusionData}' ord='${ordAttr}'></io-occlude>`;

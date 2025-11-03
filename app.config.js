@@ -38,6 +38,7 @@ export default ({ config }) => withModularHeaders({
     // Feature Flags
     enableAiFeatures: process.env.ENABLE_AI_FEATURES !== 'false',
     alwaysShowTutorial: process.env.ALWAYS_SHOW_TUTORIAL === 'true',
+    verboseLogs: process.env.VERBOSE_LOGS === 'true',
     
     // RevenueCat Configuration
     rcPublicKey: process.env.RC_PUBLIC_API_KEY,

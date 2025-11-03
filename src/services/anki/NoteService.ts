@@ -272,19 +272,20 @@ export class NoteService {
 
       const { masks, mode } = this.parseImageOcclusionData(note);
 
+      // hide-one: one card per mask
+      // hide-all: exactly one card (all targets shown on one card)
       if (mode === 'hide-all') {
+        // Hide-all: create exactly ONE card with ord=0
         const cardId = generateId();
         logger.info(
-          '[NoteService] Creating single hide-all card',
+          `[NoteService] Creating hide-all card (single card for ${masks.length} masks), card ID:`,
           cardId,
-          'mask count:',
-          masks.length,
         );
         const card: AnkiCard = {
           id: cardId,
           nid: note.id,
           did: deckId,
-          ord: 0,
+          ord: 0, // Always ord=0 for hide-all
           mod: now,
           usn: -1,
           type: CardType.New,
@@ -302,9 +303,15 @@ export class NoteService {
         };
         this.db.addCard(card);
       } else {
+        // Hide-one: one card per mask
         masks.forEach((_, maskIndex) => {
           const cardId = generateId();
-          logger.info('[NoteService] Creating card for mask index', maskIndex, 'card ID:', cardId);
+          logger.info(
+            `[NoteService] Creating hide-one card for mask index`,
+            maskIndex,
+            'card ID:',
+            cardId,
+          );
           const card: AnkiCard = {
             id: cardId,
             nid: note.id,
