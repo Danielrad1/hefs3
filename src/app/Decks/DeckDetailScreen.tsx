@@ -48,12 +48,14 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
   const cards = db.getCardsByDeck(deckId);
   const col = db.getCol();
 
-  // Load AI hints settings on mount and when screen comes into focus
+  // Load AI hints settings and refresh stats on focus
   useFocusEffect(
     React.useCallback(() => {
       deckMetadataService.getAiHintsSettings(deckId).then((settings) => {
         setAiHintsEnabled(settings.enabled);
       });
+      // Force refresh of stats when returning from study
+      setRefreshTrigger(prev => prev + 1);
     }, [deckId])
   );
   
@@ -64,8 +66,9 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
   const suspendedCards = cards.filter((c) => c.queue === CardQueue.Suspended);
   
   // Use TodayCountsService for accurate due count with daily limits
-  const todayCountsService = new TodayCountsService(db);
-  const deckCounts = todayCountsService.getDeckTodayCounts(deckId);
+  // Recalculate when refreshTrigger changes
+  const todayCountsService = React.useMemo(() => new TodayCountsService(db), [refreshTrigger]);
+  const deckCounts = React.useMemo(() => todayCountsService.getDeckTodayCounts(deckId), [deckId, refreshTrigger]);
   const dueTodayCount = deckCounts.dueTodayTotal;
   
   // Use proper isDue function to check if cards are actually available
@@ -440,6 +443,17 @@ export default function DeckDetailScreen({ route, navigation }: DeckDetailScreen
 
         {/* Secondary Actions */}
         <View style={[styles.section, { backgroundColor: theme.colors.surface2 }]}>
+          <Pressable 
+            style={styles.actionRow} 
+            onPress={() => navigation.navigate('DeckSettings', { deckId })}
+          >
+            <Ionicons name="settings-outline" size={22} color={theme.colors.textHigh} />
+            <Text style={[styles.actionLabel, { color: theme.colors.textHigh }]}>Deck Settings</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.textMed} />
+          </Pressable>
+          
+          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+          
           <Pressable 
             style={styles.actionRow} 
             onPress={() => navigation.navigate('DeckStats', { deckId, deckName: deck.name })}
