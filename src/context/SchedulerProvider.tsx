@@ -8,9 +8,9 @@ import { Card } from '../domain/models';
 import { Difficulty } from '../domain/srsTypes';
 import { db } from '../services/anki/InMemoryDb';
 import { SchedulerV2 } from '../services/anki/SchedulerV2';
-import { bootstrapFromSeed, toViewCard } from '../services/anki/Adapter';
-import { RevlogEase, CardType } from '../services/anki/schema';
-import { isDue } from '../services/anki/time';
+import { CardType, Card as ViewCard, RevlogEase } from '../services/anki/types';
+import { toViewCard } from '../services/anki/CardService';
+import { todayUsageRepository, TodayUsageRepository } from '../services/anki/db/TodayUsageRepository';
 import { PersistenceService } from '../services/anki/PersistenceService';
 import { logger } from '../utils/logger';
 
@@ -201,12 +201,29 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Track today's usage BEFORE answering (to detect type transitions)
+    const wasNewCard = cardType === CardType.New;
+    const wasReviewOrRelearn = cardType === CardType.Review || cardType === CardType.Relearning;
+    
     // Process answer
     scheduler.answer(current.id, ease, responseTimeMs);
+    
+    // Increment today's usage counters
+    const colConfig = db.getColConfig();
+    const dayKey = TodayUsageRepository.getDayKey(colConfig);
+    const ankiCard = db.getCard(current.id);
+    if (ankiCard) {
+      if (wasNewCard) {
+        // New card was introduced today
+        todayUsageRepository.incrementNewIntroduced(ankiCard.did, dayKey);
+      } else if (wasReviewOrRelearn) {
+        // Review or relearning card was done today
+        todayUsageRepository.incrementReviewDone(ankiCard.did, dayKey);
+      }
+    }
 
     // Don't bury siblings for Image Occlusion - users want to review all masks in one session
     // Regular Anki behavior buries siblings, but for IO it's better UX to see all masks
-    const ankiCard = db.getCard(current.id);
     const note = ankiCard ? db.getNote(ankiCard.nid) : null;
     const model = note ? db.getModel(note.mid) : null;
     const isImageOcclusion = model?.type === 2; // MODEL_TYPE_IMAGE_OCCLUSION

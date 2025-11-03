@@ -23,6 +23,9 @@ import {
   isDue,
 } from './time';
 
+// Re-export isDue for use by other services
+export { isDue } from './time';
+
 export class SchedulerV2 {
   // Session-based buried note IDs (to prevent sibling cards from showing)
   private buriedNoteIds: Set<string> = new Set();

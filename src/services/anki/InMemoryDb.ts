@@ -21,6 +21,7 @@ import {
   MODEL_TYPE_IMAGE_OCCLUSION,
 } from './schema';
 import { nowSeconds, nowMillis, generateId } from './time';
+import { todayUsageRepository } from './db/TodayUsageRepository';
 import { logger } from '../../utils/logger';
 import {
   CardRepository,
@@ -578,6 +579,7 @@ export class InMemoryDb {
       media: Array.from(this.media.values()),
       colConfig: this.colConfig,
       usn: this.usn,
+      todayUsage: todayUsageRepository.toJSON(), // Include today usage data
     };
     return JSON.stringify(snapshot);
   }
@@ -655,6 +657,11 @@ export class InMemoryDb {
       snapshot.media.forEach((media: Media) => this.media.set(media.id, media));
       this.colConfig = snapshot.colConfig;
       this.usn = snapshot.usn;
+      
+      // Restore today usage data (backward compatible - optional field)
+      if (snapshot.todayUsage) {
+        todayUsageRepository.fromJSON(snapshot.todayUsage);
+      }
       
       // Propagate USN to all repositories to prevent stale USN values
       this.cardRepo.setUsn(this.usn);
