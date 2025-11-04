@@ -420,7 +420,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         <View style={styles.tipContainer}>
           <Ionicons name="time-outline" size={20} color="#8B5CF6" />
           <Text style={[styles.tip, { color: theme.colors.textSecondary }]}>
-            This may take a couple of minutes—we're ensuring hint quality for {displayCardCount} cards. Feel free to continue studying; hints will be ready when you're done!
+            This will take 30 seconds to 1 minute—we're ensuring hint quality for {displayCardCount} cards. Feel free to continue studying; hints will be ready when you're done!
           </Text>
         </View>
       </View>

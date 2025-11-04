@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../app/Home/HomeScreen';
 import StudyScreen from '../app/Study/StudyScreen';
 import DiscoverStack from './DiscoverStack';

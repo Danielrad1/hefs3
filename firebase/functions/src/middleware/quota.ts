@@ -31,6 +31,10 @@ function getMonthKey(): string {
  */
 export function withQuota(config: QuotaConfig) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Free version: no quotas, everyone is unlimited
+    next();
+    return;
+    
     const user = (req as AuthenticatedRequest).user;
 
     // Check if user exists

@@ -13,10 +13,8 @@ import { useAuth } from '../../context/AuthContext';
 import { usePremium } from '../../context/PremiumContext';
 import { NotificationService } from '../../services/NotificationService';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
-import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 import LegalModal from './components/LegalModal';
 import { logger } from '../../utils/logger';
-import Purchases from 'react-native-purchases';
 
 type ColorScheme = 'sunset' | 'ocean' | 'forest' | 'neon';
 
@@ -97,7 +95,7 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const theme = useTheme();
   const { user, signOut } = useAuth();
-  const { isPremiumEffective, usage, subscribe, restore } = usePremium();
+  const { isPremiumEffective } = usePremium();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [dailyReminder, setDailyReminder] = useState(false);
   const [reminderTime, setReminderTime] = useState({ hour: 20, minute: 0 });
@@ -106,13 +104,11 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [showNameModal, setShowNameModal] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showReminderTimeModal, setShowReminderTimeModal] = useState(false);
   const [tempDisplayName, setTempDisplayName] = useState('');
   const [tempGoal, setTempGoal] = useState('15');
   const [tempHour, setTempHour] = useState('20');
   const [tempMinute, setTempMinute] = useState('0');
-  const [restoring, setRestoring] = useState(false);
   const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'terms'>(null);
 
   useEffect(() => { loadSettings(); }, [user]);
@@ -239,33 +235,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  const handleSubscription = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setShowPremiumModal(true);
-  };
-
-  const handleSubscribePress = async () => {
-    try {
-      await subscribe();
-      setShowPremiumModal(false);
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to start subscription');
-    }
-  };
-
-  const handleRestorePurchases = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setRestoring(true);
-    try {
-      await restore();
-      Alert.alert('Success', 'Your purchases have been restored!');
-    } catch (error) {
-      Alert.alert('Restore Failed', error instanceof Error ? error.message : 'Could not restore purchases. Please try again.');
-    } finally {
-      setRestoring(false);
-    }
-  };
-
 
   const handleSignOut = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -294,108 +263,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           <Text style={[styles.title, { color: theme.colors.textHigh }]}>Settings</Text>
         </View>
 
-        {!isPremiumEffective && (
-          <Pressable onPress={handleSubscription} style={styles.premiumBanner}>
-            <LinearGradient 
-              colors={['#7C3AED', '#9333EA', '#A855F7']} 
-              start={{ x: 0, y: 0 }} 
-              end={{ x: 1, y: 1 }} 
-              style={styles.premiumGradient}
-            >
-              <View style={styles.premiumHeader}>
-                <View style={styles.premiumLogoContainer}>
-                  <Image 
-                    source={require('../../../assets/enqode_main_transparent.png')}
-                    style={styles.premiumLogo}
-                    resizeMode="contain"
-                  />
-                </View>
-                <View style={styles.premiumHeaderText}>
-                  <Text style={styles.premiumTitle}>Upgrade to Pro</Text>
-                  <Text style={styles.premiumSubtitle}>Unlock your full potential</Text>
-                </View>
-              </View>
-              
-              <View style={styles.premiumFeatures}>
-                <View style={styles.premiumFeature}>
-                  <View style={styles.premiumFeatureIcon}>
-                    <Ionicons name="sparkles" size={18} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.premiumFeatureText}>Unlimited AI generations</Text>
-                </View>
-                <View style={styles.premiumFeature}>
-                  <View style={styles.premiumFeatureIcon}>
-                    <Ionicons name="stats-chart" size={18} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.premiumFeatureText}>Advanced analytics</Text>
-                </View>
-                <View style={styles.premiumFeature}>
-                  <View style={styles.premiumFeatureIcon}>
-                    <Ionicons name="color-palette" size={18} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.premiumFeatureText}>All premium themes</Text>
-                </View>
-              </View>
-              
-              <View style={styles.premiumCTA}>
-                <View style={styles.premiumCTAButton}>
-                  <Text style={styles.premiumCTAText}>Get Started</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#7C3AED" />
-                </View>
-                <Text style={styles.premiumCancelText}>Cancel anytime</Text>
-              </View>
-            </LinearGradient>
-          </Pressable>
-        )}
-
-        {isPremiumEffective && (
-          <View style={[styles.premiumActiveBanner, { backgroundColor: theme.colors.success + '15', borderColor: theme.colors.success }]}>
-            <View style={styles.premiumActiveHeader}>
-              <View style={[styles.premiumActiveIcon, { backgroundColor: theme.colors.success }]}>
-                <Ionicons name="star" size={24} color="#FFFFFF" />
-              </View>
-              <View style={styles.premiumActiveText}>
-                <Text style={[styles.premiumActiveTitle, { color: theme.colors.textHigh }]}>Premium Active</Text>
-                <Text style={[styles.premiumActiveSubtitle, { color: theme.colors.textMed }]}>All features unlocked</Text>
-              </View>
-              <View style={[styles.premiumCheckBadge, { backgroundColor: theme.colors.success }]}>
-                <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-              </View>
-            </View>
-            <View style={styles.premiumFeaturesList}>
-              <View style={styles.premiumFeatureItem}>
-                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
-                <Text style={[styles.premiumFeatureText, { color: theme.colors.textMed }]}>Unlimited AI generations</Text>
-              </View>
-              <View style={styles.premiumFeatureItem}>
-                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
-                <Text style={[styles.premiumFeatureText, { color: theme.colors.textMed }]}>Advanced statistics</Text>
-              </View>
-              <View style={styles.premiumFeatureItem}>
-                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
-                <Text style={[styles.premiumFeatureText, { color: theme.colors.textMed }]}>All premium themes</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {!isPremiumEffective && usage && (
-          <View style={[styles.usageBanner, { backgroundColor: theme.colors.surface2 }]}>
-            <Text style={[styles.usageTitle, { color: theme.colors.textMed }]}>FREE TIER USAGE</Text>
-            <View style={styles.usageRow}>
-              <Text style={[styles.usageLabel, { color: theme.colors.textHigh }]}>AI Deck Generation</Text>
-              <Text style={[styles.usageValue, { color: theme.colors.textMed }]}>{usage.deckGenerations}/{usage.limits.deck} this month</Text>
-            </View>
-            <View style={styles.usageRow}>
-              <Text style={[styles.usageLabel, { color: theme.colors.textHigh }]}>AI Hints (Basic)</Text>
-              <Text style={[styles.usageValue, { color: theme.colors.textMed }]}>{usage.basicHintGenerations || 0}/{usage.limits.basicHints || 3} this month</Text>
-            </View>
-            <View style={styles.usageRow}>
-              <Text style={[styles.usageLabel, { color: theme.colors.textHigh }]}>AI Hints (Advanced)</Text>
-              <Text style={[styles.usageValue, { color: theme.colors.textMed }]}>{usage.advancedHintGenerations || 0}/{usage.limits.advancedHints || 1} this month</Text>
-            </View>
-          </View>
-        )}
 
         <SectionHeader title="PROFILE" />
         <View style={styles.section}>
@@ -440,7 +307,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             {topThemes.map((themeOption) => {
               const isSelected = theme.colorScheme === themeOption.id;
               return (
-                <Pressable key={themeOption.id} style={[styles.colorCard, isSelected && styles.colorCardSelected, { borderColor: isSelected ? themeOption.colors[0] : theme.colors.border, backgroundColor: theme.colors.surface2 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); theme.setColorScheme(themeOption.id as any); }}>
+                <Pressable key={themeOption.id} style={[styles.colorCard, isSelected && styles.colorCardSelected, { borderColor: isSelected ? themeOption.colors[0] : theme.colors.border, backgroundColor: theme.colors.surface2 }]} onPress={() => { HapticsService.light(); theme.setColorScheme(themeOption.id as any); }}>
                   <LinearGradient colors={themeOption.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.colorGradient}>
                     <View style={styles.colorIconContainer}>
                       <Ionicons name={themeOption.icon} size={24} color="#FFFFFF" />
@@ -457,7 +324,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               );
             })}
           </View>
-          <Pressable style={[styles.moreThemesButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('ThemeSelection'); }}>
+          <Pressable style={[styles.moreThemesButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} onPress={() => { HapticsService.light(); navigation.navigate('ThemeSelection'); }}>
             <Ionicons name="color-palette" size={20} color={theme.colors.textMed} />
             <Text style={[styles.moreThemesText, { color: theme.colors.textMed }]}>View All Themes</Text>
             <Ionicons name="chevron-forward" size={20} color={theme.colors.textMed} />
@@ -468,14 +335,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         <View style={styles.section}>
           {user && !user.isAnonymous && (
             <SettingItem icon="person-circle" title={user.email || 'Account'} subtitle={user.emailVerified ? 'Verified' : 'Not verified'} showChevron={false} />
-          )}
-          {Platform.OS === 'ios' && (
-            <SettingItem 
-              icon="refresh" 
-              title="Restore Purchases" 
-              subtitle={restoring ? 'Restoring...' : 'Restore previous subscriptions'} 
-              onPress={handleRestorePurchases} 
-            />
           )}
           {user && !user.isAnonymous && (
             <SettingItem icon="log-out" title="Sign Out" subtitle="Sign out of your account" onPress={handleSignOut} />
@@ -551,7 +410,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           <View style={[styles.modalContent, { backgroundColor: theme.colors.surface2 }]} onStartShouldSetResponder={() => true}>
             <Text style={[styles.modalTitle, { color: theme.colors.textHigh }]}>Theme Mode</Text>
             {themeOptions.map((option) => (
-              <Pressable key={option.value} style={[styles.themeOption, { backgroundColor: theme.themePreference === option.value ? theme.colors.overlay.primary : 'transparent', borderColor: theme.themePreference === option.value ? theme.colors.primary : theme.colors.border }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); theme.setThemePreference(option.value); setShowThemeModal(false); }}>
+              <Pressable key={option.value} style={[styles.themeOption, { backgroundColor: theme.themePreference === option.value ? theme.colors.overlay.primary : 'transparent', borderColor: theme.themePreference === option.value ? theme.colors.primary : theme.colors.border }]} onPress={() => { HapticsService.light(); theme.setThemePreference(option.value); setShowThemeModal(false); }}>
                 <Ionicons name={option.icon as any} size={24} color={theme.themePreference === option.value ? theme.colors.primary : theme.colors.textMed} />
                 <Text style={[styles.themeOptionText, { color: theme.themePreference === option.value ? theme.colors.primary : theme.colors.textHigh }]}>{option.label}</Text>
                 {theme.themePreference === option.value && <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />}
@@ -614,11 +473,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       {!!legalOpen && (
         <LegalModal visible={true} onClose={() => setLegalOpen(null)} type={legalOpen} />
       )}
-
-      <PremiumUpsellModal
-        visible={showPremiumModal}
-        onClose={() => setShowPremiumModal(false)}
-      />
     </SafeAreaView>
   );
 }

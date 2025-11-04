@@ -12,6 +12,9 @@ import { HintsInputItem } from '../../services/ai/types';
 import { NetworkService } from '../../services/network/NetworkService';
 import { logger } from '../../utils/logger';
 
+// Free version: always use advanced model for hints
+const DEFAULT_HINTS_MODEL_TIER: 'basic' | 'advanced' = 'advanced';
+
 interface ManageHintsScreenProps {
   route: {
     params: {
@@ -123,12 +126,13 @@ export default function ManageHintsScreen({ route, navigation }: ManageHintsScre
                 }
               });
 
-              // Navigate to model selection screen for regeneration
-              navigation.navigate('AIHintsModelSelection', {
+              // Free version: skip model selection, navigate directly to generation
+              navigation.navigate('AIHintsGenerating', {
                 deckId,
                 deckName,
                 totalCards: items.length,
                 items,
+                modelTier: DEFAULT_HINTS_MODEL_TIER,
               });
             } catch (error) {
               logger.error('[ManageHints] Error preparing regeneration:', error);

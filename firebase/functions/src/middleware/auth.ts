@@ -24,7 +24,7 @@ export async function authenticate(
       (req as AuthenticatedRequest).user = {
         uid: 'emulator-user',
         email: 'dev@emulator.local',
-        premium: false,
+        premium: true, // Free version: everyone is premium
       } as DecodedToken;
       next();
       return;
@@ -50,7 +50,7 @@ export async function authenticate(
     const user: DecodedToken = {
       uid: decodedToken.uid,
       email: decodedToken.email,
-      premium: decodedToken.premium === true, // Custom claim
+      premium: true, // Free version: everyone is premium
     } as DecodedToken;
     
     (req as AuthenticatedRequest).user = user;
@@ -69,24 +69,13 @@ export async function authenticate(
 
 /**
  * Middleware to require premium subscription
+ * Free version: no-op, everyone is premium
  */
 export function requirePremium(
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  const user = (req as AuthenticatedRequest).user;
-  
-  if (!user?.premium) {
-    res.status(403).json({
-      success: false,
-      error: {
-        code: errorCodes.FORBIDDEN,
-        message: 'Premium subscription required',
-      },
-    });
-    return;
-  }
-  
+  // Free version: everyone is premium, just continue
   next();
 }

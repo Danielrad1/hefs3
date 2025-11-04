@@ -40,10 +40,8 @@ export default ({ config }) => withModularHeaders({
     alwaysShowTutorial: process.env.ALWAYS_SHOW_TUTORIAL === 'true',
     verboseLogs: process.env.VERBOSE_LOGS === 'true',
     
-    // RevenueCat Configuration
-    rcPublicKey: process.env.RC_PUBLIC_API_KEY,
-    enableIAP: process.env.ENABLE_IAP !== 'false',
-    enableRcEntitlementFallback: process.env.ENABLE_RC_ENTITLEMENT_FALLBACK === 'true',
+    // Free version: RevenueCat and IAP disabled
+    enableIAP: false,
     
     // OAuth Configuration
     googleIosClientId: process.env.GOOGLE_IOS_CLIENT_ID || '953455180571-8jc7qunauq08q73uiehk7uou8d55a8mf.apps.googleusercontent.com',

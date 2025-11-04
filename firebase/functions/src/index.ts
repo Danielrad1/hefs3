@@ -7,7 +7,7 @@ import { aiHandler } from './handlers/ai';
 import { generateHints } from './handlers/aiHints';
 import { parseHandler } from './handlers/parse';
 import { getUsage } from './handlers/usage';
-import { revenueCatWebhook } from './handlers/revenuecat';
+// import { revenueCatWebhook } from './handlers/revenuecat'; // Free version: removed
 import { authenticate } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import express from 'express';
@@ -103,9 +103,10 @@ logger.info('[Setup] Registered /ai/hints/generate');
 app.get('/ai/models', authenticate, aiHandler.getModels);
 logger.info('[Setup] AI routes registered');
 
-// Usage and IAP routes
+// Usage routes
 app.get('/usage', authenticate, getUsage);
-app.post('/iap/revenuecat/webhook', revenueCatWebhook);
+// Free version: RevenueCat webhook removed
+// app.post('/iap/revenuecat/webhook', revenueCatWebhook);
 
 // Note: /parse/file route registered above (before global JSON parser) to support 25MB limit
 

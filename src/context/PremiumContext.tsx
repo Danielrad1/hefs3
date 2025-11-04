@@ -67,7 +67,8 @@ interface PremiumProviderProps {
 
 export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) => {
   const { user } = useAuth();
-  const [isPremiumEffective, setIsPremiumEffective] = useState(false);
+  // Free version: everyone is premium
+  const [isPremiumEffective, setIsPremiumEffective] = useState(true);
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,55 +77,11 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   const [monthlyPackage, setMonthlyPackage] = useState<any | null>(null);
 
   /**
-   * Check premium status from Firebase custom claims and optionally RC entitlements
+   * Check premium status - Free version: always premium
    */
   const checkPremiumStatus = useCallback(async () => {
-    try {
-      if (!user) {
-        setIsPremiumEffective(false);
-        setUsage(null);
-        return;
-      }
-
-      // Get ID token result to access custom claims
-      const currentUser = auth().currentUser;
-      if (!currentUser) {
-        setIsPremiumEffective(false);
-        return;
-      }
-
-      const tokenResult = await currentUser.getIdTokenResult();
-      const isPremiumFromClaim = tokenResult.claims.premium === true;
-      
-      // Optional: Check RC entitlement for immediate unlock if enabled
-      const enableFallback = Constants.expoConfig?.extra?.enableRcEntitlementFallback === true;
-      let isPremiumFromRC = false;
-      
-      if (enableFallback && rcInitialized) {
-        try {
-          const customerInfo = await Purchases.getCustomerInfo();
-          
-          // Check for 'Pro' entitlement (case-sensitive!)
-          isPremiumFromRC = customerInfo.entitlements.active['Pro'] !== undefined;
-          logger.debug(`[Premium] RC entitlement 'Pro' active: ${isPremiumFromRC}`);
-        } catch (rcErr) {
-          logger.warn('[Premium] Could not check RC entitlement:', rcErr);
-        }
-      }
-      
-      const isPremium = isPremiumFromClaim || (enableFallback && isPremiumFromRC);
-      
-      logger.debug('[Premium] Status check complete', {
-        claim: isPremiumFromClaim,
-        rc: isPremiumFromRC,
-        fallbackEnabled: enableFallback,
-        effective: isPremium
-      });
-      setIsPremiumEffective(isPremium);
-    } catch (err) {
-      logger.error('[Premium] Error checking premium status:', err);
-      setError(err instanceof Error ? err.message : 'Failed to check premium status');
-    }
+    // Free version: everyone is premium
+    setIsPremiumEffective(true);
   }, [user, rcInitialized]);
 
   /**
@@ -175,7 +132,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
           await AsyncStorage.setItem(storageKey, JSON.stringify(data));
         }
       } else {
-        // Initialize new month
+        // Initialize new month - Free version: unlimited
         data = {
           monthKey,
           deckGenerations: 0,
@@ -184,11 +141,11 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
           basicHintGenerations: 0,
           advancedHintGenerations: 0,
           limits: {
-            deck: 3,
-            basicDecks: 3,
-            advancedDecks: 1,
-            basicHints: 3,
-            advancedHints: 1,
+            deck: 999999,
+            basicDecks: 999999,
+            advancedDecks: 999999,
+            basicHints: 999999,
+            advancedHints: 999999,
           },
         };
         await AsyncStorage.setItem(storageKey, JSON.stringify(data));
@@ -353,134 +310,18 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   }, [user, isPremiumEffective]);
 
   /**
-   * Initialize RevenueCat SDK on mount
+   * Initialize RevenueCat SDK on mount - Free version: disabled
    */
   useEffect(() => {
-    const initializeRC = async () => {
-      try {
-        // Only initialize on iOS
-        if (Platform.OS !== 'ios') {
-          logger.info('[Premium] RevenueCat only available on iOS, skipping initialization');
-          return;
-        }
-
-        const rcPublicKey = Constants.expoConfig?.extra?.rcPublicKey;
-        const enableIAP = Constants.expoConfig?.extra?.enableIAP !== false;
-        
-        if (!enableIAP) {
-          logger.info('[Premium] IAP disabled via feature flag');
-          return;
-        }
-        
-        if (!rcPublicKey) {
-          logger.warn('[Premium] RC public key not found in config');
-          return;
-        }
-
-        // Check if Purchases module is available
-        if (!Purchases || typeof Purchases.configure !== 'function') {
-          logger.error('[Premium] Purchases module not available - native module may not be linked');
-          return;
-        }
-
-        const enableFallback = Constants.expoConfig?.extra?.enableRcEntitlementFallback === true;
-        
-        logger.info('[Premium] Initializing RevenueCat SDK', {
-          environment: Constants.expoConfig?.extra?.environment,
-          enableEntitlementFallback: enableFallback,
-        });
-        
-        Purchases.configure({ apiKey: rcPublicKey });
-        
-        // Add customer info listener for entitlement changes
-        Purchases.addCustomerInfoUpdateListener((info: any) => {
-          logger.debug('[Premium] Customer info updated', {
-            hasProEntitlement: info.entitlements.active['Pro'] !== undefined,
-          });
-          // Re-check premium status when entitlements change
-          checkPremiumStatus();
-        });
-        
-        setRcInitialized(true);
-        logger.info('[Premium] RevenueCat initialized successfully');
-      } catch (err) {
-        logger.error('[Premium] Failed to initialize RevenueCat:', err);
-        logger.error('[Premium] This is expected if running on Android or if native module failed to link');
-      }
-    };
-
-    // Small delay to ensure native modules are ready
-    const timer = setTimeout(initializeRC, 100);
-    return () => clearTimeout(timer);
+    // Free version: no RevenueCat initialization
+    logger.info('[Premium] Free version - RevenueCat disabled');
   }, []);
 
   /**
-   * Handle auth state changes - map Firebase UID to RC app_user_id
+   * Handle auth state changes - Free version: disabled
    */
   useEffect(() => {
-    const syncRCUser = async () => {
-      if (!rcInitialized) return;
-      
-      try {
-        if (user?.uid) {
-          logger.info('[Premium] Logging in to RevenueCat', { uid: user.uid });
-          const loginResult = await Purchases.logIn(user.uid);
-          
-          // Wait for customer info to sync
-          logger.debug('[Premium] Customer info after login:', {
-            hasProEntitlement: loginResult.customerInfo.entitlements.active['Pro'] !== undefined,
-          });
-          
-          // Fetch offerings after login
-          try {
-            const newOfferings = await Purchases.getOfferings();
-            setOfferings(newOfferings);
-            
-            // Select monthly package
-            const currentOffering = newOfferings.current || newOfferings.all['default'];
-            if (currentOffering) {
-              const monthly = currentOffering.availablePackages.find(
-                (pkg: any) => pkg.packageType === 'MONTHLY'
-              );
-              setMonthlyPackage(monthly || null);
-              if (monthly) {
-                logger.debug('[Premium] Monthly package found', {
-                  identifier: monthly.identifier,
-                });
-              }
-            } else {
-              logger.warn('[Premium] No offerings available - products may not be configured in App Store Connect yet');
-            }
-          } catch (offeringsErr) {
-            logger.warn('[Premium] Could not fetch offerings:', offeringsErr);
-            // Continue without offerings - user can still use the app
-          }
-          
-          // Small delay to ensure backend has processed the login
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Force Firebase token refresh to get updated custom claims
-          const currentUser = auth().currentUser;
-          if (currentUser) {
-            logger.info('[Premium] Refreshing Firebase token to get updated claims');
-            await currentUser.getIdToken(true);
-          }
-          
-          // Automatically check premium status after login to restore purchases
-          logger.info('[Premium] Auto-restoring purchases after login');
-          await checkPremiumStatus();
-        } else {
-          logger.info('[Premium] Logging out from RevenueCat');
-          await Purchases.logOut();
-          setOfferings(null);
-          setMonthlyPackage(null);
-        }
-      } catch (err) {
-        logger.error('[Premium] Error syncing RC user:', err);
-      }
-    };
-
-    syncRCUser();
+    // Free version: no RevenueCat sync
   }, [user, rcInitialized, checkPremiumStatus]);
 
   /**
@@ -528,66 +369,19 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   }, [checkPremiumStatus, fetchUsage]);
 
   /**
-   * Handle subscription purchase
+   * Handle subscription purchase - Free version: no-op
    */
   const subscribe = useCallback(async () => {
-    try {
-      if (!monthlyPackage) {
-        throw new Error('Monthly package not available. Please try again later.');
-      }
-
-      logger.info('[Premium] Starting purchase flow');
-      
-      // Execute purchase
-      const { customerInfo } = await Purchases.purchasePackage(monthlyPackage);
-      
-      logger.info('[Premium] Purchase successful', {
-        hasProEntitlement: customerInfo.entitlements.active['Pro'] !== undefined,
-      });
-      
-      // Force token refresh to get updated custom claims
-      await auth().currentUser?.getIdToken(true);
-      
-      // Refresh entitlements
-      await refreshEntitlements();
-      
-      logger.info('[Premium] Purchase complete, entitlements refreshed');
-    } catch (err: any) {
-      // Check if user cancelled
-      if (err?.userCancelled) {
-        logger.info('[Premium] Purchase cancelled by user');
-        throw new Error('cancelled');
-      }
-      
-      logger.error('[Premium] Purchase error:', err);
-      throw err;
-    }
+    // Free version: everyone is already premium
+    logger.info('[Premium] Free version - subscribe is a no-op');
   }, [monthlyPackage, refreshEntitlements]);
 
   /**
-   * Restore previous purchases
+   * Restore previous purchases - Free version: no-op
    */
   const restore = useCallback(async () => {
-    try {
-      logger.info('[Premium] Starting restore');
-      
-      const customerInfo = await Purchases.restorePurchases();
-      
-      logger.info('[Premium] Restore successful', {
-        hasProEntitlement: customerInfo.entitlements.active['Pro'] !== undefined,
-      });
-      
-      // Force token refresh to get updated custom claims
-      await auth().currentUser?.getIdToken(true);
-      
-      // Refresh entitlements
-      await refreshEntitlements();
-      
-      logger.info('[Premium] Restore complete, entitlements refreshed');
-    } catch (err) {
-      logger.error('[Premium] Restore error:', err);
-      throw err;
-    }
+    // Free version: everyone is already premium
+    logger.info('[Premium] Free version - restore is a no-op');
   }, [refreshEntitlements]);
 
   const value: PremiumContextType = {

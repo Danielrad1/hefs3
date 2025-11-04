@@ -13,8 +13,10 @@ import { cardHintsService, CardHintsService } from '../../services/anki/CardHint
 import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { HintsInputItem } from '../../services/ai/types';
 import { NetworkService } from '../../services/network/NetworkService';
-import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 import { logger } from '../../utils/logger';
+
+// Free version: always use advanced model for hints
+const DEFAULT_HINTS_MODEL_TIER: 'basic' | 'advanced' = 'advanced';
 
 interface AIHintsConfigScreenProps {
   route: {
@@ -29,9 +31,8 @@ interface AIHintsConfigScreenProps {
 
 export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfigScreenProps) {
   const theme = useTheme();
-  const { isPremiumEffective, usage, subscribe, incrementUsage, fetchUsage } = usePremium();
+  const { isPremiumEffective, fetchUsage } = usePremium();
   const { deckId, deckName, totalCards } = route.params;
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
 
   // Refresh usage data when screen becomes focused
   useFocusEffect(
@@ -88,14 +89,7 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
       continueGeneration(cards);
     } catch (error) {
       logger.error('[AIHintsConfig] Error preparing generation:', error);
-      
-      // Check if quota exceeded
-      const errorMessage = error instanceof Error ? error.message : '';
-      if (errorMessage.includes('limit reached') || errorMessage.includes('quota')) {
-        setShowPremiumModal(true);
-      } else {
-        Alert.alert('Error', 'Failed to prepare hints generation');
-      }
+      Alert.alert('Error', 'Failed to prepare hints generation');
     }
   };
 
@@ -148,12 +142,13 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
         }
       });
 
-      // Navigate to model selection screen
-      navigation.navigate('AIHintsModelSelection', {
+      // Free version: skip model selection, navigate directly to generation
+      navigation.navigate('AIHintsGenerating', {
         deckId,
         deckName,
         totalCards: cards.length,
         items,
+        modelTier: DEFAULT_HINTS_MODEL_TIER,
       });
     } catch (error) {
       logger.error('[AIHintsConfig] Error in continueGeneration:', error);
@@ -161,14 +156,6 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
     }
   };
 
-  const handleSubscribePress = async () => {
-    try {
-      await subscribe();
-      setShowPremiumModal(false);
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to start subscription');
-    }
-  };
 
   const allCards = db.getCardsByDeck(deckId);
 
@@ -273,28 +260,15 @@ export default function AIHintsConfigScreen({ route, navigation }: AIHintsConfig
 
       {/* Generate Button */}
       <View style={[styles.footer, { backgroundColor: theme.colors.bg }]}>
-        {!isPremiumEffective && (
-          <View style={[styles.usageBar, { backgroundColor: theme.colors.surface2 }]}>
-            <Ionicons name="information-circle-outline" size={16} color={theme.colors.textMed} />
-            <Text style={[styles.usageText, { color: theme.colors.textMed }]}>
-              Free hints: {usage?.basicHintGenerations || 0}/{usage?.limits?.basicHints || 3} Basic • {usage?.advancedHintGenerations || 0}/{usage?.limits?.advancedHints || 1} Advanced
-            </Text>
-          </View>
-        )}
         <Pressable
           style={[styles.generateButton, { backgroundColor: theme.colors.accent }]}
           onPress={handleGenerate}
           disabled={allCards.length === 0}
         >
-          <Ionicons name="sparkles" size={24} color="#000" style={{ marginRight: s.sm }} />
+          <Ionicons name="sparkles" size={20} color="#000" style={{ marginRight: s.sm }} />
           <Text style={styles.generateButtonText}>Generate AI Hints</Text>
         </Pressable>
       </View>
-
-      <PremiumUpsellModal
-        visible={showPremiumModal}
-        onClose={() => setShowPremiumModal(false)}
-      />
     </SafeAreaView>
   );
 }
@@ -453,7 +427,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   generateButton: {
-    padding: s.xl,
+    padding: s.lg,
     borderRadius: r.lg,
     flexDirection: 'row',
     alignItems: 'center',
@@ -465,8 +439,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   generateButtonText: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#000',
   },
   freeBanner: {

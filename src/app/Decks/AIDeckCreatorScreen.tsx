@@ -20,7 +20,6 @@ import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { ApiService } from '../../services/cloud/ApiService';
 import { NetworkService } from '../../services/network/NetworkService';
-import PremiumUpsellModal from '../../components/premium/PremiumUpsellModal';
 import { logger } from '../../utils/logger';
 import {
   FileAttachment,
@@ -33,7 +32,6 @@ import ChoiceStep from './components/ChoiceStep';
 import FilesStep from './components/FilesStep';
 import InstructionsStep from './components/InstructionsStep';
 import SettingsStep from './components/SettingsStep';
-import ModelSelectionStep from './components/ModelSelectionStep';
 
 const TOPIC_PROMPTS = [
   'Human anatomy muscles with origin, insertion, action',
@@ -51,8 +49,11 @@ const FILE_PROMPTS = [
   'Break down complex processes step-by-step',
 ];
 
-type Step = 'choice' | 'files' | 'instructions' | 'settings' | 'model';
+type Step = 'choice' | 'files' | 'instructions' | 'settings';
 type ModelTier = 'basic' | 'advanced';
+
+// Free version: always use basic model for deck generation
+const DEFAULT_MODEL_TIER: ModelTier = 'basic';
 
 const CHARACTER_WARNING_THRESHOLD = 300000;
 
@@ -69,8 +70,6 @@ export default function AIDeckCreatorScreen() {
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [instructions, setInstructions] = useState<InstructionOptions>(getDefaultInstructions());
   const [itemLimit, setItemLimit] = useState('25');
-  const [selectedModelTier, setSelectedModelTier] = useState<ModelTier>('basic');
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
 
   useEffect(() => {
     const prompts = useFiles ? FILE_PROMPTS : TOPIC_PROMPTS;
@@ -205,7 +204,8 @@ export default function AIDeckCreatorScreen() {
       if (useFiles) {
         setCurrentStep('instructions');
       } else {
-        setCurrentStep('model');
+        // Free version: skip model selection, go directly to generate
+        handleGenerate();
       }
     } else if (currentStep === 'instructions') {
       if (!useFiles && prompt.trim().length === 0) {
@@ -214,7 +214,8 @@ export default function AIDeckCreatorScreen() {
       }
 
       if (useFiles) {
-        setCurrentStep('model');
+        // Free version: skip model selection, go directly to generate
+        handleGenerate();
       } else {
         setCurrentStep('settings');
       }
@@ -237,8 +238,6 @@ export default function AIDeckCreatorScreen() {
       } else {
         setCurrentStep('choice');
       }
-    } else if (currentStep === 'model') {
-      setCurrentStep('settings');
     }
   };
 
@@ -281,7 +280,7 @@ export default function AIDeckCreatorScreen() {
       notesText: finalNotesText,
       noteModel: instructions.cardFormat,
       itemLimit: limit,
-      modelTier: selectedModelTier,
+      modelTier: DEFAULT_MODEL_TIER,
     });
   };
 
@@ -295,8 +294,6 @@ export default function AIDeckCreatorScreen() {
         return 'Instructions';
       case 'settings':
         return 'Settings';
-      case 'model':
-        return 'Select Model';
       default:
         return 'Create with AI';
     }
@@ -307,13 +304,11 @@ export default function AIDeckCreatorScreen() {
       case 'choice':
         return 'Get started';
       case 'files':
-        return `Step 1 of 4`;
+        return `Step 1 of 3`;
       case 'instructions':
-        return useFiles ? 'Step 3 of 4' : 'Step 1 of 3';
+        return useFiles ? 'Step 3 of 3' : 'Step 1 of 2';
       case 'settings':
-        return useFiles ? 'Step 2 of 4' : 'Step 2 of 3';
-      case 'model':
-        return useFiles ? 'Step 4 of 4' : 'Step 3 of 3';
+        return useFiles ? 'Step 2 of 3' : 'Step 2 of 2';
       default:
         return '';
     }
@@ -408,16 +403,8 @@ export default function AIDeckCreatorScreen() {
               itemLimit={itemLimit}
               onCountChange={setItemLimit}
               isPremiumEffective={isPremiumEffective}
-              onShowPremiumModal={() => setShowPremiumModal(true)}
+              onShowPremiumModal={() => {}}
               hasFiles={useFiles}
-            />
-          )}
-
-          {currentStep === 'model' && (
-            <ModelSelectionStep
-              selectedTier={selectedModelTier}
-              onSelectTier={setSelectedModelTier}
-              itemLimit={parseInt(itemLimit) || 25}
             />
           )}
         </View>
@@ -430,50 +417,33 @@ export default function AIDeckCreatorScreen() {
               { backgroundColor: theme.colors.bg, borderTopColor: theme.colors.border },
             ]}
           >
-            {currentStep !== 'model' ? (
-              <Pressable
+            <Pressable
+              style={[
+                styles.button,
+                {
+                  backgroundColor: canProceed() ? theme.colors.primary : theme.colors.surface2,
+                },
+              ]}
+              onPress={handleNext}
+              disabled={!canProceed()}
+            >
+              <Text
                 style={[
-                  styles.button,
-                  {
-                    backgroundColor: canProceed() ? theme.colors.primary : theme.colors.surface2,
-                  },
+                  styles.buttonText,
+                  { color: canProceed() ? '#fff' : theme.colors.textLow },
                 ]}
-                onPress={handleNext}
-                disabled={!canProceed()}
               >
-                <Text
-                  style={[
-                    styles.buttonText,
-                    { color: canProceed() ? '#fff' : theme.colors.textLow },
-                  ]}
-                >
-                  Next
-                </Text>
-                <Ionicons
-                  name="arrow-forward"
-                  size={20}
-                  color={canProceed() ? '#fff' : theme.colors.textLow}
-                />
-              </Pressable>
-            ) : (
-              <Pressable style={styles.generateButton} onPress={handleGenerate}>
-                <LinearGradient
-                  colors={[theme.colors.accent, theme.colors.accent]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.gradientButton}
-                >
-                  <View style={styles.buttonContent}>
-                    <Ionicons name="sparkles" size={20} color="#000" />
-                    <Text style={styles.generateButtonText}>Generate Deck</Text>
-                  </View>
-                </LinearGradient>
-              </Pressable>
-            )}
+                {currentStep === 'settings' && !useFiles ? 'Generate Deck' : currentStep === 'instructions' && useFiles ? 'Generate Deck' : 'Next'}
+              </Text>
+              <Ionicons
+                name={currentStep === 'settings' && !useFiles ? 'sparkles' : currentStep === 'instructions' && useFiles ? 'sparkles' : 'arrow-forward'}
+                size={20}
+                color={canProceed() ? '#fff' : theme.colors.textLow}
+              />
+            </Pressable>
           </View>
         )}
       </KeyboardAvoidingView>
-      <PremiumUpsellModal visible={showPremiumModal} onClose={() => setShowPremiumModal(false)} />
     </SafeAreaView>
   );
 }
