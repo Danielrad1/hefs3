@@ -168,58 +168,46 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
     runOnJS(onAnswer)(difficulty);
   };
 
-  // Programmatic rating - EXACT COPY of swipe gesture animation
+  // Programmatic rating - mirror swipe gesture animation exactly
   const triggerRating = React.useCallback((difficulty: Difficulty) => {
     'worklet';
     // Guard: only allow rating when revealed
     if (!isRevealed.value || revealProgress.value !== 1) return;
     
-    // Simulate touch position for rotation pivot (buttons are at bottom)
-    // touchStartY affects rotation: positive = touch below center = less rotation
-    touchStartY.value = height / 4; // Bottom of screen touch
+    // Simulate touch position near bottom to match typical swipe pivot
+    // Do NOT unset isRevealed here; keep overlays visible like a real swipe
+    touchStartY.value = height / 4;
+    isSwiping.value = true; // Hide buttons via the same flag used during swipes
     
-    // Hide buttons instantly on UI thread (no bridge delay)
-    isRevealed.value = false; // Set on UI thread immediately
-    revealProgress.value = 0; // This triggers buttonsAnimatedStyle to hide instantly
-    runOnJS(setRevealed)(false); // Sync to React state (can be delayed)
-    
-    // EXACT COPY of swipe onEnd animation code
+    // Mirror swipe onEnd spring animations and parent shared updates
     if (difficulty === 'again') {
       runOnJS(ratingAgain)();
       translateX.value = 0;
-      translateY.value = withSpring(height * 1.5, {
-        velocity: 800, damping: 15, stiffness: 120
-      });
-      // Sync parent shared values
-      if (translateXShared) translateXShared.value = translateX.value;
-      if (translateYShared) translateYShared.value = translateY.value;
+      const animY = withSpring(height * 1.5, { velocity: 300, damping: 18, stiffness: 110 });
+      translateY.value = animY;
+      if (translateXShared) translateXShared.value = 0;
+      if (translateYShared) translateYShared.value = animY;
     } else if (difficulty === 'hard') {
       runOnJS(ratingHard)();
       translateY.value = 0;
-      translateX.value = withSpring(-width * 1.5, {
-        velocity: 800, damping: 15, stiffness: 120
-      });
-      // Sync parent shared values
-      if (translateXShared) translateXShared.value = translateX.value;
-      if (translateYShared) translateYShared.value = translateY.value;
+      const animX = withSpring(-width * 1.5, { velocity: 500, damping: 18, stiffness: 110 });
+      translateX.value = animX;
+      if (translateXShared) translateXShared.value = animX;
+      if (translateYShared) translateYShared.value = 0;
     } else if (difficulty === 'good') {
       runOnJS(ratingGood)();
       translateY.value = 0;
-      translateX.value = withSpring(width * 1.5, {
-        velocity: 800, damping: 15, stiffness: 120
-      });
-      // Sync parent shared values
-      if (translateXShared) translateXShared.value = translateX.value;
-      if (translateYShared) translateYShared.value = translateY.value;
+      const animX = withSpring(width * 1.5, { velocity: 500, damping: 18, stiffness: 110 });
+      translateX.value = animX;
+      if (translateXShared) translateXShared.value = animX;
+      if (translateYShared) translateYShared.value = 0;
     } else if (difficulty === 'easy') {
       runOnJS(ratingEasy)();
       translateX.value = 0;
-      translateY.value = withSpring(-height * 1.5, {
-        velocity: 800, damping: 15, stiffness: 120
-      });
-      // Sync parent shared values
-      if (translateXShared) translateXShared.value = translateX.value;
-      if (translateYShared) translateYShared.value = translateY.value;
+      const animY = withSpring(-height * 1.5, { velocity: 500, damping: 18, stiffness: 110 });
+      translateY.value = animY;
+      if (translateXShared) translateXShared.value = 0;
+      if (translateYShared) translateYShared.value = animY;
     }
     
     // Call onAnswer (StudyScreen delays scheduler update for animation)

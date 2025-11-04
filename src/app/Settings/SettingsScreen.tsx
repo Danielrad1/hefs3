@@ -266,50 +266,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  const handleDebugIAP = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    logger.info('[IAP Debug] Starting StoreKit availability check...');
-    
-    try {
-      const products = await Purchases.getProducts(['com.enqode.app.pro.sub.monthly']);
-      
-      logger.info('[IAP Debug] ===== STOREFRONT CHECK RESULTS =====');
-      logger.info('[IAP Debug] Products count:', products.length);
-      
-      if (products.length === 0) {
-        logger.warn('[IAP Debug] ⚠️ EMPTY ARRAY - Apple is not serving the product to this build/storefront');
-        logger.warn('[IAP Debug] Focus on App Store Connect attachment/availability');
-        Alert.alert(
-          'IAP Debug: No Products',
-          'StoreKit returned empty array.\n\nThis means Apple is NOT serving the product to this build/storefront.\n\nCheck:\n• App Store Connect attachment\n• Product availability in your storefront\n• 24hr processing time\n\nSee logs for details.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        const product = products[0];
-        logger.info('[IAP Debug] ✅ StoreKit OK - Product found!');
-        logger.info('[IAP Debug] Product ID:', product.identifier);
-        logger.info('[IAP Debug] Price:', product.priceString);
-        logger.info('[IAP Debug] Title:', product.title);
-        logger.info('[IAP Debug] Description:', product.description);
-        logger.info('[IAP Debug] Full product object:', JSON.stringify(product, null, 2));
-        
-        Alert.alert(
-          'IAP Debug: Product Found ✅',
-          `StoreKit is working!\n\nProduct: ${product.identifier}\nPrice: ${product.priceString}\nTitle: ${product.title}\n\nIf offerings still fail, check RevenueCat dashboard mapping.\n\nSee logs for full details.`,
-          [{ text: 'OK' }]
-        );
-      }
-      
-      logger.info('[IAP Debug] ===== END RESULTS =====');
-    } catch (error) {
-      logger.error('[IAP Debug] Error checking products:', error);
-      Alert.alert(
-        'IAP Debug: Error',
-        `Failed to check products: ${error instanceof Error ? error.message : 'Unknown error'}\n\nSee logs for details.`,
-        [{ text: 'OK' }]
-      );
-    }
-  };
 
   const handleSignOut = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -524,16 +480,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           {user && !user.isAnonymous && (
             <SettingItem icon="log-out" title="Sign Out" subtitle="Sign out of your account" onPress={handleSignOut} />
           )}
-        </View>
-
-        <SectionHeader title="DEBUG (DEV ONLY)" />
-        <View style={styles.section}>
-          <SettingItem 
-            icon="bug" 
-            title="Debug IAP / StoreKit" 
-            subtitle="Check if Apple is serving the product to this build" 
-            onPress={handleDebugIAP} 
-          />
         </View>
 
         <SectionHeader title="LEGAL" />
