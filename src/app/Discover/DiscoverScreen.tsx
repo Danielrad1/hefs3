@@ -23,8 +23,6 @@ import { FilterChips } from './FilterChips';
 import { buildDeckTheme, getDeckGlyphs } from './DeckTheme';
 import { CategoryRow } from './CategoryRow';
 import { useScheduler } from '../../context/SchedulerProvider';
-import OnboardingModal from '../../components/OnboardingModal';
-import { FirstRunGuide } from '../../guided/FirstRunGuide';
 import { useAuth } from '../../context/AuthContext';
 export default function DiscoverScreen() {
   const theme = useTheme();
@@ -43,26 +41,13 @@ export default function DiscoverScreen() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState('');
-  const [showImportModal, setShowImportModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const scrollY = useSharedValue(0);
-  const [showPostImportModal, setShowPostImportModal] = useState(false);
   useEffect(() => {
     // Clear cache to ensure fresh data
     DiscoverService.clearCache();
     loadDecks();
   }, []);
-
-  // Show import modal on first run
-  useEffect(() => {
-    if (!uid) {
-      setShowImportModal(false);
-      return;
-    }
-    FirstRunGuide.shouldShowDiscover(uid)
-      .then((should) => setShowImportModal(should))
-      .catch(() => setShowImportModal(false));
-  }, [uid]);
 
   const loadDecks = async () => {
     try {
@@ -186,11 +171,9 @@ export default function DiscoverScreen() {
   }, [decks]);
 
   // Stable callback for card press
-  const handleCardPress = useCallback(async (deck: DeckManifest) => {
-    setShowImportModal(false);
-    try { await FirstRunGuide.markDiscoverShown(uid); } catch {}
+  const handleCardPress = useCallback((deck: DeckManifest) => {
     setSelectedDeck(deck);
-  }, [uid]);
+  }, []);
 
   const handleDownload = useCallback(async (deck: DeckManifest) => {
     try {
@@ -256,16 +239,7 @@ export default function DiscoverScreen() {
       setDownloadProgress(100); // Show download complete
       
       // Import the downloaded file (this will set importing=true and update importProgress)
-      const parsed = await importDeckFile(localUri, deck);
-
-      // Mark guide complete and schedule study
-      try { await FirstRunGuide.completeDiscover(uid); } catch {}
-
-      // Only show modal if this is part of the tutorial
-      const shouldShowTutorial = await FirstRunGuide.shouldShowDiscover(uid);
-      if (shouldShowTutorial) {
-        setShowPostImportModal(true);
-      }
+      await importDeckFile(localUri, deck);
       
     } catch (error: any) {
       logger.error('Download/Import failed:', error);
@@ -424,32 +398,6 @@ export default function DiscoverScreen() {
           />
         );
       })()}
-
-      {/* Import guide popup */}
-      <OnboardingModal
-        visible={showImportModal && decks.length > 0}
-        icon="cloud-download-outline"
-        title="Import Your First Deck"
-        body="Tap any deck to preview it, then press Download. You can import Anki .apkg files or create decks with AI later from Decks."
-        primaryLabel="Let's do it"
-        onPrimary={async () => {
-          setShowImportModal(false);
-          try { await FirstRunGuide.markDiscoverShown(uid); } catch {}
-        }}
-      />
-
-      {/* Post-import next step */}
-      <OnboardingModal
-        visible={showPostImportModal}
-        icon="checkmark-circle-outline"
-        title="Deck Imported"
-        body="Great! Next, go to the Decks tab, open your deck, and press Study Now."
-        primaryLabel="Go to Decks"
-        onPrimary={() => {
-          setShowPostImportModal(false);
-          try { (navigation as any).navigate('Decks'); } catch {}
-        }}
-      />
     </SafeAreaView>
   );
 }

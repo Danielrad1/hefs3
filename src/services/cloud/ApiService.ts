@@ -50,7 +50,8 @@ export class ApiService {
   static async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    timeoutMs: number = 120000 // 2 minutes default
+    timeoutMs: number = 120000, // 2 minutes default
+    signal?: AbortSignal // Optional external abort signal
   ): Promise<ApiResponse<T>> {
     try {
       // Check network connectivity first
@@ -67,6 +68,11 @@ export class ApiService {
       // Create abort controller for timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      // If external signal is provided, listen to it and abort internal controller
+      if (signal) {
+        signal.addEventListener('abort', () => controller.abort());
+      }
 
       const response = await fetch(url, {
         ...options,
@@ -155,15 +161,15 @@ export class ApiService {
   /**
    * GET request
    */
-  static async get<T>(endpoint: string): Promise<T> {
-    const response = await this.request<T>(endpoint, { method: 'GET' });
+  static async get<T>(endpoint: string, signal?: AbortSignal): Promise<T> {
+    const response = await this.request<T>(endpoint, { method: 'GET' }, 120000, signal);
     return response.data!;
   }
 
   /**
    * POST request
    */
-  static async post<T>(endpoint: string, body?: any, timeoutMs?: number): Promise<T> {
+  static async post<T>(endpoint: string, body?: any, timeoutMs?: number, signal?: AbortSignal): Promise<T> {
     // Use longer timeout for file parsing and AI generation
     const defaultTimeout = endpoint.includes('/parse/') || endpoint.includes('/ai/') 
       ? 600000 // 10 minutes for file parsing and AI (hints can take a while for large decks)
@@ -175,7 +181,8 @@ export class ApiService {
         method: 'POST',
         body: body ? JSON.stringify(body) : undefined,
       },
-      timeoutMs || defaultTimeout
+      timeoutMs || defaultTimeout,
+      signal
     );
     return response.data!;
   }

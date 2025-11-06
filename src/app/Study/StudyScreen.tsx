@@ -14,9 +14,6 @@ import { deckMetadataService } from '../../services/anki/DeckMetadataService';
 import { db } from '../../services/anki/InMemoryDb';
 import { hintEventsRepository } from '../../services/anki/db/HintEventsRepository';
 import AIHintsPromoModal from './AIHintsPromoModal';
-import StudyCoachOverlay from './StudyCoachOverlay';
-import { FirstRunGuide } from '../../guided/FirstRunGuide';
-import { useAuth } from '../../context/AuthContext';
 import { logger } from '../../utils/logger';
 
 interface StudyScreenProps {
@@ -26,9 +23,8 @@ interface StudyScreenProps {
 export default function StudyScreen({ navigation }: StudyScreenProps) {
   const theme = useTheme();
   const confettiRef = useRef<ConfettiCannon>(null);
-  const { current, next, cardType, answer, bootstrap, currentDeckId, decks } = useScheduler();
-  const { user } = useAuth();
-  const uid = user?.uid || null;
+  const { current, next, cardType, answer, bootstrap, currentDeckId, decks, buryCurrentCard } = useScheduler();
+  const editedCardIdRef = useRef<string | null>(null);
   
   const [isCurrentRevealed, setIsCurrentRevealed] = useState(false);
   const [responseStartTime, setResponseStartTime] = useState(Date.now());
@@ -37,9 +33,6 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const [aiHintsEnabled, setAiHintsEnabled] = useState(false);
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [currentCardMaxHintDepth, setCurrentCardMaxHintDepth] = useState<number | null>(null); // Track highest hint level revealed for current card
-  const [showCoach, setShowCoach] = useState(false);
-  const [coachStep, setCoachStep] = useState<'reveal' | 'swipe'>('reveal');
-  const coachCompletedRef = React.useRef(false);
   
   // Shared values for UI-thread overlay computation
   const currentTranslateX = useSharedValue(0);
@@ -84,29 +77,19 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     loadHints();
   }, [current, next]);
 
-  // First-run: show study coaching overlay when scheduled
-  useEffect(() => {
-    let mounted = true;
-    const check = async () => {
-      try {
-        if (!uid) return;
-        const should = await FirstRunGuide.shouldShowStudy(uid);
-        if (mounted && should && current) {
-          setCoachStep('reveal');
-          setShowCoach(true);
-          try { await FirstRunGuide.markStudyShown(uid); } catch {}
-        }
-      } catch {
-        // no-op
-      }
-    };
-    check();
-    return () => { mounted = false; };
-  }, [current, uid]);
-
   // Reload hints when screen comes into focus (e.g., after generating hints or editing)
+  // Also bury card if returning from edit to prevent showing stale content
   useFocusEffect(
     React.useCallback(() => {
+      // Check if we're returning from editing a card
+      if (editedCardIdRef.current && current && String(current.id) === editedCardIdRef.current) {
+        logger.info('[StudyScreen] Returning from edit, burying card:', editedCardIdRef.current);
+        editedCardIdRef.current = null;
+        buryCurrentCard();
+        return; // loadCards will be called by buryCurrentCard, hints will reload with new card
+      }
+      editedCardIdRef.current = null;
+
       const reloadHints = async () => {
         const cardIds: string[] = [];
         if (current) cardIds.push(String(current.id));
@@ -118,7 +101,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         }
       };
       reloadHints();
-    }, [current, next])
+    }, [current, next, buryCurrentCard])
   );
   
   // Preload images and dimensions for current and next cards
@@ -183,13 +166,6 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       wasSuccessful: ease >= 2,
       reviewTime: responseTimeMs,
     });
-    
-    // Mark study coach complete on first rating
-    if (!coachCompletedRef.current) {
-      coachCompletedRef.current = true;
-      FirstRunGuide.completeStudy(uid).catch(() => {});
-      setShowCoach(false);
-    }
 
     // Reset translations (card flies away, overlay fades)
     currentTranslateX.value = withTiming(0, { duration: 400 });
@@ -198,7 +174,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     // Delay state update to let card fly away animation start
     setTimeout(() => {
       answer(difficulty, responseTimeMs);
-    }, 100);
+    }, 180);
   }, [current, responseStartTime, currentTranslateX, currentTranslateY, answer, currentCardMaxHintDepth]);
 
   // No longer needed - overlay computed on UI thread
@@ -310,6 +286,11 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
 
   const handleClosePromoModal = React.useCallback(() => {
     setShowPromoModal(false);
+  }, []);
+
+  const handleNavigateToEdit = React.useCallback((cardId: string) => {
+    editedCardIdRef.current = cardId;
+    logger.info('[StudyScreen] Navigating to edit card:', cardId);
   }, []);
 
   // Old alert-based handler (keeping structure for reference)
@@ -426,6 +407,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
                   aiHintsEnabled={aiHintsEnabled}
                   hintsLoading={hintsLoading}
                   onHintRevealed={handleHintRevealed}
+                  onNavigateToEdit={handleNavigateToEdit}
                 />
               </Animated.View>
             </React.Fragment>
@@ -449,19 +431,6 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         visible={showPromoModal}
         onClose={handleClosePromoModal}
         onEnable={handleEnableHints}
-      />
-
-      {/* First-run Study Coach */}
-      <StudyCoachOverlay
-        visible={showCoach}
-        step={coachStep}
-        onNext={() => {
-          if (coachStep === 'reveal') {
-            setCoachStep('swipe');
-          } else {
-            setShowCoach(false);
-          }
-        }}
       />
     </View>
   );

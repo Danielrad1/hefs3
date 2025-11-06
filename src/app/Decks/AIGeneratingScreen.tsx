@@ -28,6 +28,9 @@ export default function AIGeneratingScreen({ route, navigation }: AIGeneratingSc
 
   // Generate deck on mount
   useEffect(() => {
+    const abortController = new AbortController();
+    let isMounted = true;
+
     const generateDeck = async () => {
       try {
         const sourceType = notesText.trim() ? 'notes' : 'prompt';
@@ -40,7 +43,13 @@ export default function AIGeneratingScreen({ route, navigation }: AIGeneratingSc
           noteModel: noteModel as 'basic' | 'cloze',
           itemLimit,
           modelTier, // Pass the selected model tier
-        });
+        }, abortController.signal);
+
+        // Only proceed if component is still mounted
+        if (!isMounted) {
+          logger.info('[AIGenerating] Component unmounted, skipping navigation');
+          return;
+        }
 
         // Increment usage after successful generation
         await incrementUsage(modelTier === 'basic' ? 'basicDecks' : 'advancedDecks');
@@ -53,6 +62,18 @@ export default function AIGeneratingScreen({ route, navigation }: AIGeneratingSc
           metadata: response.metadata,
         });
       } catch (error) {
+        // Ignore abort errors when user navigates away
+        if (error instanceof Error && error.name === 'AbortError') {
+          logger.info('[AIGenerating] Generation cancelled by user navigation');
+          return;
+        }
+
+        // Only show error if component is still mounted
+        if (!isMounted) {
+          logger.info('[AIGenerating] Component unmounted, skipping error handling');
+          return;
+        }
+
         logger.error('[AIGenerating] Deck generation error:', error);
         // Go back to creator screen
         navigation.navigate('AIDeckCreator');
@@ -66,6 +87,13 @@ export default function AIGeneratingScreen({ route, navigation }: AIGeneratingSc
     };
     
     generateDeck();
+
+    // Cleanup: abort request and mark component as unmounted
+    return () => {
+      isMounted = false;
+      abortController.abort();
+      logger.info('[AIGenerating] Cleanup: Aborting deck generation request');
+    };
   }, []);
 
   // Multiple sparkle animations

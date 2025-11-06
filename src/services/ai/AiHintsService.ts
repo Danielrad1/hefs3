@@ -22,7 +22,8 @@ export class AiHintsService {
    */
   static async generateHintsForCards(
     items: HintsInputItem[],
-    options?: HintsOptions
+    options?: HintsOptions,
+    signal?: AbortSignal
   ): Promise<GenerateHintsResult> {
     try {
       logger.info('[AiHintsService] Generating hints for', items.length, 'cards');
@@ -49,7 +50,7 @@ export class AiHintsService {
         options,
       };
 
-      const response = await ApiService.post<GenerateHintsResponse>('/ai/hints/generate', request);
+      const response = await ApiService.post<GenerateHintsResponse>('/ai/hints/generate', request, undefined, signal);
       
       const allResults = response.items;
 

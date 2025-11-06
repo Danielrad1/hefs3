@@ -92,8 +92,9 @@ export function withQuota(config: QuotaConfig) {
       });
 
       next();
-    } catch (error) {
-      if (error instanceof Error && error.message === 'QUOTA_EXCEEDED') {
+    } catch (error: unknown) {
+      const err = error as Error;
+      if (err instanceof Error && err.message === 'QUOTA_EXCEEDED') {
         res.status(403).json({
           success: false,
           error: {
@@ -104,7 +105,7 @@ export function withQuota(config: QuotaConfig) {
         return;
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       logger.error(`[Quota] Error checking quota: ${errorMessage}`);
       res.status(500).json({
         success: false,

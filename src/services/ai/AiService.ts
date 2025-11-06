@@ -9,10 +9,10 @@ export class AiService {
   /**
    * Generate a deck from a prompt or notes
    */
-  static async generateDeck(request: GenerateDeckRequest): Promise<GenerateDeckResponse> {
+  static async generateDeck(request: GenerateDeckRequest, signal?: AbortSignal): Promise<GenerateDeckResponse> {
     try {
       logger.info('[AiService] Generating deck:', request);
-      const response = await ApiService.post<GenerateDeckResponse>('/ai/deck/generate', request);
+      const response = await ApiService.post<GenerateDeckResponse>('/ai/deck/generate', request, undefined, signal);
       logger.info('[AiService] Generated deck:', response.deckName, response.notes.length, 'notes');
       return response;
     } catch (error) {

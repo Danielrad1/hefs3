@@ -47,9 +47,10 @@ type CardPageProps = {
   aiHintsEnabled?: boolean; // Whether AI hints are enabled for this deck
   hintsLoading?: boolean; // Whether hints are currently loading
   onHintRevealed?: (depth: 1 | 2 | 3) => void; // Callback when user reveals a hint level
+  onNavigateToEdit?: (cardId: string) => void; // Callback when navigating to edit
 };
 
-const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared, translateYShared, isRevealedShared, onReveal, disabled = false, hint, onRequestEnableHints, aiHintsEnabled = false, hintsLoading = false, onHintRevealed }: CardPageProps) {
+const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared, translateYShared, isRevealedShared, onReveal, disabled = false, hint, onRequestEnableHints, aiHintsEnabled = false, hintsLoading = false, onHintRevealed, onNavigateToEdit }: CardPageProps) {
   const theme = useTheme();
   const { selection, ratingEasy, ratingGood, ratingHard, ratingAgain } = useHaptics();
   const navigation = useNavigation<any>();
@@ -219,8 +220,12 @@ const CardPage = React.memo(function CardPage({ card, onAnswer, translateXShared
     const ankiCard = db.getCard(card.id);
     const noteId = ankiCard?.nid;
     if (!noteId) return;
+    // Notify parent that we're navigating to edit
+    if (onNavigateToEdit) {
+      onNavigateToEdit(String(card.id));
+    }
     navigation.navigate('Decks', { screen: 'NoteEditor', params: { noteId, returnToStudy: true } });
-  }, [card.id, navigation]);
+  }, [card.id, navigation, onNavigateToEdit]);
 
   // Scroll handler for tracking scroll position
   const onScroll = useAnimatedScrollHandler({

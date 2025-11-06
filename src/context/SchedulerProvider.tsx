@@ -25,6 +25,7 @@ interface SchedulerContextValue {
   bootstrap: (cards: Card[]) => void;
   setDeck: (deckId: string | null) => void;
   reload: () => void;
+  buryCurrentCard: () => void;
   stats: {
     newCount: number;
     learningCount: number;
@@ -287,6 +288,17 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     updateDeckList();
   }, [loadCards, updateDeckList]);
 
+  // Bury current card (useful after editing to prevent seeing stale content)
+  const buryCurrentCard = useCallback(() => {
+    if (!current) {
+      logger.warn('[SchedulerProvider] No current card to bury');
+      return;
+    }
+    logger.info('[SchedulerProvider] Burying current card:', current.id);
+    scheduler.burySiblings(current.id);
+    loadCards();
+  }, [current, scheduler, loadCards]);
+
   // Load cards on mount
   useEffect(() => {
     loadCards();
@@ -311,6 +323,7 @@ export function SchedulerProvider({ children }: { children: React.ReactNode }) {
     bootstrap,
     setDeck,
     reload,
+    buryCurrentCard,
     stats,
     decks,
   };

@@ -140,7 +140,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
     }
   }, [navigation]);
 
-  const generateHints = useCallback(async () => {
+  const generateHints = useCallback(async (signal: AbortSignal) => {
     // Prevent multiple simultaneous executions
     if (isGenerating) {
       logger.info('[AIHintsGenerating] Already generating, skipping duplicate call');
@@ -177,7 +177,7 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
         deckName,
         style: 'concise',
         modelTier, // Pass the selected model tier to the backend
-      });
+      }, signal);
 
       if (skipped.length > 0) {
         logger.warn('[AIHintsGenerating] Skipped', skipped.length, 'cards:', skipped);
@@ -259,6 +259,12 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
       setIsGenerating(false);
       setShowSuccessModal(true);
     } catch (error) {
+      // Ignore abort errors when user navigates away
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.info('[AIHintsGenerating] Generation cancelled by user navigation');
+        return;
+      }
+
       logger.error('[AIHintsGenerating] Generation failed:', error);
       setStatus('Generation failed. Please try again.');
       setIsGenerating(false);
@@ -279,7 +285,15 @@ export default function AIHintsGeneratingScreen({ route, navigation }: AIHintsGe
   }, [isGenerating, items, deckName, deckId, navigation, MAX_HINTS_CARDS]);
 
   useEffect(() => {
-    generateHints();
+    const abortController = new AbortController();
+    
+    generateHints(abortController.signal);
+
+    // Cleanup: abort request when component unmounts
+    return () => {
+      abortController.abort();
+      logger.info('[AIHintsGenerating] Cleanup: Aborting hints generation request');
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
