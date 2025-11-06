@@ -195,10 +195,10 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     currentTranslateX.value = withTiming(0, { duration: 400 });
     currentTranslateY.value = withTiming(0, { duration: 400 });
     
-    // Delay state update to let card fly away animation complete
+    // Delay state update to let card fly away animation start
     setTimeout(() => {
       answer(difficulty, responseTimeMs);
-    }, 250);
+    }, 100);
   }, [current, responseStartTime, currentTranslateX, currentTranslateY, answer, currentCardMaxHintDepth]);
 
   // No longer needed - overlay computed on UI thread

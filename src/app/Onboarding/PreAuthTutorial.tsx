@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, Dimensions, Pressable, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { 
@@ -14,11 +14,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../design/theme';
 import { s } from '../../design/spacing';
-import { r } from '../../design/radii';
 import PrimaryButton from '../../components/PrimaryButton';
-import { useAuth } from '../../context/AuthContext';
-import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
-import { logger } from '../../utils/logger';
 
 const { width } = Dimensions.get('window');
 
@@ -56,24 +52,21 @@ const TUTORIAL_SLIDES: TutorialSlide[] = [
   },
 ];
 
-interface TutorialScreenProps {
-  onComplete?: () => void;
+interface PreAuthTutorialProps {
+  onComplete: () => void;
 }
 
-export default function TutorialScreen({ onComplete }: TutorialScreenProps) {
+export default function PreAuthTutorial({ onComplete }: PreAuthTutorialProps) {
   const theme = useTheme();
-  const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [saving, setSaving] = useState(false);
   const scrollX = useSharedValue(0);
 
   const isLastSlide = currentIndex === TUTORIAL_SLIDES.length - 1;
 
   const handleNext = () => {
-    if (saving) return; // Prevent double-tap during save
-    
     if (isLastSlide) {
-      handleComplete();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onComplete();
     } else {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
@@ -83,33 +76,7 @@ export default function TutorialScreen({ onComplete }: TutorialScreenProps) {
   };
 
   const handleSkip = () => {
-    handleComplete();
-  };
-
-  const handleComplete = async () => {
-    if (!user?.uid) {
-      Alert.alert('Error', 'No user found. Please sign in again.');
-      return;
-    }
-
-    try {
-      setSaving(true);
-      
-      // Haptic feedback on completion
-      if (isLastSlide) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
-      // Mark tutorial as completed
-      await UserPrefsService.setTutorialCompleted(user.uid);
-
-      // Notify parent (AuthNavigator) that tutorial is complete
-      onComplete?.();
-    } catch (error) {
-      logger.error('[Tutorial] Error completing tutorial:', error);
-      Alert.alert('Error', 'Failed to save tutorial progress. Please try again.');
-      setSaving(false);
-    }
+    onComplete();
   };
 
   const handleDotPress = (index: number) => {
@@ -121,7 +88,7 @@ export default function TutorialScreen({ onComplete }: TutorialScreenProps) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       {/* Skip Button */}
-      <Pressable style={styles.skipButton} onPress={handleSkip} disabled={saving}>
+      <Pressable style={styles.skipButton} onPress={handleSkip}>
         <Text style={[styles.skipText, { color: theme.colors.textTertiary }]}>
           Skip
         </Text>
@@ -148,7 +115,6 @@ export default function TutorialScreen({ onComplete }: TutorialScreenProps) {
             <Pressable
               key={index}
               onPress={() => handleDotPress(index)}
-              disabled={saving}
             >
               <Animated.View
                 style={[
@@ -163,11 +129,11 @@ export default function TutorialScreen({ onComplete }: TutorialScreenProps) {
           ))}
         </View>
 
-        {/* Next/Start Button */}
+        {/* Next/Get Started Button */}
         <View style={styles.actions}>
           <PrimaryButton
-            title={isLastSlide ? "Let's Start!" : 'Next →'}
-            onPress={saving ? undefined : handleNext}
+            title={isLastSlide ? "Get Started" : 'Next →'}
+            onPress={handleNext}
           />
         </View>
       </View>

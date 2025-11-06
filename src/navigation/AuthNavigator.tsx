@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { UserPrefsService } from '../services/onboarding/UserPrefsService';
+import PreAuthTutorial from '../app/Onboarding/PreAuthTutorial';
 import WelcomeScreen from '../app/Auth/WelcomeScreen';
 import SignUpScreen from '../app/Auth/SignUpScreen';
 import SignInScreen from '../app/Auth/SignInScreen';
@@ -10,78 +11,57 @@ import Tabs from './Tabs';
 import { FirstRunGuide } from '../guided/FirstRunGuide';
 import { logger } from '../utils/logger';
 
-type AuthScreen = 'welcome' | 'signup' | 'signin';
+type AuthScreen = 'tutorial' | 'welcome' | 'signup' | 'signin';
 
 /**
- * AuthNavigator - Duolingo-style flow: Welcome -> SignUp/SignIn -> Tutorial (new users) -> Main App
+ * AuthNavigator - Flow: Tutorial Slides -> SignUp/SignIn -> Welcome Screen -> Main App
  */
 export default function AuthNavigator() {
   const { user, loading: authLoading } = useAuth();
-  const [tutorialCompleted, setTutorialCompleted] = useState<boolean | null>(null);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(true);
-  const [authScreen, setAuthScreen] = useState<AuthScreen>('welcome');
+  const [authScreen, setAuthScreen] = useState<AuthScreen>('tutorial');
 
   // Feature flag: Always show tutorial + onboarding on app launch (for development/testing)
   // Set to false to use normal "only new users" behavior
   const SHOW_TUTORIAL_ON_LAUNCH = false;
 
-  // Check tutorial status when user changes (only runs once per user change)
+  // Check onboarding status when user changes
   useEffect(() => {
     const checkStatus = async () => {
       if (!user) {
-        setTutorialCompleted(null);
+        setOnboardingCompleted(null);
         setChecking(false);
         return;
       }
 
       setChecking(true);
       
-      // If flag is enabled, force tutorial + onboarding by setting both to false
+      // If flag is enabled, force onboarding to show
       if (SHOW_TUTORIAL_ON_LAUNCH) {
-        logger.info('[AuthNavigator] SHOW_TUTORIAL_ON_LAUNCH enabled - forcing tutorial + onboarding');
-        setTutorialCompleted(false);
+        logger.info('[AuthNavigator] SHOW_TUTORIAL_ON_LAUNCH enabled - forcing onboarding');
         setOnboardingCompleted(false);
         setChecking(false);
         return;
       }
       
       try {
-        let tutorial = await UserPrefsService.getTutorialCompleted(user.uid);
         let onboarding = await UserPrefsService.getOnboardingCompleted(user.uid);
 
-        // If no flags exist, check if this is a new user
-        if (!tutorial) {
+        // If no flag exists, check if this is a new user
+        if (!onboarding) {
           const isNewUser = await UserPrefsService.isNewUser(user.uid);
           if (!isNewUser) {
-            // Returning user with no flags - mark complete and skip everything
-            await UserPrefsService.setTutorialCompleted(user.uid, true);
+            // Returning user with no flag - mark complete and skip onboarding
             await UserPrefsService.setOnboardingCompleted(user.uid, true);
-            tutorial = true;
             onboarding = true;
           }
-          // else: New user (tutorial = false, onboarding = false), show both
         }
 
-        setTutorialCompleted(tutorial);
         setOnboardingCompleted(onboarding);
-
-        // For existing users (already completed onboarding), mark quickstart guides as done
-        if (tutorial && onboarding && user.uid) {
-          try {
-            await FirstRunGuide.markWelcomeShown(user.uid);
-            await FirstRunGuide.markDiscoverShown(user.uid);
-            await FirstRunGuide.completeDiscover(user.uid);
-            await FirstRunGuide.markStudyShown(user.uid);
-            await FirstRunGuide.completeStudy(user.uid);
-          } catch (err) {
-            logger.warn('[AuthNavigator] Failed to pre-complete quickstart guides:', err);
-          }
-        }
       } catch (error) {
         logger.error('[AuthNavigator] Error checking status:', error);
-        // Default to skipping everything on error (safer for returning users)
-        setTutorialCompleted(true);
+        // Default to skipping onboarding on error (safer for returning users)
         setOnboardingCompleted(true);
       } finally {
         setChecking(false);
@@ -100,7 +80,16 @@ export default function AuthNavigator() {
     );
   }
 
-  // 1. No user -> Show auth flow (MUST come first)
+  // 1. Show pre-auth tutorial first (before any auth)
+  if (!user && authScreen === 'tutorial') {
+    return (
+      <PreAuthTutorial
+        onComplete={() => setAuthScreen('welcome')}
+      />
+    );
+  }
+
+  // 2. No user -> Show auth flow
   if (!user) {
     if (authScreen === 'welcome') {
       return (
@@ -128,15 +117,12 @@ export default function AuthNavigator() {
     );
   }
 
-  // 2. User IS authenticated - check onboarding completion
-  
-  // Show unified onboarding (tutorial + setup) if not completed
-  if (tutorialCompleted !== true || onboardingCompleted !== true) {
-    logger.info('[AuthNavigator] Showing unified onboarding for user:', user.uid);
+  // 3. User IS authenticated - show welcome onboarding if not completed
+  if (onboardingCompleted !== true) {
+    logger.info('[AuthNavigator] Showing welcome onboarding for user:', user.uid);
     return (
       <UnifiedOnboarding 
         onComplete={() => {
-          setTutorialCompleted(true);
           setOnboardingCompleted(true);
         }} 
       />

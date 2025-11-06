@@ -243,6 +243,18 @@ export class DeckService {
       }
       
       this.db.deleteDeck(child.id);
+      
+      // Clean up child deck metadata
+      try {
+        const { deckMetadataService } = await import('./DeckMetadataService');
+        await deckMetadataService.deleteMetadata(child.id);
+        const { cardHintsService } = await import('./CardHintsService');
+        await cardHintsService.invalidateForDeck(child.id);
+        logger.info(`[DeckService] Cleaned up metadata for child deck ${child.id}`);
+      } catch (error) {
+        logger.error(`[DeckService] Error cleaning up metadata for child deck ${child.id}:`, error);
+      }
+      
       await yieldEvery(childIndex);
     }
 
@@ -257,6 +269,63 @@ export class DeckService {
       const deletedCount = await this.mediaService.gcUnused(onProgress);
       logger.info(`[DeckService] Deleted ${deletedCount} orphaned media files (total notes deleted: ${totalDeletedNotes})`);
     }
+    
+    // Clean up deck metadata and hints cache
+    console.log(`[DeckService] 🧹 Starting cleanup for deck ${id}`);
+    logger.info(`[DeckService] Cleaning up metadata and hints for deck ${id}`);
+    
+    try {
+      console.log(`[DeckService] Importing DeckMetadataService...`);
+      const { deckMetadataService } = await import('./DeckMetadataService');
+      
+      // AGGRESSIVE: Check what's there before deletion
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const beforeMetadata = await AsyncStorage.getItem('@deck_metadata');
+      if (beforeMetadata) {
+        const parsed = JSON.parse(beforeMetadata);
+        console.log(`[DeckService] BEFORE deletion - deck ${id} has metadata:`, id in parsed);
+        console.log(`[DeckService] All deck IDs with metadata:`, Object.keys(parsed));
+      }
+      
+      console.log(`[DeckService] Calling deleteMetadata for deck ${id}...`);
+      await deckMetadataService.deleteMetadata(id);
+      
+      // AGGRESSIVE: Verify deletion in AsyncStorage
+      const afterMetadata = await AsyncStorage.getItem('@deck_metadata');
+      if (afterMetadata) {
+        const parsed = JSON.parse(afterMetadata);
+        console.log(`[DeckService] AFTER deletion - deck ${id} has metadata:`, id in parsed);
+        console.log(`[DeckService] Remaining deck IDs:`, Object.keys(parsed));
+        
+        if (id in parsed) {
+          console.error(`[DeckService] ❌❌❌ METADATA STILL EXISTS! Forcing manual deletion...`);
+          delete parsed[id];
+          await AsyncStorage.setItem('@deck_metadata', JSON.stringify(parsed));
+          console.log(`[DeckService] Force deleted metadata for deck ${id}`);
+        }
+      }
+      
+      console.log(`[DeckService] ✅ Deleted metadata for deck ${id}`);
+      logger.info(`[DeckService] Deleted metadata for deck ${id}`);
+    } catch (error) {
+      console.error(`[DeckService] ❌ Error deleting metadata:`, error);
+      logger.error(`[DeckService] Error deleting metadata for deck ${id}:`, error);
+    }
+    
+    try {
+      console.log(`[DeckService] Importing CardHintsService...`);
+      const { cardHintsService } = await import('./CardHintsService');
+      console.log(`[DeckService] Calling invalidateForDeck for deck ${id}...`);
+      await cardHintsService.invalidateForDeck(id);
+      console.log(`[DeckService] ✅ Invalidated hints for deck ${id}`);
+      logger.info(`[DeckService] Invalidated hints for deck ${id}`);
+    } catch (error) {
+      console.error(`[DeckService] ❌ Error invalidating hints:`, error);
+      logger.error(`[DeckService] Error invalidating hints for deck ${id}:`, error);
+    }
+    
+    console.log(`[DeckService] ✅ Successfully deleted deck ${id} and all associated data`);
+    logger.info(`[DeckService] Successfully deleted deck ${id} and all associated data`);
   }
 
   /**

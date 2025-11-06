@@ -1,38 +1,30 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInRight, FadeOutLeft } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../design/theme';
 import { useAuth } from '../../context/AuthContext';
 import { UserPrefsService } from '../../services/onboarding/UserPrefsService';
+import { FirstRunGuide } from '../../guided/FirstRunGuide';
 import { s } from '../../design/spacing';
-import { r } from '../../design/radii';
 
-// Import individual step components
-import TutorialSlides from './components/TutorialSlides';
+// Import setup step components
 import ProfileStep from './components/ProfileStep';
 import StudyGoalStep from './components/StudyGoalStep';
 import ThemeStep from './components/ThemeStep';
 import NotificationsStep from './components/NotificationsStep';
 import { logger } from '../../utils/logger';
 
-const { width } = Dimensions.get('window');
-
 interface UnifiedOnboardingProps {
   onComplete: () => void;
 }
 
-type Step = 'tutorial1' | 'tutorial2' | 'tutorial3' | 'tutorial4' | 'profile' | 'goal' | 'theme' | 'notifications';
+type Step = 'profile' | 'goal' | 'theme' | 'notifications';
 
-const TOTAL_STEPS = 8; // 4 tutorial + 4 setup steps
+const TOTAL_STEPS = 4;
 
 const STEP_ORDER: Step[] = [
-  'tutorial1',
-  'tutorial2', 
-  'tutorial3',
-  'tutorial4',
   'profile',
   'goal',
   'theme',
@@ -51,13 +43,13 @@ export default function UnifiedOnboarding({ onComplete }: UnifiedOnboardingProps
 
   const handleNext = (data?: any) => {
     if (data) {
-      setOnboardingData(prev => ({ ...prev, ...data }));
+      setOnboardingData((prev: any) => ({ ...prev, ...data }));
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (currentStepIndex < TOTAL_STEPS - 1) {
-      setCurrentStepIndex(prev => prev + 1);
+      setCurrentStepIndex((prev) => prev + 1);
     } else {
       handleComplete();
     }
@@ -66,7 +58,7 @@ export default function UnifiedOnboarding({ onComplete }: UnifiedOnboardingProps
   const handleBack = () => {
     if (currentStepIndex > 0) {
       Haptics.selectionAsync();
-      setCurrentStepIndex(prev => prev - 1);
+      setCurrentStepIndex((prev) => prev - 1);
     }
   };
 
@@ -88,9 +80,8 @@ export default function UnifiedOnboarding({ onComplete }: UnifiedOnboardingProps
         });
       }
 
-      await UserPrefsService.setTutorialCompleted(user.uid);
       await UserPrefsService.setOnboardingCompleted(user.uid);
-
+      
       onComplete();
     } catch (error) {
       logger.error('[UnifiedOnboarding] Error saving:', error);
@@ -101,17 +92,10 @@ export default function UnifiedOnboarding({ onComplete }: UnifiedOnboardingProps
   const renderStep = () => {
     const stepProps = {
       onNext: handleNext,
-      onBack: currentStepIndex > 4 ? handleBack : undefined, // Only allow back after tutorial
+      onBack: currentStepIndex > 0 ? handleBack : undefined,
     };
 
     switch (currentStep) {
-      case 'tutorial1':
-      case 'tutorial2':
-      case 'tutorial3':
-      case 'tutorial4':
-        const slideIndex = parseInt(currentStep.replace('tutorial', '')) - 1;
-        return <TutorialSlides slideIndex={slideIndex} {...stepProps} />;
-      
       case 'profile':
         return <ProfileStep {...stepProps} />;
       
@@ -131,7 +115,7 @@ export default function UnifiedOnboarding({ onComplete }: UnifiedOnboardingProps
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      {/* Progress Bar with Safe Area */}
+      {/* Progress Bar */}
       <View style={[styles.progressContainer, { paddingTop: insets.top + s.md }]}>
         <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
           <Animated.View

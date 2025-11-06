@@ -14,28 +14,28 @@ interface TutorialSlidesProps {
 
 const SLIDES = [
   {
-    icon: 'library' as const,
-    title: 'Master Anything—Faster',
-    description: 'Less time, less effort, more retained—vs. typical flashcard apps.',
-    color: '#6EE7F2',
-  },
-  {
     icon: 'trending-up' as const,
-    title: 'Remember 2–3× Longer',
-    description: 'Proprietary scheduling + AI timing outperforms generic SRS.',
-    color: '#9D7FF5',
-  },
-  {
-    icon: 'flash' as const,
-    title: 'Consistency Without Burnout',
-    description: 'A daily plan with fewer reviews than most apps.',
-    color: '#FFD166',
+    title: 'Study Less, Learn More',
+    description: 'A daily plan tuned for your memory so you make progress without the grind.',
+    color: '#7C3AED',
   },
   {
     icon: 'stats-chart' as const,
-    title: 'Proof You’re Winning',
-    description: 'Modern analytics others miss: retention, streaks, time saved.',
-    color: '#06D6A0',
+    title: 'Right Card. Right Time.',
+    description: 'Cards surface just before forgetting, adapting to your pace and difficulty.',
+    color: '#22D3EE',
+  },
+  {
+    icon: 'flash' as const,
+    title: 'Hints That Teach',
+    description: 'Tap to reveal step-by-step hints and explanations so answers stick.',
+    color: '#F59E0B',
+  },
+  {
+    icon: 'library' as const,
+    title: 'Start With Wins',
+    description: "We'll build your first micro-deck and let you master the first cards in minutes.",
+    color: '#10B981',
   },
 ];
 
@@ -44,15 +44,20 @@ export default function TutorialSlides({ slideIndex, onNext }: TutorialSlidesPro
   const slide = SLIDES[slideIndex];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <View style={styles.content}>
         <View style={styles.slideContent}>
+          {/* Glow ring behind icon */}
+          <View style={[styles.glowRing, { backgroundColor: slide.color + '15' }]} />
+          
           <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
-            <Ionicons name={slide.icon} size={64} color={slide.color} />
+            <Ionicons name={slide.icon} size={96} color={slide.color} />
           </View>
+          
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
             {slide.title}
           </Text>
+          
           <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
             {slide.description}
           </Text>
@@ -61,7 +66,7 @@ export default function TutorialSlides({ slideIndex, onNext }: TutorialSlidesPro
 
       <View style={[styles.footer, { backgroundColor: theme.colors.bg }]}>
         <PrimaryButton
-          title={slideIndex === 3 ? "Let's Start!" : 'Next'}
+          title={slideIndex === 3 ? "Let's Start!" : 'Next →'}
           onPress={onNext}
         />
       </View>
@@ -83,24 +88,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     maxWidth: 400,
   },
+  glowRing: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    top: -10,
+  },
   iconContainer: {
-    width: 144,
-    height: 144,
-    borderRadius: r.xl,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: s.xl * 2,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700',
     marginBottom: s.lg,
     textAlign: 'center',
+    lineHeight: 38,
   },
   description: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 26,
     textAlign: 'center',
+    maxWidth: 360,
   },
   footer: {
     paddingHorizontal: s.xl,

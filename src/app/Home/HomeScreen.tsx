@@ -15,7 +15,7 @@ import { s } from '../../design/spacing';
 import { r } from '../../design/radii';
 import { useNavigation } from '@react-navigation/native';
 import { FirstRunGuide } from '../../guided/FirstRunGuide';
-import OnboardingModal from '../../components/OnboardingModal';
+import WelcomeModal from '../../components/WelcomeModal';
 import { useFocusEffect } from '@react-navigation/native';
 import { logger } from '../../utils/logger';
 
@@ -449,15 +449,10 @@ export default function HomeScreen() {
         )}
       </ScrollView>
       </SafeAreaView>
-      {/* Welcome Popup */}
-      <OnboardingModal
+      {/* Welcome Modal */}
+      <WelcomeModal
         visible={showWelcomeModal}
-        icon="hand-left-outline"
-        helper="Takes ~1 minute"
-        title="Welcome to enqode"
-        body="Let's do a quick guided start. Tap the Discover tab below to browse curated decks, then import one to begin."
-        primaryLabel="Let's Go"
-        onPrimary={async () => {
+        onClose={async () => {
           if (user?.uid) {
             try {
               await FirstRunGuide.markWelcomeShown(user.uid);
@@ -466,7 +461,6 @@ export default function HomeScreen() {
             }
           }
           setShowWelcomeModal(false);
-          (navigation as any).navigate?.('Discover');
         }}
       />
     </>
