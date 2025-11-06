@@ -19,11 +19,12 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.enqode.app",
       "usesAppleSignIn": true,
-      "buildNumber": "2",
+      "buildNumber": "5",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Use Face ID to unlock the app",
         "UIBackgroundModes": [
+          "remote-notification",
           "remote-notification"
         ],
         "NSDocumentsFolderUsageDescription": "This app needs access to documents to import Anki decks",
@@ -33,7 +34,14 @@
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
           {
-            "CFBundleURLSchemes": ["com.googleusercontent.apps.953455180571-8jc7qunauq08q73uiehk7uou8d55a8mf"]
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.953455180571-8jc7qunauq08q73uiehk7uou8d55a8mf"
+            ]
+          },
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.953455180571-8jc7qunauq08q73uiehk7uou8d55a8mf"
+            ]
           }
         ]
       }
@@ -77,6 +85,12 @@
       },
       "googleIosClientId": "953455180571-8jc7qunauq08q73uiehk7uou8d55a8mf.apps.googleusercontent.com",
       "googleWebClientId": "953455180571-phelu268iaudi1u5cuhgp0pm3k0ftaan.apps.googleusercontent.com"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b58c2019-3374-450f-96ab-3260e67bb02f"
     }
   }
 }
