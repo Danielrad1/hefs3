@@ -307,7 +307,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             {topThemes.map((themeOption) => {
               const isSelected = theme.colorScheme === themeOption.id;
               return (
-                <Pressable key={themeOption.id} style={[styles.colorCard, isSelected && styles.colorCardSelected, { borderColor: isSelected ? themeOption.colors[0] : theme.colors.border, backgroundColor: theme.colors.surface2 }]} onPress={() => { HapticsService.light(); theme.setColorScheme(themeOption.id as any); }}>
+                <Pressable key={themeOption.id} style={[styles.colorCard, isSelected && styles.colorCardSelected, { borderColor: isSelected ? themeOption.colors[0] : theme.colors.border, backgroundColor: theme.colors.surface2 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); theme.setColorScheme(themeOption.id as any); }}>
                   <LinearGradient colors={themeOption.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.colorGradient}>
                     <View style={styles.colorIconContainer}>
                       <Ionicons name={themeOption.icon} size={24} color="#FFFFFF" />
@@ -324,7 +324,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               );
             })}
           </View>
-          <Pressable style={[styles.moreThemesButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} onPress={() => { HapticsService.light(); navigation.navigate('ThemeSelection'); }}>
+          <Pressable style={[styles.moreThemesButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('ThemeSelection'); }}>
             <Ionicons name="color-palette" size={20} color={theme.colors.textMed} />
             <Text style={[styles.moreThemesText, { color: theme.colors.textMed }]}>View All Themes</Text>
             <Ionicons name="chevron-forward" size={20} color={theme.colors.textMed} />
@@ -410,7 +410,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           <View style={[styles.modalContent, { backgroundColor: theme.colors.surface2 }]} onStartShouldSetResponder={() => true}>
             <Text style={[styles.modalTitle, { color: theme.colors.textHigh }]}>Theme Mode</Text>
             {themeOptions.map((option) => (
-              <Pressable key={option.value} style={[styles.themeOption, { backgroundColor: theme.themePreference === option.value ? theme.colors.overlay.primary : 'transparent', borderColor: theme.themePreference === option.value ? theme.colors.primary : theme.colors.border }]} onPress={() => { HapticsService.light(); theme.setThemePreference(option.value); setShowThemeModal(false); }}>
+              <Pressable key={option.value} style={[styles.themeOption, { backgroundColor: theme.themePreference === option.value ? theme.colors.overlay.primary : 'transparent', borderColor: theme.themePreference === option.value ? theme.colors.primary : theme.colors.border }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); theme.setThemePreference(option.value); setShowThemeModal(false); }}>
                 <Ionicons name={option.icon as any} size={24} color={theme.themePreference === option.value ? theme.colors.primary : theme.colors.textMed} />
                 <Text style={[styles.themeOptionText, { color: theme.themePreference === option.value ? theme.colors.primary : theme.colors.textHigh }]}>{option.label}</Text>
                 {theme.themePreference === option.value && <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />}

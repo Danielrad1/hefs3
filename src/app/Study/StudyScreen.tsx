@@ -174,7 +174,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     // Delay state update to let card fly away animation start
     setTimeout(() => {
       answer(difficulty, responseTimeMs);
-    }, 180);
+    }, 250);
   }, [current, responseStartTime, currentTranslateX, currentTranslateY, answer, currentCardMaxHintDepth]);
 
   // No longer needed - overlay computed on UI thread
