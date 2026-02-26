@@ -2,7 +2,7 @@
   "expo": {
     "name": "Enqode",
     "slug": "memorize-app",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/enqode_app_main_image_for_homescreen.png",
     "userInterfaceStyle": "automatic",
@@ -23,10 +23,7 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Use Face ID to unlock the app",
-        "UIBackgroundModes": [
-          "remote-notification",
-          "remote-notification"
-        ],
+        "UIBackgroundModes": ["remote-notification", "remote-notification"],
         "NSDocumentsFolderUsageDescription": "This app needs access to documents to import Anki decks",
         "NSCameraUsageDescription": "This app needs access to the camera to capture images for flashcards",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select images for flashcards",
